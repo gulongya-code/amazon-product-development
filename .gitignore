@@ -1,0 +1,28 @@
+# Local provider raw evidence
+research/**/raw/
+
+# Local credentials / environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local temporary files
+tmp/
+temp/
+*.tmp
+

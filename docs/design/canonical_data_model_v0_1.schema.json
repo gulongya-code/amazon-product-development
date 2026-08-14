@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/amazon-product-intelligence/canonical-data-model-v0.1.schema.json",
+  "title": "Canonical Evidence Bundle V0.1 (Design Draft)",
+  "description": "Provider-independent design schema. Not a production runtime contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observations", "conflicts", "resolutions", "quality_issues"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "raw_evidence_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "observations": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/product_fact_observation"},
+          {"$ref": "#/$defs/metric_observation"},
+          {"$ref": "#/$defs/keyword_metric_observation"},
+          {"$ref": "#/$defs/product_keyword_relationship_observation"},
+          {"$ref": "#/$defs/review_observation"}
+        ]
+      }
+    },
+    "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflict_record"}},
+    "resolutions": {"type": "array", "items": {"$ref": "#/$defs/resolved_evidence"}},
+    "quality_issues": {"type": "array", "items": {"$ref": "#/$defs/data_quality_issue"}}
+  },
+  "$defs": {
+    "evidence_type": {"enum": ["OBSERVED", "PROVIDER_ESTIMATE", "RESOLVED", "DERIVED"]},
+    "presence_status": {"enum": ["PRESENT", "EXPLICIT_NULL", "MISSING", "UNKNOWN", "QUERY_RETURNED_EMPTY", "NOT_APPLICABLE"]},
+    "semantic_status": {"enum": ["CONFIRMED", "SEMANTICS_UNCONFIRMED", "UNPARSED", "INVALID"]},
+    "result_status": {"enum": ["POPULATED", "EMPTY_OBSERVATION", "PARTIAL", "FAILED", "UNKNOWN"]},
+    "subject_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_type", "subject_id", "marketplace"],
+      "properties": {
+        "subject_type": {"enum": ["PRODUCT", "KEYWORD", "CATEGORY", "BRAND", "MARKETPLACE", "PRODUCT_KEYWORD_RELATIONSHIP"]},
+        "subject_id": {"type": "string", "minLength": 1},
+        "marketplace": {"type": "string", "minLength": 1}
+      }
+    },
+    "product_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product_id", "marketplace", "asin", "identity_status"],
+      "properties": {
+        "product_id": {"type": "string", "minLength": 1},
+        "marketplace": {"type": "string", "minLength": 1},
+        "asin": {"type": "string", "pattern": "^[A-Z0-9]{10}$"},
+        "parent_asin": {"type": ["string", "null"]},
+        "identity_status": {"enum": ["CONFIRMED", "PARTIAL", "CONFLICTED", "UNKNOWN"]}
+      }
+    },
+    "keyword_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keyword_id", "marketplace", "locale", "normalized_text", "raw_text"],
+      "properties": {
+        "keyword_id": {"type": "string", "minLength": 1},
+        "marketplace": {"type": "string", "minLength": 1},
+        "locale": {"type": "string", "minLength": 1},
+        "normalized_text": {"type": "string", "minLength": 1},
+        "raw_text": {"type": "string", "minLength": 1}
+      }
+    },
+    "unit": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["dimension", "unit_code", "unit_system"],
+      "properties": {
+        "dimension": {"type": "string", "minLength": 1},
+        "unit_code": {"type": ["string", "null"]},
+        "unit_system": {"type": ["string", "null"]}
+      }
+    },
+    "value_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presence_status", "raw_value", "normalized_value", "value_type", "unit", "normalization_status", "semantic_status"],
+      "properties": {
+        "presence_status": {"$ref": "#/$defs/presence_status"},
+        "raw_value": {},
+        "normalized_value": {},
+        "value_type": {"enum": ["STRING", "NUMBER", "INTEGER", "BOOLEAN", "DATE", "DATETIME", "OBJECT", "LIST"]},
+        "unit": {"$ref": "#/$defs/unit"},
+        "normalization_status": {"enum": ["NOT_ATTEMPTED", "NORMALIZED", "FAILED", "AMBIGUOUS", "NOT_APPLICABLE"]},
+        "semantic_status": {"$ref": "#/$defs/semantic_status"}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_type", "scope_status", "scope_subject_id"],
+      "properties": {
+        "scope_type": {"enum": ["ASIN", "PARENT_ASIN", "CHILD_ASIN", "KEYWORD", "CATEGORY", "BRAND", "MARKETPLACE"]},
+        "scope_status": {"enum": ["CONFIRMED", "SCOPE_UNCONFIRMED"]},
+        "scope_subject_id": {"type": ["string", "null"]}
+      }
+    },
+    "time_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observed_at", "observed_at_status", "retrieved_at", "period_start", "period_end", "period_type", "timezone"],
+      "properties": {
+        "observed_at": {"type": ["string", "null"], "format": "date-time"},
+        "observed_at_status": {"enum": ["KNOWN", "UNKNOWN"]},
+        "retrieved_at": {"type": "string", "format": "date-time"},
+        "period_start": {"type": ["string", "null"], "format": "date-time"},
+        "period_end": {"type": ["string", "null"], "format": "date-time"},
+        "period_type": {"enum": ["INSTANT", "ROLLING_15_DAYS", "ROLLING_30_DAYS", "CALENDAR_DAY", "CALENDAR_WEEK", "CALENDAR_MONTH", "CUSTOM", "UNKNOWN"]},
+        "timezone": {"type": ["string", "null"]}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "source_tool", "source_field", "source_record_identity", "raw_evidence_reference", "retrieved_at"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "source_tool": {"type": "string", "minLength": 1},
+        "source_field": {"type": "string", "minLength": 1},
+        "source_record_identity": {"type": "string", "minLength": 1},
+        "provider_semantic": {"type": ["string", "null"]},
+        "semantic_validation_status": {"$ref": "#/$defs/semantic_status"},
+        "provider_method": {"type": ["string", "null"]},
+        "provider_documentation_reference": {"type": ["string", "null"]},
+        "raw_evidence_reference": {"type": "string", "minLength": 1},
+        "retrieved_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "observation_base_properties": {
+      "type": "object",
+      "properties": {
+        "observation_id": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "0.1"},
+        "subject": {"$ref": "#/$defs/subject_ref"},
+        "evidence_type": {"enum": ["OBSERVED", "PROVIDER_ESTIMATE"]},
+        "value": {"$ref": "#/$defs/value_envelope"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "time": {"$ref": "#/$defs/time_window"},
+        "provenance": {"$ref": "#/$defs/provenance"},
+        "quality_issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "result_status": {"$ref": "#/$defs/result_status"}
+      }
+    },
+    "product_fact_observation": {
+      "allOf": [
+        {"$ref": "#/$defs/observation_base_properties"},
+        {
+          "type": "object",
+          "required": ["observation_id", "schema_version", "observation_kind", "subject", "dimension", "fact_group", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "properties": {
+            "observation_kind": {"const": "PRODUCT_FACT"},
+            "dimension": {"type": "string", "minLength": 1},
+            "fact_group": {"enum": ["IDENTITY_RELATED", "ATTRIBUTE", "TECHNICAL", "DESCRIPTION", "VARIATION", "OTHER"]},
+            "provider_semantic": {"type": ["string", "null"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "metric_observation": {
+      "allOf": [
+        {"$ref": "#/$defs/observation_base_properties"},
+        {
+          "type": "object",
+          "required": ["observation_id", "schema_version", "observation_kind", "subject", "metric", "measurement_type", "metric_semantic", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "properties": {
+            "observation_kind": {"const": "METRIC"},
+            "metric": {"type": "string", "minLength": 1},
+            "measurement_type": {"enum": ["OBSERVED", "PROVIDER_ESTIMATE"]},
+            "metric_semantic": {"type": ["string", "null"]},
+            "currency": {"type": ["string", "null"]},
+            "rank_context": {"type": ["object", "null"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "keyword_metric_observation": {
+      "allOf": [
+        {"$ref": "#/$defs/observation_base_properties"},
+        {
+          "type": "object",
+          "required": ["observation_id", "schema_version", "observation_kind", "subject", "keyword", "metric", "metric_semantic", "estimate_method_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "properties": {
+            "observation_kind": {"const": "KEYWORD_METRIC"},
+            "keyword": {"$ref": "#/$defs/keyword_identity"},
+            "metric": {"type": "string", "minLength": 1},
+            "metric_semantic": {"type": ["string", "null"]},
+            "estimate_method_status": {"enum": ["DOCUMENTED", "PARTIALLY_DOCUMENTED", "UNKNOWN"]},
+            "range": {"type": ["object", "null"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "product_keyword_relationship_observation": {
+      "allOf": [
+        {"$ref": "#/$defs/observation_base_properties"},
+        {
+          "type": "object",
+          "required": ["observation_id", "relationship_id", "schema_version", "observation_kind", "subject", "product", "keyword", "direction", "relationship_type", "channel", "query_result_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "properties": {
+            "observation_kind": {"const": "PRODUCT_KEYWORD_RELATIONSHIP"},
+            "relationship_id": {"type": "string", "minLength": 1},
+            "product": {"$ref": "#/$defs/product_identity"},
+            "keyword": {"$ref": "#/$defs/keyword_identity"},
+            "direction": {"enum": ["KEYWORD_TO_PRODUCT", "PRODUCT_TO_KEYWORD"]},
+            "relationship_type": {"enum": ["CANDIDATE_MEMBERSHIP", "RANK", "TRAFFIC", "CLICK_SHARE", "OTHER"]},
+            "channel": {"enum": ["ORGANIC", "SPONSORED", "MIXED", "UNKNOWN"]},
+            "query_result_status": {"$ref": "#/$defs/result_status"},
+            "rank": {"type": ["object", "null"]},
+            "traffic": {"oneOf": [{"$ref": "#/$defs/value_envelope"}, {"type": "null"}]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "review_observation": {
+      "allOf": [
+        {"$ref": "#/$defs/observation_base_properties"},
+        {
+          "type": "object",
+          "required": ["observation_id", "review_observation_id", "schema_version", "observation_kind", "subject", "product", "provider_review_identity", "rating", "title", "body", "review_date", "variant", "helpful_votes", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "properties": {
+            "observation_kind": {"const": "REVIEW"},
+            "review_observation_id": {"type": "string", "minLength": 1},
+            "product": {"$ref": "#/$defs/product_identity"},
+            "provider_review_identity": {"type": ["string", "null"]},
+            "rating": {"$ref": "#/$defs/value_envelope"},
+            "title": {"$ref": "#/$defs/value_envelope"},
+            "body": {"$ref": "#/$defs/value_envelope"},
+            "review_date": {"$ref": "#/$defs/value_envelope"},
+            "variant": {"$ref": "#/$defs/value_envelope"},
+            "helpful_votes": {"$ref": "#/$defs/value_envelope"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "comparability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "dimension", "semantic", "scope", "period", "unit", "direction"],
+      "properties": {
+        "identity": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "dimension": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "semantic": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "scope": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "period": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "unit": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "direction": {"enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]}
+      }
+    },
+    "conflict_status": {"enum": ["CONSISTENT", "MINOR_DIFFERENCE", "MATERIAL_DIFFERENCE", "SEMANTIC_CONFLICT", "UNIT_CONFLICT", "DIRECTIONAL_CONFLICT", "ONE_SOURCE_ONLY", "NOT_DIRECTLY_COMPARABLE", "UNKNOWN"]},
+    "resolution_status": {"enum": ["UNRESOLVED", "RESOLVED_DETERMINISTIC", "RESOLVED_BY_POLICY", "NOT_REQUIRED", "DEFERRED", "REJECTED_INPUT"]},
+    "conflict_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conflict_id", "subject", "dimension", "candidate_observation_ids", "conflict_status", "comparability", "severity", "blocking", "blocking_scope", "resolution_status", "explanation"],
+      "properties": {
+        "conflict_id": {"type": "string", "minLength": 1},
+        "subject": {"$ref": "#/$defs/subject_ref"},
+        "dimension": {"type": "string", "minLength": 1},
+        "candidate_observation_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "conflict_status": {"$ref": "#/$defs/conflict_status"},
+        "comparability": {"$ref": "#/$defs/comparability"},
+        "difference": {"type": ["object", "null"]},
+        "severity": {"enum": ["INFO", "WARNING", "MATERIAL", "BLOCKING"]},
+        "blocking": {"type": "boolean"},
+        "blocking_scope": {"enum": ["NONE", "FIELD", "SUBJECT", "BUNDLE"]},
+        "resolution_status": {"$ref": "#/$defs/resolution_status"},
+        "explanation": {"type": "string", "minLength": 1}
+      }
+    },
+    "resolved_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolution_id", "evidence_type", "subject", "dimension", "candidate_observation_ids", "conflict_id", "conflict_status", "resolution_status", "value", "resolution_method", "resolution_policy", "quality_issue_ids", "lineage"],
+      "properties": {
+        "resolution_id": {"type": "string", "minLength": 1},
+        "evidence_type": {"const": "RESOLVED"},
+        "subject": {"$ref": "#/$defs/subject_ref"},
+        "dimension": {"type": "string", "minLength": 1},
+        "candidate_observation_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "conflict_id": {"type": ["string", "null"]},
+        "conflict_status": {"$ref": "#/$defs/conflict_status"},
+        "resolution_status": {"$ref": "#/$defs/resolution_status"},
+        "value": {"$ref": "#/$defs/value_envelope"},
+        "resolution_method": {"type": "string", "minLength": 1},
+        "resolution_policy": {"type": ["string", "null"]},
+        "quality_issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "lineage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["observation_ids", "raw_evidence_ids"],
+          "properties": {
+            "observation_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+            "raw_evidence_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+          }
+        }
+      }
+    },
+    "data_quality_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue_id", "issue_code", "severity", "subject", "dimension", "message", "blocking", "blocking_scope", "source_references", "created_at"],
+      "properties": {
+        "issue_id": {"type": "string", "minLength": 1},
+        "issue_code": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["INFO", "WARNING", "MATERIAL", "BLOCKING"]},
+        "subject": {"$ref": "#/$defs/subject_ref"},
+        "dimension": {"type": ["string", "null"]},
+        "message": {"type": "string", "minLength": 1},
+        "blocking": {"type": "boolean"},
+        "blocking_scope": {"enum": ["NONE", "FIELD", "SUBJECT", "BUNDLE"]},
+        "source_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}
