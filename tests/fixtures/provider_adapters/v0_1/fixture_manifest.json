@@ -1,0 +1,71 @@
+{
+  "fixture_version": "0.1",
+  "fixtures": {
+    "sorftime_product_detail.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "342554e8dd279b61a13c66f6671c96b7386c3c466b8814c11e371c966ca3b588",
+      "source": "research/sorftime_product_intelligence_audit_v0_1/raw/product/B0G2VV4RBW_product_detail.json",
+      "source_sha256": "a2bc6416355dedd886c667124cb1a25773b2e89445aa4ef512a692cb07e076e1"
+    },
+    "sorftime_product_reviews.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "9d7f6258eae56fd39c70888fc5fdae90562e5131b87235efac6b696cd0b8f009",
+      "source": "research/sorftime_product_intelligence_audit_v0_1/raw/review/B0G2VV4RBW_product_reviews.json",
+      "source_sha256": "f52e434879cb6e36c3a956da861fe60fd85e76e49cba65154927c3d369cfbf01"
+    },
+    "sorftime_product_variations.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "be5bc34d67e581caa27e23546b442ac049804c5a732c029f9a90debe91a49562",
+      "source": "research/sorftime_product_intelligence_audit_v0_1/raw/variation/B0G2VV4RBW_product_variations.json",
+      "source_sha256": "9bdeba10751e2a8a216bbccb0db255cd2b4cdb6ed07b937fcae875559dde8663"
+    },
+    "xiyou_asin_bsr.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "01f31922445800142b0851c63f3533200ba6f961f08989e027c0e9d2d492e48c",
+      "source": "research/xiyou_capability_audit_v0_1/raw/asin/B0G2VV4RBW_get_asin_bsr_trends.json",
+      "source_sha256": "7eee14738d52744221fc51a64b4dadd53f9f908265b429c1b5a8fdd27ee0243a"
+    },
+    "xiyou_asin_info.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "dc192d64fcd8c8ce85b0e0b67934230dea6f6b5aa18c4564cd8fa88939c8e61a",
+      "source": "research/xiyou_capability_audit_v0_1/raw/asin/batch_get_asin_info.json",
+      "source_sha256": "9aa171d8ea7532f835da0156e6e0551d06859e7f6652d2d7b50db61823d55829"
+    },
+    "xiyou_asin_keywords_reverse.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "c4004046cb6836e039b4acc015aa4a28c6b44788608213d5d6fff72e41b5e32b",
+      "source": "research/xiyou_capability_audit_v0_1/raw/asin/B0G2VV4RBW_get_asin_keywords.json",
+      "source_sha256": "ba8bcf108b90cde9d90616b201bb472ee1e756d4799b70338c3b76037b93402a"
+    },
+    "xiyou_asin_orders.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "d16995f00641f1a145f65191796788239388c5d4b71cf57b584d9ff2d977d33b",
+      "source": "research/xiyou_capability_audit_v0_1/raw/asin/batch_get_asin_orders_last_30_days.json",
+      "source_sha256": "1b0673c1999aea89f13357b910184c57a9d207359c7043308a1f55ecfd4bd952"
+    },
+    "xiyou_asin_variations.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "f315da96533a36b59dd19fdccd54eaf24b3031d48a735ddad95280356f11f2ff",
+      "source": "research/xiyou_capability_audit_v0_1/raw/asin/B0G2VV4RBW_get_asin_variations.json",
+      "source_sha256": "3f13d081629d461d20687e214e42026d5ada4194d0e62194ed1bc9079a5b15dd"
+    },
+    "xiyou_keyword_forward_empty.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "537b34d75d7d481ce575fec6aa0785addfbfec063a43adc855ae720abc76ff11",
+      "source": "research/xiyou_capability_audit_v0_1/raw/keyword/1-2-ball-valve_get_keyword_asin_analysis.json",
+      "source_sha256": "12a84c7faabe694f8bed2bfe407a4348db8912e5f8e509767a970154291f8952"
+    },
+    "xiyou_keyword_forward_populated.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "3b4877be75d680f28c0f8c41f65cf8fe5699a274e256df1955f6c46b1722646c",
+      "source": "research/xiyou_capability_audit_v0_1/raw/keyword/plastic-spoons_get_keyword_asin_analysis.json",
+      "source_sha256": "9bbe1f6b9ff5378576e4f00332de0fbf55b535c9a7a58d91ed80a0610161e118"
+    },
+    "xiyou_keyword_info.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "bef5bf1081ab75d0d26640cd15a3b2c1c28e823d02a2b3e3c890c98ef2b9302f",
+      "source": "research/xiyou_capability_audit_v0_1/raw/keyword/batch_get_keyword_info.json",
+      "source_sha256": "e2e448b0e2acc74f593a5d9d740cf7317f50a8734ff5316e9a631e75681f902e"
+    }
+  }
+}

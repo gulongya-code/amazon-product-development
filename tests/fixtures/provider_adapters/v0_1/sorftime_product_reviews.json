@@ -1,0 +1,18 @@
+{
+  "doc": {
+    "content": "Review content.",
+    "review_date": "Review date in yyyyMMdd format.",
+    "star_rating": "Star rating from 1.0 through 5.0.",
+    "title": "Review title.",
+    "variant_attribute": "Variant attribute of the reviewed child ASIN."
+  },
+  "data": [
+    {
+      "content": "Sanitized review text confirming the item worked for the stated use.",
+      "review_date": "20260225",
+      "star_rating": 5.0,
+      "title": "Quality item",
+      "variant_attribute": "Size=1/2 Inch"
+    }
+  ]
+}

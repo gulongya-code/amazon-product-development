@@ -1,0 +1,34 @@
+{
+  "cost_credits": 1,
+  "data": {
+    "list": [
+      {
+        "country": "US",
+        "ranks": [
+          {
+            "page": 3,
+            "position": "sb",
+            "rankTime": "2026-07-30T01:56:21-07:00"
+          },
+          {
+            "page": 1,
+            "pageRank": 4,
+            "position": "or",
+            "rankTime": "2026-08-13T02:17:47-07:00",
+            "totalRank": 4
+          }
+        ],
+        "searchTerm": "1/2 ball valve",
+        "trafficSummary": {
+          "traffic": {
+            "advertising": 0,
+            "organic": 355,
+            "total": 355
+          }
+        }
+      }
+    ],
+    "total": 91
+  },
+  "status": 200
+}

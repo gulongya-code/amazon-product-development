@@ -1,0 +1,30 @@
+{
+  "cost_credits": 1,
+  "data": {
+    "list": [
+      {
+        "abaReport": {
+          "reportFromDate": "2026-08-02",
+          "reportToDate": "2026-08-08",
+          "searchFrequencyRank": 2922,
+          "weeklySearchVolume": 41910
+        },
+        "competitiveDifficulty": 63,
+        "costPerClick": {
+          "maxSuggestedBid": "3.36",
+          "minSuggestedBid": "1.98",
+          "value": "2.74"
+        },
+        "searchTerm": "plastic spoons"
+      },
+      {
+        "abaReport": null,
+        "competitiveDifficulty": null,
+        "costPerClick": null,
+        "searchTerm": "1/2 Ball Valve"
+      }
+    ],
+    "total": 2
+  },
+  "status": 200
+}

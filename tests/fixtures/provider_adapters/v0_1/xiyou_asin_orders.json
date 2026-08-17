@@ -1,0 +1,13 @@
+{
+  "cost_credits": 1,
+  "data": {
+    "country": "US",
+    "entities": [
+      {
+        "asin": "B0G2VV4RBW",
+        "orders": 100
+      }
+    ]
+  },
+  "status": 200
+}

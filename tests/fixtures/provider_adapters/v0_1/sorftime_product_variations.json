@@ -1,0 +1,25 @@
+{
+  "doc": {
+    "asin": "Child variation ASIN.",
+    "item_index": "Position index starting from 1.",
+    "item_total": "Total number of child variations.",
+    "property": "Variation property string with key:value pairs.",
+    "sales_amount": "Variation sales volume. Uses the most recently captured page-published sales figure for this child ASIN within the last 15 days; returns -1 if no update has been captured beyond 15 days, which does not indicate zero sales."
+  },
+  "data": [
+    {
+      "Asin": "B0G2VQJVW2",
+      "ItemIndex": 1,
+      "ItemTotal": 6,
+      "Property": "Size:2 Inch",
+      "SalesAmount": -1
+    },
+    {
+      "Asin": "B0G2VV4RBW",
+      "ItemIndex": 2,
+      "ItemTotal": 6,
+      "Property": "Size:1/2 Inch",
+      "SalesAmount": 100
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "cost_credits": 1,
+  "data": {
+    "asin": "B0G2VV4RBW",
+    "categoryTree": [
+      {
+        "categoryId": "16310091",
+        "name": "Industrial & Scientific",
+        "root": true
+      },
+      {
+        "categoryId": "1265144011",
+        "name": "Ball Valves",
+        "root": false
+      }
+    ],
+    "country": "US",
+    "dateRangeNotice": "Audited date range excerpt retained in source evidence.",
+    "trends": [
+      {
+        "date": "2026-08-07",
+        "values": [
+          {
+            "categoryId": "1265144011",
+            "rank": 24
+          },
+          {
+            "categoryId": "16310091",
+            "rank": 10531
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200
+}

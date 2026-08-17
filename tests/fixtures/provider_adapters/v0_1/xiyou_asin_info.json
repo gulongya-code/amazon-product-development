@@ -1,0 +1,17 @@
+{
+  "cost_credits": 1,
+  "data": {
+    "entities": [
+      {
+        "asin": "B0G2VV4RBW",
+        "country": "US",
+        "currency": "USD",
+        "price": "18.99",
+        "ratings": 20,
+        "stars": "4.8",
+        "title": "2 Pack 1/2\" Full Port Ball Valve NPT Male x Female 304 Stainless Steel Heavy Duty 1000 WOG Shut Off Valve with Locking Device (1/2 Inch)"
+      }
+    ]
+  },
+  "status": 200
+}

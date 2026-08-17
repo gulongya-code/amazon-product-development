@@ -1,0 +1,14 @@
+{
+  "cost_credits": 5,
+  "data": {
+    "asin": "B0G2VV4RBW",
+    "childAsins": [
+      "B0G2VV4RBW",
+      "B0G2VZSWRN"
+    ],
+    "country": "US",
+    "lastUpdatedTime": "2026-08-14 14:20:00",
+    "parentAsin": "B0G2VVX3ML"
+  },
+  "status": 200
+}
