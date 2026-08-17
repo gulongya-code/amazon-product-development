@@ -1,4 +1,4 @@
-"""Audited offline Sorftime mapping slice V0.1."""
+"""Audited offline Sorftime mapping slice V0.1.1."""
 
 from __future__ import annotations
 
@@ -44,10 +44,16 @@ from .base import (
 )
 
 
-def _spec(payload_kind: str, source_tool: str, mapping_version: str) -> MappingSpecification:
+def _spec(
+    payload_kind: str,
+    source_tool: str,
+    mapping_version: str,
+    *,
+    version: str = "0.1",
+) -> MappingSpecification:
     return MappingSpecification(
         specification_id=f"sorftime.{payload_kind}",
-        version="0.1",
+        version=version,
         mapping_version=mapping_version,
         provider="sorftime",
         payload_kind=payload_kind,
@@ -60,7 +66,10 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
         "product_detail", "product_detail", "sorftime_product_detail_mapping_v1"
     ),
     "product_variations": _spec(
-        "product_variations", "product_variations", "sorftime_variations_mapping_v1"
+        "product_variations",
+        "product_variations",
+        "sorftime_variations_mapping_v1_1",
+        version="0.1.1",
     ),
     "product_reviews": _spec(
         "product_reviews", "product_reviews", "sorftime_reviews_mapping_v1"
@@ -834,14 +843,23 @@ def _product_variations(
     doc: Mapping[str, Any],
     rows: Any,
 ) -> AdaptationResult:
-    parent_asin = _request_asin(session)
-    if parent_asin is None:
+    query_asin = _request_asin(session)
+    if query_asin is None:
         return _fail(
             session,
             "MISSING_REQUEST_IDENTITY",
-            "sanitized_request.asin is required as the variation parent identity.",
+            "sanitized_request.asin is required as the variation query identity.",
             "context.sanitized_request.asin",
         )
+    session.diagnostic(
+        code="VARIATION_PARENT_SEMANTICS_UNCONFIRMED",
+        message=(
+            "The request ASIN is query context, not a response-confirmed parent; "
+            "child facts are retained without directed parent relationships."
+        ),
+        source_locator="context.sanitized_request.asin",
+        disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+    )
     sales_doc = doc.get("sales_amount")
     sales_semantics_confirmed = (
         isinstance(sales_doc, str)
@@ -882,39 +900,9 @@ def _product_variations(
                 blocking_scope=BlockingScope.SUBJECT,
             )
             continue
-        product = product_identity(
-            session.context.marketplace,
-            child_asin,
-            parent_asin=parent_asin,
-        )
-        source_identity = f"{session.context.marketplace}:{parent_asin}:{child_asin}:{item_index}"
-        session.add_product_fact(
-            product=product,
-            dimension="parent_product_relationship",
-            fact_group=FactGroup.VARIATION,
-            value=value_envelope(
-                presence_status=PresenceStatus.PRESENT,
-                raw_value={
-                    "parent_asin": parent_asin,
-                    "property": raw_property,
-                    "item_index": item_index,
-                    "item_total": item_total,
-                },
-                normalized_value={
-                    "parent_asin": parent_asin,
-                    "property": raw_property,
-                    "item_index": item_index,
-                    "item_total": item_total,
-                },
-                value_type=ValueType.OBJECT,
-                normalization_status=NormalizationStatus.NOT_APPLICABLE,
-                semantic_status=SemanticStatus.CONFIRMED,
-            ),
-            source_field=f"data[{index}]",
-            source_record_identity=source_identity,
-            provider_semantic="Child variation row with parent request context and relative item position",
-            scope_type=ScopeType.CHILD_ASIN,
-            discriminator=f"variation-row:{index}",
+        product = product_identity(session.context.marketplace, child_asin)
+        source_identity = (
+            f"{session.context.marketplace}:query-context:{query_asin}:{child_asin}:{item_index}"
         )
         _variation_property_facts(
             session,
@@ -1172,7 +1160,7 @@ class SorftimeAdapterV0_1:
     """Offline audited Sorftime adapter with no provider transport."""
 
     provider = "sorftime"
-    adapter_version = "0.1"
+    adapter_version = "0.1.1"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 

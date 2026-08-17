@@ -70,7 +70,7 @@ from amazon_product_intelligence.contracts import (
 )
 
 
-ADAPTER_RULESET_VERSION = "provider-adapters-v0.1"
+ADAPTER_RULESET_VERSION = "provider-adapters-v0.1.1"
 _ASIN = re.compile(r"^[A-Z0-9]{10}$")
 
 

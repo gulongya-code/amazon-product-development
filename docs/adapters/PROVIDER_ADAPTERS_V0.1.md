@@ -1,7 +1,7 @@
-# Provider Adapters V0.1
+# Provider Adapters V0.1.1
 
-Status: Level 3 implementation note
-Task: `TASK-SP-005`
+Status: Level 3 implementation note with audited V0.1.1 semantic correction
+Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`
 
 ## 1. Scope
 
@@ -16,13 +16,27 @@ audited provider payload
 
 The implementation covers provider-neutral invocation, XiYou audited product/variation/order/BSR/keyword/directional slices, Sorftime audited product/variation/review slices, deterministic identity, structured failures, and strict bundle validation.
 
+### V0.1.1 variation correction
+
+V0.1.1 re-audits variation direction before Product Intelligence consumes these facts. The governing rules are:
+
+- a request/query ASIN is context, not parent evidence;
+- family-set membership alone is not a directed relationship;
+- a parent and child in one published relationship must be different ASINs;
+- self members, duplicates, missing parents, and unconfirmed parent semantics remain in raw evidence with diagnostics instead of becoming confirmed edges;
+- independent child attributes and metrics remain executable when their own semantics are safe.
+
+XiYou's audited response explicitly labels `parentAsin` as the parent and `childAsins` as children under it. The adapter therefore publishes only distinct `parentAsin -> child ASIN` facts for valid members that have an exact `childAsins[]` raw locator. A query ASIN is published as a child only when that same ASIN appears in `childAsins`; `parentAsin` plus request context alone is insufficient. Sorftime's variation response documents child rows but returns no explicit parent identifier. Its request ASIN remains query context, so the adapter publishes no parent/child relationship from that response while retaining safe child Size/Color and sales-volume evidence.
+
+Variation safety diagnostics are `MISSING_VARIATION_PARENT_UNCONFIRMED`, `NULL_VARIATION_PARENT_UNCONFIRMED`, `EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED`, `QUERY_AS_CHILD_NOT_CONFIRMED`, `VARIATION_SELF_MEMBER_NOT_PUBLISHED`, `DUPLICATE_VARIATION_MEMBER_NOT_PUBLISHED`, and Sorftime's `VARIATION_PARENT_SEMANTICS_UNCONFIRMED`. Invalid primitives/ASINs remain field quality issues rather than being silently coerced.
+
 ## 2. Non-goals
 
-V0.1 does not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
+V0.1.1 does not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
 
 ## 3. Architecture
 
-`ProviderAdapter` is the provider-neutral protocol. `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` each own their audited field mappings; no provider field appears in the common boundary.
+`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable while their `adapter_version` is `0.1.1`. Each owns its audited field mappings; no provider field appears in the common boundary.
 
 One adaptation uses one `MappingSpecification`, one explicit `AdaptationContext`, and one immutable raw snapshot. A valid mapping execution creates one `TransformationRunRecord`. Emitted observations embed matching `TransformationProvenance`; `CanonicalEvidenceBundle.validate()` checks run, raw, observation, and issue references. Collection-level failures create no transformation run or observation.
 
@@ -71,7 +85,7 @@ result.bundle.validate()
 - optional explicit `currency`;
 - explicit known/unknown `ProviderSchemaVersion` and `TransformationCodeVersion` objects, with safe defaults.
 
-The context never reads the current clock or process environment. `sanitized_request` is detached and recursively immutable. Forward relationship payloads require request `keyword`; reverse relationships, variations, and reviews require request `asin`.
+The context never reads the current clock or process environment. `sanitized_request` is detached and recursively immutable. Forward keyword relationships require request `keyword`; reverse keyword relationships and reviews require request `asin`. XiYou variations use returned `data.asin` as query-product identity, while Sorftime variations require request `asin` strictly as query context, not as parent evidence.
 
 ## 6. Adaptation result
 
@@ -99,6 +113,8 @@ Raw identity uses provider, source tool, sanitized-request fingerprint, explicit
 
 Sorted canonical JSON makes mapping insertion order irrelevant. No random value, process hash, object representation, locale, filesystem path, current time, or test order participates in output.
 
+`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.1`. Because the default transformation code version and concrete adapter versions changed, transformation-run identities and embedded transformation provenance change for all supported payload kinds. The two affected variation mappings also have new mapping versions. Raw-evidence identities remain content-derived, and observation identities for unchanged non-variation semantics remain stable because neither adapter version nor transformation provenance participates in their semantic/revision identity inputs.
+
 ## 9. Error and issue model
 
 Collection/envelope failures include unsupported provider, unsupported payload kind, source-tool mismatch, malformed top level, non-string JSON keys, invalid provider status, missing request identity, and invalid envelope shape. They return `AdapterFailureLevel.COLLECTION`, no observations, and no transformation run.
@@ -112,7 +128,7 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | Payload kind | Source tool | Mapping version |
 |---|---|---|
 | `asin_info` | `get_asin_info` | `xiyou_product_info_mapping_v1` |
-| `asin_variations` | `get_asin_variations` | `xiyou_variations_mapping_v1` |
+| `asin_variations` | `get_asin_variations` | `xiyou_variations_mapping_v1_1` |
 | `asin_orders_last_30_days` | `get_asin_orders_last_30_days` | `xiyou_orders_30d_mapping_v1` |
 | `asin_bsr_trends` | `get_asin_bsr_trends` | `xiyou_bsr_trends_mapping_v1` |
 | `keyword_info` | `get_keyword_info` | `xiyou_keyword_info_mapping_v1` |
@@ -127,7 +143,10 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | `price` + `currency` | metric `price` | `APPROVED_EXECUTABLE`; only audited numeric strings/numbers, raw value retained. |
 | `stars` | metric `rating` | `APPROVED_EXECUTABLE`; observed five-star scale. |
 | `ratings` | metric `review_count` | `APPROVED_EXECUTABLE`; strict non-negative integer. |
-| `parentAsin`, `childAsins[]` | variation product facts | `APPROVED_EXECUTABLE`; empty values are explicit unknown relationship coverage, never zero. |
+| explicit `parentAsin` + valid `childAsins[]` member | `child_product_relationship` with the explicit parent as subject | `APPROVED_EXECUTABLE`; only distinct `parentAsin -> child` edges with exact child-list raw locators are published. A query ASIN is linked only when it is also an explicit `childAsins[]` member. |
+| query ASIN absent from `childAsins[]` | no inferred query-as-child relationship | Request context and raw evidence are retained with `QUERY_AS_CHILD_NOT_CONFIRMED`; `parentAsin` alone does not authorize synthesis. |
+| self or duplicate `childAsins[]` member | no additional relationship | Raw evidence retained with `VARIATION_SELF_MEMBER_NOT_PUBLISHED` or `DUPLICATE_VARIATION_MEMBER_NOT_PUBLISHED`. |
+| missing, null, empty, or invalid `parentAsin` | no directed relationship | Family members stay raw; missing/null/empty semantics are explicit unknown diagnostics, invalid values are quality issues, and none imply a standalone product or zero variations. |
 | `orders` | metric `orders` | `APPROVED_WITH_EXPLICIT_UNKNOWN`; provider estimate, rolling-30-day label, method and parent/child scope unconfirmed. |
 | BSR trend `rank` | metric `bsr` | `APPROVED_EXECUTABLE`; category and source calendar date retained in rank context; observation timestamp remains unknown because the date has no timezone. |
 | `abaReport.weeklySearchVolume` | keyword metric `search_volume` | `APPROVED_WITH_EXPLICIT_UNKNOWN`; provider estimate with unconfirmed derivation; calendar-week type and raw date-only boundaries retained through raw lineage. |
@@ -147,7 +166,7 @@ Numeric zero remains `PRESENT`. XiYou title text is not used to infer Brand. No 
 | Payload kind | Source tool | Mapping version |
 |---|---|---|
 | `product_detail` | `product_detail` | `sorftime_product_detail_mapping_v1` |
-| `product_variations` | `product_variations` | `sorftime_variations_mapping_v1` |
+| `product_variations` | `product_variations` | `sorftime_variations_mapping_v1_1` |
 | `product_reviews` | `product_reviews` | `sorftime_reviews_mapping_v1` |
 
 ## 13. Sorftime mapping coverage
@@ -161,7 +180,8 @@ Numeric zero remains `PRESENT`. XiYou title text is not used to infer Brand. No 
 | `description` | product fact `description` | `APPROVED_EXECUTABLE`; it is not renamed to bullet points. |
 | `monthly_sales_volume` | metric `estimated_monthly_sales` | `APPROVED_WITH_EXPLICIT_UNKNOWN`; period/method issue attached. |
 | pressure attribute/title/description spans | three `maximum_operating_pressure` facts | `APPROVED_EXECUTABLE` for the audited spans; Pa, WOG, and psi remain separate with a field-blocking unit/semantic issue. |
-| variation row | parent relationship plus Size/Color facts | `APPROVED_EXECUTABLE`; child scope and item position retained. |
+| variation request ASIN | no parent relationship | `APPROVED_WITH_EXPLICIT_UNKNOWN`; it is query context, not a response-confirmed parent. Diagnostic: `VARIATION_PARENT_SEMANTICS_UNCONFIRMED`. |
+| variation row `Asin` + approved `Property` | child Size/Color facts | `APPROVED_EXECUTABLE`; child ASIN scope, exact source row, and query context in source identity are retained without setting `parent_asin`. |
 | `SalesAmount` with returned `doc.sales_amount` | metric `estimated_sales_volume` | `APPROVED_EXECUTABLE`; sales volume, not revenue; period remains unknown. `-1` maps to `UNKNOWN`, not negative or zero. |
 | `SalesAmount` without confirming documentation | no sales/revenue metric | `SEMANTICS_UNCONFIRMED`; raw retained with issue. |
 | review rating/title/body/date/variant | `ReviewObservation` | `APPROVED_EXECUTABLE`; source identity is a deterministic adapter identity over ASIN, record index, and immutable review content. |
@@ -171,7 +191,7 @@ Review date is normalized to a date value while source `observed_at` remains unk
 
 ## 14. Unmapped and semantics-unconfirmed fields
 
-Every supplied field is either mapped, intentionally ignored with a reason, or diagnosed as unmapped/unconfirmed. Unknown fields remain in the raw snapshot and never become canonical dimensions automatically. XiYou placement codes beyond audited `or`/`sb`, traffic method/window, order grain, and keyword-estimate method remain unconfirmed. Sorftime unapproved attribute keys, self-parent semantics, sales method/window, and undocumented `SalesAmount` semantics remain unconfirmed.
+Every supplied field is either mapped, intentionally ignored with a reason, or diagnosed as unmapped/unconfirmed. Unknown fields remain in the raw snapshot and never become canonical dimensions automatically. XiYou placement codes beyond audited `or`/`sb`, traffic method/window, order grain, and keyword-estimate method remain unconfirmed. Sorftime unapproved attribute keys, product-detail self-parent semantics, variation-parent identity, sales method/window, and undocumented `SalesAmount` semantics remain unconfirmed.
 
 Provider field names never determine semantic truth by themselves. `SalesAmount` is executable only when returned provider documentation explicitly establishes variation sales-volume semantics.
 
@@ -223,7 +243,7 @@ $env:PYTHONPATH = (Resolve-Path -LiteralPath "src").Path
 py -3.12 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Tests cover public API, strict envelopes and primitives, input immutability, unknown-field retention, deterministic replay, presence states, both relationship directions, channel separation, empty query behavior, pressure-unit safety, review identity, helpful-vote absence, variation semantics, raw/mapping/run lineage, bundle round trip, fixture parsing, provenance classification, and authentication-material scanning.
+Tests cover public API, strict envelopes and primitives, input immutability, unknown-field retention, deterministic replay (including fresh processes and key-order perturbation), presence states, both keyword relationship directions, channel separation, empty query behavior, pressure-unit safety, review identity, helpful-vote absence, explicit-parent variation direction, self/duplicate/missing/null/empty/invalid variation cases, Sorftime query-context safety, raw/mapping/run lineage, strict bundle round trip, fixture parsing, provenance classification, and authentication-material scanning.
 
 ## 20. Known limitations
 
@@ -232,12 +252,14 @@ Tests cover public API, strict envelopes and primitives, input immutability, unk
 - XiYou source calendar dates are retained in raw/rank context because date-only values do not safely establish an RFC 3339 observation timestamp or timezone.
 - XiYou rank codes other than `or` and `sb` are not executable.
 - XiYou traffic unit/method/window, order method/grain, and keyword-estimate derivation remain unconfirmed.
+- XiYou variation edges require a valid explicit `parentAsin` and a valid distinct `childAsins[]` member with an exact raw locator; family members without a parent are not directed, and request context cannot fill a missing child member.
 - An empty forward query is represented by raw evidence plus a mapping/run diagnostic because the canonical relationship contract requires a concrete product identity.
 - Sorftime description is not a typed bullet array.
+- Sorftime variation responses do not expose an explicit parent identifier, so no parent/child relationship is published from them.
 - Only audited structured attribute keys and exact audited pressure text patterns are executable.
 - Review pagination, helpful votes, manufacturer, model, included components, and rich A+ text remain unavailable or unsupported.
 - Resolution, unit conversion, parent/child aggregation, and provider preference require separate versioned tasks.
 
 ## 21. Product Intelligence is not implemented
 
-This package produces provider-neutral source observations only. It does not create a Product Profile, Product Knowledge Snapshot, Demand Profile, relevance judgment, true-competitor set, market reconstruction, demand-supply gap, opportunity score, or final product-selection decision.
+This package produces provider-neutral source observations only. It does not create a Product Profile, Product Knowledge Snapshot, Demand Profile, relevance judgment, true-competitor set, market reconstruction, demand-supply gap, opportunity score, or final product-selection decision. Product Intelligence must consume the corrected adapter semantics; it must not reinterpret a query ASIN or family-member set as a parent in order to repair adapter output downstream.

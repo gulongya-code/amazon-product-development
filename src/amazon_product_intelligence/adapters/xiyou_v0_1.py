@@ -1,4 +1,4 @@
-"""Audited offline XiYou mapping slice V0.1."""
+"""Audited offline XiYou mapping slice V0.1.1."""
 
 from __future__ import annotations
 
@@ -48,10 +48,16 @@ from .base import (
 )
 
 
-def _spec(payload_kind: str, source_tool: str, mapping_version: str) -> MappingSpecification:
+def _spec(
+    payload_kind: str,
+    source_tool: str,
+    mapping_version: str,
+    *,
+    version: str = "0.1",
+) -> MappingSpecification:
     return MappingSpecification(
         specification_id=f"xiyou.{payload_kind}",
-        version="0.1",
+        version=version,
         mapping_version=mapping_version,
         provider="xiyou",
         payload_kind=payload_kind,
@@ -62,7 +68,10 @@ def _spec(payload_kind: str, source_tool: str, mapping_version: str) -> MappingS
 _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     "asin_info": _spec("asin_info", "get_asin_info", "xiyou_product_info_mapping_v1"),
     "asin_variations": _spec(
-        "asin_variations", "get_asin_variations", "xiyou_variations_mapping_v1"
+        "asin_variations",
+        "get_asin_variations",
+        "xiyou_variations_mapping_v1_1",
+        version="0.1.1",
     ),
     "asin_orders_last_30_days": _spec(
         "asin_orders_last_30_days",
@@ -377,29 +386,20 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             "Variation payload requires valid asin and matching country.",
             "$.data",
         )
-    product = product_identity(session.context.marketplace, asin)
+    query_product = product_identity(session.context.marketplace, asin)
     source_identity = f"{session.context.marketplace}:{asin}"
     parent_raw = data.get("parentAsin")
+    parent: str | None = None
     if isinstance(parent_raw, str) and parent_raw:
         parent = normalized_asin(parent_raw)
         if parent is None:
             _record_issue(
                 session,
-                subject=product_subject(product),
+                subject=product_subject(query_product),
                 dimension="parent_product_relationship",
                 code="INVALID_PARENT_ASIN",
                 message="parentAsin is not a valid ASIN.",
                 locator="$.data.parentAsin",
-            )
-        else:
-            session.add_product_fact(
-                product=product,
-                dimension="parent_product_relationship",
-                fact_group=FactGroup.VARIATION,
-                value=_string_value(parent),
-                source_field="data.parentAsin",
-                source_record_identity=source_identity,
-                provider_semantic="Provider-reported parent ASIN relationship",
             )
     elif parent_raw == "":
         session.diagnostic(
@@ -408,10 +408,21 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             source_locator="$.data.parentAsin",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
         )
+    elif parent_raw is None:
+        session.diagnostic(
+            code=(
+                "NULL_VARIATION_PARENT_UNCONFIRMED"
+                if "parentAsin" in data
+                else "MISSING_VARIATION_PARENT_UNCONFIRMED"
+            ),
+            message="No explicit parent ASIN is available, so family members are not converted to directed edges.",
+            source_locator="$.data.parentAsin",
+            disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+        )
     elif parent_raw is not None:
         _record_issue(
             session,
-            subject=product_subject(product),
+            subject=product_subject(query_product),
             dimension="parent_product_relationship",
             code="INVALID_PRIMITIVE_TYPE",
             message="parentAsin must be a string.",
@@ -419,10 +430,11 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
         )
 
     children = data.get("childAsins")
+    confirmed_children: dict[str, str] = {}
     if not isinstance(children, (tuple, list)):
         _record_issue(
             session,
-            subject=product_subject(product),
+            subject=product_subject(query_product),
             dimension="child_product_relationship",
             code="INVALID_PRIMITIVE_TYPE",
             message="childAsins must be an array.",
@@ -441,22 +453,54 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             if child is None:
                 _record_issue(
                     session,
-                    subject=product_subject(product),
+                    subject=product_subject(query_product),
                     dimension="child_product_relationship",
                     code="INVALID_CHILD_ASIN",
                     message="Child relationship omitted because the value is not a valid ASIN.",
                     locator=f"$.data.childAsins[{index}]",
                 )
                 continue
+            if child in confirmed_children:
+                session.diagnostic(
+                    code="DUPLICATE_VARIATION_MEMBER_NOT_PUBLISHED",
+                    message="A duplicate childAsins member remains in raw evidence and is not published twice.",
+                    source_locator=f"$.data.childAsins[{index}]",
+                    disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+                )
+                continue
+            confirmed_children[child] = f"data.childAsins[{index}]"
+
+    if parent is not None:
+        if asin not in confirmed_children:
+            session.diagnostic(
+                code="QUERY_AS_CHILD_NOT_CONFIRMED",
+                message=(
+                    "The query ASIN is not present in childAsins; parentAsin alone does not authorize "
+                    "publishing the query ASIN as a child."
+                ),
+                source_locator="$.data.childAsins",
+                disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+            )
+        parent_product = product_identity(session.context.marketplace, parent)
+        for child, source_field in confirmed_children.items():
+            if child == parent:
+                session.diagnostic(
+                    code="VARIATION_SELF_MEMBER_NOT_PUBLISHED",
+                    message="A parent appearing in its own member set remains raw evidence and is not a self-loop.",
+                    source_locator=f"$.{source_field}",
+                    disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+                )
+                continue
             session.add_product_fact(
-                product=product,
+                product=parent_product,
                 dimension="child_product_relationship",
                 fact_group=FactGroup.VARIATION,
                 value=_string_value(child),
-                source_field=f"data.childAsins[{index}]",
+                source_field=source_field,
                 source_record_identity=source_identity,
-                provider_semantic="Provider-reported child ASIN relationship",
-                discriminator=f"child:{index}:{child}",
+                provider_semantic="Provider-reported child ASIN under explicit parentAsin",
+                scope_type=ScopeType.PARENT_ASIN,
+                discriminator=f"explicit-parent-child:{parent}:{child}",
             )
     if "lastUpdatedTime" in data:
         session.diagnostic(
@@ -1384,7 +1428,7 @@ class XiYouAdapterV0_1:
     """Offline audited XiYou adapter with no provider transport."""
 
     provider = "xiyou"
-    adapter_version = "0.1"
+    adapter_version = "0.1.1"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 

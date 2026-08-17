@@ -159,7 +159,11 @@ context = AdaptationContext(
     retrieved_at="2026-08-14T09:00:00Z",
     transformed_at="2026-08-14T09:01:00Z",
     collection_run_id=f"collection:{provider}:{payload_kind}:fixture",
-    sanitized_request={},
+    sanitized_request=(
+        {"asin": "B0G2VV4RBW"}
+        if payload_kind in {"product_detail", "product_variations", "product_reviews", "asin_keywords"}
+        else ({"keyword": "plastic spoons"} if payload_kind == "keyword_asin_analysis" else {})
+    ),
     currency="USD",
 )
 adapter = XiYouAdapterV0_1() if provider == "xiyou" else SorftimeAdapterV0_1()
@@ -198,6 +202,28 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertFalse(any(name.startswith("_") for name in adapters.__all__))
         self.assertTrue(isinstance(XiYouAdapterV0_1(), ProviderAdapter))
         self.assertTrue(isinstance(SorftimeAdapterV0_1(), ProviderAdapter))
+
+    def test_v0_1_1_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
+        self.assertEqual(len(adapters.__all__), 14)
+        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.1")
+        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.1")
+        self.assertEqual(SorftimeAdapterV0_1.adapter_version, "0.1.1")
+
+        xiyou_specs = XiYouAdapterV0_1.mapping_specifications
+        self.assertEqual(xiyou_specs["asin_variations"].version, "0.1.1")
+        self.assertEqual(
+            xiyou_specs["asin_variations"].mapping_version,
+            "xiyou_variations_mapping_v1_1",
+        )
+        self.assertEqual(xiyou_specs["asin_info"].version, "0.1")
+
+        sorftime_specs = SorftimeAdapterV0_1.mapping_specifications
+        self.assertEqual(sorftime_specs["product_variations"].version, "0.1.1")
+        self.assertEqual(
+            sorftime_specs["product_variations"].mapping_version,
+            "sorftime_variations_mapping_v1_1",
+        )
+        self.assertEqual(sorftime_specs["product_detail"].version, "0.1")
 
     def test_invalid_required_context_is_rejected(self) -> None:
         with self.assertRaises(AdapterContextError):
@@ -293,12 +319,19 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
             adaptation_context.sanitized_request["filters"]["channels"][0] = "changed"  # type: ignore[index]
 
     def test_mapping_order_does_not_change_raw_or_result_identity(self) -> None:
-        payload = load_fixture("sorftime_product_detail.json")
-        reordered = reverse_mapping_order(payload)
-        first = SorftimeAdapterV0_1().adapt(payload, context("sorftime", "product_detail"))
-        second = SorftimeAdapterV0_1().adapt(reordered, context("sorftime", "product_detail"))
-        self.assertEqual(first.raw_evidence.raw_evidence_id, second.raw_evidence.raw_evidence_id)
-        self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
+        cases = (
+            ("sorftime", "product_detail"),
+            ("sorftime", "product_variations"),
+            ("xiyou", "asin_variations"),
+        )
+        for provider, kind in cases:
+            with self.subTest(provider=provider, kind=kind):
+                payload = load_fixture(FIXTURE_BY_KIND[(provider, kind)])
+                reordered = reverse_mapping_order(payload)
+                first = adapter_for(provider).adapt(payload, context(provider, kind))
+                second = adapter_for(provider).adapt(reordered, context(provider, kind))
+                self.assertEqual(first.raw_evidence.raw_evidence_id, second.raw_evidence.raw_evidence_id)
+                self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
 
     def test_repeated_replay_is_identical(self) -> None:
         for provider, kind in (("xiyou", "asin_info"), ("sorftime", "product_detail")):
@@ -308,11 +341,27 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
                 self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
 
     def test_fresh_process_replay_is_identical(self) -> None:
-        for provider, kind in (("xiyou", "asin_info"), ("sorftime", "product_detail")):
+        for provider, kind in (
+            ("xiyou", "asin_info"),
+            ("sorftime", "product_detail"),
+            ("xiyou", "asin_variations"),
+            ("sorftime", "product_variations"),
+        ):
             with self.subTest(provider=provider):
                 first = fresh_process_serialization(provider, kind)
                 second = fresh_process_serialization(provider, kind)
                 self.assertEqual(first, second)
+
+    def test_variation_adaptation_does_not_mutate_inputs(self) -> None:
+        for provider, kind in (
+            ("xiyou", "asin_variations"),
+            ("sorftime", "product_variations"),
+        ):
+            with self.subTest(provider=provider):
+                payload = load_fixture(FIXTURE_BY_KIND[(provider, kind)])
+                original = deepcopy(payload)
+                adapter_for(provider).adapt(payload, context(provider, kind))
+                self.assertEqual(payload, original)
 
     def test_unknown_raw_field_is_retained_but_not_mapped(self) -> None:
         payload = load_fixture("xiyou_asin_info.json")
@@ -348,8 +397,10 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
     def test_bundle_round_trip_and_cross_reference_validation(self) -> None:
         cases = (
             ("xiyou", "asin_info"),
+            ("xiyou", "asin_variations"),
             ("xiyou", "asin_keywords"),
             ("sorftime", "product_detail"),
+            ("sorftime", "product_variations"),
             ("sorftime", "product_reviews"),
         )
         for provider, kind in cases:
@@ -524,10 +575,139 @@ class XiYouMappingTests(unittest.TestCase):
         self.assertFalse(forbidden & {getattr(item, "metric", None) for item in empty.bundle.observations})
         self.assertTrue(relationship_observations(reverse))
 
-    def test_variation_relationships_and_bsr_category_context_are_preserved(self) -> None:
+    def test_variation_relationships_use_explicit_parent_as_subject(self) -> None:
         variations = adapt_fixture("xiyou", "asin_variations")
-        self.assertEqual(len(fact_observations(variations, "parent_product_relationship")), 1)
-        self.assertEqual(len(fact_observations(variations, "child_product_relationship")), 2)
+        self.assertFalse(fact_observations(variations, "parent_product_relationship"))
+        children = fact_observations(variations, "child_product_relationship")
+        self.assertEqual(len(children), 2)
+        self.assertEqual(
+            {(item.subject.subject_id, item.value.normalized_value) for item in children},
+            {
+                ("product:US:B0G2VVX3ML", "B0G2VV4RBW"),
+                ("product:US:B0G2VVX3ML", "B0G2VZSWRN"),
+            },
+        )
+        self.assertEqual({item.scope.scope_type for item in children}, {ScopeType.PARENT_ASIN})
+        self.assertEqual(
+            {item.provenance.source_field for item in children},
+            {"data.childAsins[0]", "data.childAsins[1]"},
+        )
+        self.assertEqual(
+            {item.provenance.transformation.mapping_version for item in children},
+            {"xiyou_variations_mapping_v1_1"},
+        )
+        self.assertEqual(
+            {item.provenance.transformation.transformation_run_id for item in children},
+            {variations.bundle.transformation_runs[0].transformation_run_id},
+        )
+        self.assertEqual(
+            {item.value.semantic_status for item in children},
+            {SemanticStatus.CONFIRMED},
+        )
+        self.assertEqual(variations.raw_snapshot["data"]["parentAsin"], "B0G2VVX3ML")
+
+    def test_variation_self_members_and_duplicates_stay_raw_without_extra_edges(self) -> None:
+        payload = load_fixture("xiyou_asin_variations.json")
+        payload["data"]["childAsins"].extend(["B0G2VVX3ML", "B0G2VV4RBW"])
+        result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+        children = fact_observations(result, "child_product_relationship")
+        self.assertEqual(len(children), 2)
+        self.assertFalse(
+            any(item.subject.subject_id.rsplit(":", 1)[-1] == item.value.normalized_value for item in children)
+        )
+        codes = {item.code for item in result.diagnostics}
+        self.assertIn("VARIATION_SELF_MEMBER_NOT_PUBLISHED", codes)
+        self.assertIn("DUPLICATE_VARIATION_MEMBER_NOT_PUBLISHED", codes)
+        self.assertEqual(
+            result.raw_snapshot["data"]["childAsins"][-2:],
+            ("B0G2VVX3ML", "B0G2VV4RBW"),
+        )
+
+    def test_family_members_without_confirmed_parent_do_not_become_directed_edges(self) -> None:
+        cases = (
+            ("missing", object(), "MISSING_VARIATION_PARENT_UNCONFIRMED"),
+            ("null", None, "NULL_VARIATION_PARENT_UNCONFIRMED"),
+            ("empty", "", "EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED"),
+            ("invalid", "not-an-asin", "INVALID_PARENT_ASIN"),
+        )
+        for label, parent, expected_code in cases:
+            with self.subTest(case=label):
+                payload = load_fixture("xiyou_asin_variations.json")
+                if label == "missing":
+                    del payload["data"]["parentAsin"]
+                else:
+                    payload["data"]["parentAsin"] = parent
+                result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+                self.assertFalse(fact_observations(result, "parent_product_relationship"))
+                self.assertFalse(fact_observations(result, "child_product_relationship"))
+                reported_codes = {item.code for item in result.diagnostics} | {
+                    item.issue_code for item in result.bundle.quality_issues
+                }
+                self.assertIn(expected_code, reported_codes)
+                self.assertEqual(len(result.raw_snapshot["data"]["childAsins"]), 2)
+
+    def test_empty_member_list_does_not_synthesize_query_as_child(self) -> None:
+        payload = load_fixture("xiyou_asin_variations.json")
+        payload["data"]["childAsins"] = []
+        result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+        self.assertFalse(fact_observations(result, "child_product_relationship"))
+        self.assertEqual(
+            {"EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED", "QUERY_AS_CHILD_NOT_CONFIRMED"},
+            {
+                item.code
+                for item in result.diagnostics
+                if item.code in {"EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED", "QUERY_AS_CHILD_NOT_CONFIRMED"}
+            },
+        )
+        self.assertEqual(result.raw_snapshot["data"]["childAsins"], ())
+        self.assertEqual(result.bundle.transformation_runs[0].status, TransformationStatus.PARTIAL)
+        self.assertIs(result.bundle.validate(), result.bundle)
+
+    def test_malformed_child_members_do_not_synthesize_query_as_child(self) -> None:
+        payload = load_fixture("xiyou_asin_variations.json")
+        payload["data"]["childAsins"] = [None, 42, "bad"]
+        result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+        self.assertFalse(fact_observations(result, "child_product_relationship"))
+        self.assertEqual(
+            sum(item.issue_code == "INVALID_CHILD_ASIN" for item in result.bundle.quality_issues),
+            3,
+        )
+        self.assertIn("QUERY_AS_CHILD_NOT_CONFIRMED", {item.code for item in result.diagnostics})
+        self.assertEqual(result.raw_snapshot["data"]["childAsins"], (None, 42, "bad"))
+        self.assertEqual(result.bundle.transformation_runs[0].status, TransformationStatus.PARTIAL)
+        self.assertIs(result.bundle.validate(), result.bundle)
+
+    def test_query_absent_from_child_list_is_not_synthesized(self) -> None:
+        payload = load_fixture("xiyou_asin_variations.json")
+        payload["data"]["childAsins"] = ["B0G2VZSWRN"]
+        result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+        children = fact_observations(result, "child_product_relationship")
+        self.assertEqual(len(children), 1)
+        self.assertEqual(children[0].subject.subject_id, "product:US:B0G2VVX3ML")
+        self.assertEqual(children[0].value.normalized_value, "B0G2VZSWRN")
+        self.assertEqual(children[0].value.semantic_status, SemanticStatus.CONFIRMED)
+        self.assertEqual(children[0].provenance.source_field, "data.childAsins[0]")
+        self.assertNotEqual(children[0].value.normalized_value, payload["data"]["asin"])
+        self.assertIn("QUERY_AS_CHILD_NOT_CONFIRMED", {item.code for item in result.diagnostics})
+        self.assertEqual(result.bundle.transformation_runs[0].status, TransformationStatus.PARTIAL)
+        self.assertIs(result.bundle.validate(), result.bundle)
+
+    def test_conflicting_parent_candidate_container_is_not_resolved_by_order(self) -> None:
+        payload = load_fixture("xiyou_asin_variations.json")
+        payload["data"]["parentAsin"] = ["B0G2VVX3ML", "B0G2VZSWRN"]
+        result = XiYouAdapterV0_1().adapt(payload, context("xiyou", "asin_variations"))
+        self.assertFalse(fact_observations(result, "parent_product_relationship"))
+        self.assertFalse(fact_observations(result, "child_product_relationship"))
+        self.assertIn(
+            "INVALID_PRIMITIVE_TYPE",
+            {item.issue_code for item in result.bundle.quality_issues},
+        )
+        self.assertEqual(
+            result.raw_snapshot["data"]["parentAsin"],
+            ("B0G2VVX3ML", "B0G2VZSWRN"),
+        )
+
+    def test_bsr_category_context_is_preserved(self) -> None:
         bsr = adapt_fixture("xiyou", "asin_bsr_trends")
         ranks = metric_observations(bsr, "bsr")
         self.assertEqual(len(ranks), 2)
@@ -592,10 +772,13 @@ class SorftimeMappingTests(unittest.TestCase):
             {item.issue_code for item in result.bundle.quality_issues},
         )
 
-    def test_variations_preserve_parent_property_and_sales_volume_not_revenue(self) -> None:
+    def test_variations_preserve_child_property_and_sales_without_inventing_parent(self) -> None:
         result = adapt_fixture("sorftime", "product_variations")
-        self.assertEqual(len(fact_observations(result, "parent_product_relationship")), 2)
-        self.assertEqual(len(fact_observations(result, "size")), 2)
+        self.assertFalse(fact_observations(result, "parent_product_relationship"))
+        self.assertFalse(fact_observations(result, "child_product_relationship"))
+        size = fact_observations(result, "size")
+        self.assertEqual(len(size), 2)
+        self.assertIn("product:US:B0G2VV4RBW", {item.subject.subject_id for item in size})
         sales = metric_observations(result, "estimated_sales_volume")
         self.assertEqual(len(sales), 2)
         self.assertFalse(metric_observations(result, "revenue"))
@@ -606,6 +789,35 @@ class SorftimeMappingTests(unittest.TestCase):
         present = [item for item in sales if item.value.presence_status is PresenceStatus.PRESENT][0]
         self.assertIn("not revenue", present.metric_semantic)
         self.assertEqual(present.scope.scope_type, ScopeType.CHILD_ASIN)
+        self.assertIn("product:US:B0G2VV4RBW", {item.subject.subject_id for item in sales})
+        self.assertIn(
+            "VARIATION_PARENT_SEMANTICS_UNCONFIRMED",
+            {item.code for item in result.diagnostics},
+        )
+        self.assertEqual(result.mapping_specification.version, "0.1.1")
+        self.assertEqual(
+            result.mapping_specification.mapping_version,
+            "sorftime_variations_mapping_v1_1",
+        )
+        self.assertEqual(result.raw_snapshot["data"][1]["Asin"], "B0G2VV4RBW")
+
+    def test_request_asin_is_query_context_even_when_it_is_a_returned_child(self) -> None:
+        result = adapt_fixture("sorftime", "product_variations")
+        query_subject = "product:US:B0G2VV4RBW"
+        query_facts = [
+            item
+            for item in result.bundle.observations
+            if item.subject.subject_id == query_subject
+        ]
+        self.assertTrue(fact_observations(result, "size"))
+        self.assertTrue(query_facts)
+        self.assertFalse(
+            any(
+                getattr(item, "dimension", None)
+                in {"parent_product_relationship", "child_product_relationship"}
+                for item in result.bundle.observations
+            )
+        )
 
     def test_sales_amount_without_returned_semantics_is_not_published(self) -> None:
         payload = load_fixture("sorftime_product_variations.json")
