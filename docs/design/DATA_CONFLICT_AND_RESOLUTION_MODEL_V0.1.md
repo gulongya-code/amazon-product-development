@@ -1,7 +1,7 @@
 # Data Conflict and Resolution Model V0.1
 
 Status: design contract only  
-Task: TASK-SP-003
+Task: TASK-SP-003; minimally revised by TASK-SP-003D for provenance linkage
 
 ## 1. Resolution principle
 
@@ -74,6 +74,19 @@ Conflict threshold values are versioned policy inputs, not hard-coded into the c
 - `REJECTED_INPUT`: an observation failed validation; it remains in lineage.
 
 A resolution includes all candidates, status, nullable resolved value, method, policy/version, conflict reference, and quality issues.
+
+### 5.1 DataQualityIssue provenance linkage
+
+Transformation provenance explains how an observation was produced; conflict classification explains relationships among observations. Adding lineage does not change any conflict status or resolution meaning in this document.
+
+`DataQualityIssue` may additionally carry:
+
+- `origin_stage`: `RAW_EVIDENCE`, `COLLECTION`, `MAPPING`, `NORMALIZATION`, `VALIDATION`, `RESOLUTION`, or `UNKNOWN`;
+- `collection_run_id`;
+- `transformation_run_id`;
+- `mapping_version`.
+
+These links are optional for issues that do not allege a collection or transformation defect. A `COLLECTION` issue requires `collection_run_id`. A `MAPPING` or `NORMALIZATION` issue requires non-null `collection_run_id`, `transformation_run_id`, and non-unknown `mapping_version`. `source_references` continues to identify exact raw/observation/conflict artifacts. Provenance linkage must diagnose origin; it must not change `UNIT_CONFLICT`, `MATERIAL_DIFFERENCE`, `DIRECTIONAL_CONFLICT`, `NOT_DIRECTLY_COMPARABLE`, `ONE_SOURCE_ONLY`, or `UNRESOLVED` semantics.
 
 ## 6. Acceptance cases from audited evidence
 

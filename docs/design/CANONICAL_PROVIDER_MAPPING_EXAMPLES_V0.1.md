@@ -1,7 +1,9 @@
 # Canonical Provider Mapping Examples V0.1
 
 Status: representative design examples only; not a complete adapter specification  
-Task: TASK-SP-003
+Task: TASK-SP-003; revised by TASK-SP-003D
+
+Revision marker: `DESIGN_SCHEMA_REVISION — TRANSFORMATION_PROVENANCE_V0.1`
 
 ## 1. Evidence basis
 
@@ -31,6 +33,8 @@ Provider names and source fields appear only in mapping/provenance. Canonical co
 | Sorftime product detail | `description` | `ProductFactObservation` | `description` | `OBSERVED` | Keep as textual evidence; no profile extraction in V0.1. |
 
 ### Example: rating observations, not overwrite
+
+The following is a mapping excerpt, not a complete schema-valid observation; section 10 supplies the required transformation lineage fields.
 
 ```json
 [
@@ -166,3 +170,137 @@ Sorftime review fields map as follows:
 5. Emit separate observations before conflict assessment.
 6. Treat null, missing, empty results, provider sentinels, and zero distinctly.
 7. A provider can be removed or replaced without changing the canonical contracts.
+
+## 10. Transformation lineage mapping examples
+
+Provider names and mapping IDs below are adapter examples only. They are provenance metadata, not canonical business fields.
+
+### 10.1 XiYou rating from product info
+
+```text
+XiYou batch_product_info raw payload R-X1
+  collection_run_id = collection:xiyou:design:C-X1
+  source field = stars
+  mapping_version = xiyou_product_info_mapping_v1
+  transformation_run_id = transform:xiyou:design:T-X1
+  -> MetricObservation(metric=rating)
+```
+
+Required provenance excerpt:
+
+```json
+{
+  "provider": "xiyou",
+  "source_tool": "batch_product_info",
+  "source_field": "stars",
+  "source_record_identity": "US:B0GTQZ9C19",
+  "retrieved_at": "2026-08-14T07:44:59.345Z",
+  "transformation": {
+    "collection_run_id": "collection:xiyou:design:C-X1",
+    "provider_schema_version": {
+      "status": "UNKNOWN",
+      "value": null,
+      "source": "UNKNOWN"
+    },
+    "mapping_version": "xiyou_product_info_mapping_v1",
+    "transformation_run_id": "transform:xiyou:design:T-X1",
+    "transformation_code_version": {
+      "status": "KNOWN",
+      "value": "design-rule-set-003d-v1",
+      "scheme": "RULESET_VERSION"
+    },
+    "raw_evidence_reference": "raw:xiyou:design:R-X1",
+    "transformed_at": "2026-08-14T08:00:00Z",
+    "transformation_status": "SUCCESS"
+  }
+}
+```
+
+The unknown Provider schema version is honest and schema-valid. It does not become `"1"`. The mapping version remains mandatory because the adapter output is formal even when the provider does not declare its own contract version.
+
+### 10.2 Sorftime product attribute
+
+```text
+Sorftime get_product_detail raw payload R-S1
+  collection_run_id = collection:sorftime:design:C-S1
+  source field = attributes.Maximum Operating Pressure
+  mapping_version = sorftime_product_detail_mapping_v1
+  transformation_run_id = transform:sorftime:design:T-S1
+  -> ProductFactObservation(dimension=maximum_operating_pressure)
+```
+
+```json
+{
+  "provider": "sorftime",
+  "source_tool": "get_product_detail",
+  "source_field": "attributes.Maximum Operating Pressure",
+  "source_record_identity": "US:B0G2Q22W6D",
+  "provider_semantic": "Maximum Operating Pressure attribute",
+  "semantic_validation_status": "CONFIRMED",
+  "retrieved_at": "2026-08-14T08:19:21.656Z",
+  "transformation": {
+    "collection_run_id": "collection:sorftime:design:C-S1",
+    "provider_schema_version": {
+      "status": "UNKNOWN",
+      "value": null,
+      "source": "UNKNOWN"
+    },
+    "mapping_version": "sorftime_product_detail_mapping_v1",
+    "transformation_run_id": "transform:sorftime:design:T-S1",
+    "transformation_code_version": {
+      "status": "KNOWN",
+      "value": "design-rule-set-003d-v1",
+      "scheme": "RULESET_VERSION"
+    },
+    "raw_evidence_reference": "raw:sorftime:design:R-S1",
+    "transformed_at": "2026-08-14T08:30:00Z",
+    "transformation_status": "SUCCESS"
+  }
+}
+```
+
+This chain is fully legal in Single-Provider Mode. It does not require XiYou corroboration to create the observation; later validation may classify it `ONE_SOURCE_ONLY`.
+
+## 11. Reprocessing and critical-case fixtures
+
+### Case A — collection plus transformation
+
+`R1/C1 + V1/T1 -> O1`. `C1` identifies collection; `R1` identifies the immutable raw payload; neither substitutes for the other.
+
+### Case B — same raw, new mapping, same output
+
+```text
+R1 / C1 / mapping V1 / T1 -> semantic S1, revision O1
+R1 / C1 / mapping V2 / T2 -> semantic S1, revision O1
+```
+
+Semantic and content-revision IDs remain stable because canonical semantic content is identical. T1 and T2 remain separate run records, preserving both mapping/code lineages.
+
+### Case C — schema version unknown
+
+Both examples serialize `provider_schema_version.status = UNKNOWN` with null value and unknown source. This is valid and preferable to an invented version.
+
+### Case D — mapping bug fix changes content
+
+If `sorftime_product_detail_mapping_v1` incorrectly maps `1000 PSI` to `Pa`, and V2 corrects the unit:
+
+```text
+R-S1 / C-S1 / V1 / T1 -> semantic S-pressure, revision O-pressure-pa
+R-S1 / C-S1 / V2 / T2 -> semantic S-pressure, revision O-pressure-psi
+```
+
+The semantic ID remains stable; the content-revision ID changes because the canonical unit changed. Both revisions and runs remain addressable. A mapping-origin quality issue links `R-S1`, `C-S1`, V1/T1, and the affected revision; the corrected revision does not overwrite history.
+
+### Case E — pressure conflict tracing
+
+For the audited `1000 pascal`, `1000 WOG`, and `1000 PSI` values, each observation links its exact raw field/text span and transformation. If raw payloads already contain all three strings, the inconsistency origin is `RAW_EVIDENCE` and mapping merely preserves it. If raw says `PSI` but canonical output says `Pa`, origin is `MAPPING` or `NORMALIZATION`, and the quality issue must link that transformation run and mapping version. Conflict classification remains `UNIT_CONFLICT` plus semantic issue and `UNRESOLVED`.
+
+### Case F — single provider
+
+Sorftime-only `Raw -> Collection -> Mapping -> Canonical Observation` is complete. Provider count does not participate in the provenance contract.
+
+## 12. Parent/child scope note
+
+Existing `parent_asin`, child product identity, `PARENT_ASIN`/`CHILD_ASIN` scope, and `parent_product_relationship` fact can represent the audited variation evidence. Aggregation/deduplication policy is intentionally not implemented here.
+
+`DEFERRED_TO_MARKET_RECONSTRUCTION_DESIGN`

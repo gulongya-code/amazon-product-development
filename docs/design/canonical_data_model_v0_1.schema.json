@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/amazon-product-intelligence/canonical-data-model-v0.1.schema.json",
   "title": "Canonical Evidence Bundle V0.1 (Design Draft)",
-  "description": "Provider-independent design schema. Not a production runtime contract.",
+  "description": "Provider-independent design schema revised by TASK-SP-003D with collection and transformation provenance. Not a production runtime contract.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "observations", "conflicts", "resolutions", "quality_issues"],
+  "required": ["schema_version", "transformation_runs", "observations", "conflicts", "resolutions", "quality_issues"],
   "properties": {
     "schema_version": {"const": "0.1"},
     "raw_evidence_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "transformation_runs": {"type": "array", "items": {"$ref": "#/$defs/transformation_run_record"}},
     "observations": {
       "type": "array",
       "items": {
@@ -30,6 +31,101 @@
     "presence_status": {"enum": ["PRESENT", "EXPLICIT_NULL", "MISSING", "UNKNOWN", "QUERY_RETURNED_EMPTY", "NOT_APPLICABLE"]},
     "semantic_status": {"enum": ["CONFIRMED", "SEMANTICS_UNCONFIRMED", "UNPARSED", "INVALID"]},
     "result_status": {"enum": ["POPULATED", "EMPTY_OBSERVATION", "PARTIAL", "FAILED", "UNKNOWN"]},
+    "provider_schema_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "source"],
+      "properties": {
+        "status": {"enum": ["KNOWN", "UNKNOWN"]},
+        "value": {"type": ["string", "null"]},
+        "source": {"enum": ["PROVIDER_DECLARED", "MCP_TOOL_OR_SERVER", "SCHEMA_FINGERPRINT", "LOCAL_CONTRACT", "UNKNOWN"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "UNKNOWN"}}, "required": ["status"]},
+          "then": {"properties": {"value": {"type": "null"}, "source": {"const": "UNKNOWN"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "KNOWN"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "value": {"type": "string", "minLength": 1},
+              "source": {"enum": ["PROVIDER_DECLARED", "MCP_TOOL_OR_SERVER", "SCHEMA_FINGERPRINT", "LOCAL_CONTRACT"]}
+            }
+          }
+        }
+      ]
+    },
+    "transformation_code_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "scheme"],
+      "properties": {
+        "status": {"enum": ["KNOWN", "UNKNOWN"]},
+        "value": {"type": ["string", "null"]},
+        "scheme": {"enum": ["GIT_COMMIT", "BUILD_VERSION", "PACKAGE_VERSION", "RULESET_VERSION", "OTHER", "UNKNOWN"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "UNKNOWN"}}, "required": ["status"]},
+          "then": {"properties": {"value": {"type": "null"}, "scheme": {"const": "UNKNOWN"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "KNOWN"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "value": {"type": "string", "minLength": 1},
+              "scheme": {"enum": ["GIT_COMMIT", "BUILD_VERSION", "PACKAGE_VERSION", "RULESET_VERSION", "OTHER"]}
+            }
+          }
+        }
+      ]
+    },
+    "transformation_status": {"enum": ["SUCCESS", "PARTIAL", "FAILED"]},
+    "transformation_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collection_run_id", "provider_schema_version", "mapping_version", "transformation_run_id", "transformation_code_version", "raw_evidence_reference", "transformed_at", "transformation_status"],
+      "properties": {
+        "collection_run_id": {"type": "string", "minLength": 1},
+        "provider_schema_version": {"$ref": "#/$defs/provider_schema_version"},
+        "mapping_version": {"type": "string", "minLength": 1, "not": {"const": "UNKNOWN"}},
+        "transformation_run_id": {"type": "string", "minLength": 1},
+        "transformation_code_version": {"$ref": "#/$defs/transformation_code_version"},
+        "raw_evidence_reference": {"type": "string", "minLength": 1},
+        "transformed_at": {"type": "string", "format": "date-time"},
+        "transformation_status": {"enum": ["SUCCESS", "PARTIAL"]}
+      }
+    },
+    "transformation_run_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "collection_run_id", "provider_schema_version", "mapping_version", "transformation_run_id", "transformation_code_version", "started_at", "completed_at", "status", "input_raw_evidence_references", "output_observation_ids", "quality_issue_ids"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "collection_run_id": {"type": "string", "minLength": 1},
+        "provider_schema_version": {"$ref": "#/$defs/provider_schema_version"},
+        "mapping_version": {"type": "string", "minLength": 1, "not": {"const": "UNKNOWN"}},
+        "transformation_run_id": {"type": "string", "minLength": 1},
+        "transformation_code_version": {"$ref": "#/$defs/transformation_code_version"},
+        "started_at": {"type": "string", "format": "date-time"},
+        "completed_at": {"type": ["string", "null"], "format": "date-time"},
+        "status": {"$ref": "#/$defs/transformation_status"},
+        "input_raw_evidence_references": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "output_observation_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "quality_issue_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "SUCCESS"}}, "required": ["status"]},
+          "then": {"properties": {"output_observation_ids": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "FAILED"}}, "required": ["status"]},
+          "then": {"properties": {"output_observation_ids": {"maxItems": 0}}}
+        }
+      ]
+    },
     "subject_ref": {
       "type": "object",
       "additionalProperties": false,
@@ -115,7 +211,7 @@
     "provenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "source_tool", "source_field", "source_record_identity", "raw_evidence_reference", "retrieved_at"],
+      "required": ["provider", "source_tool", "source_field", "source_record_identity", "retrieved_at", "transformation"],
       "properties": {
         "provider": {"type": "string", "minLength": 1},
         "source_tool": {"type": "string", "minLength": 1},
@@ -125,13 +221,14 @@
         "semantic_validation_status": {"$ref": "#/$defs/semantic_status"},
         "provider_method": {"type": ["string", "null"]},
         "provider_documentation_reference": {"type": ["string", "null"]},
-        "raw_evidence_reference": {"type": "string", "minLength": 1},
-        "retrieved_at": {"type": "string", "format": "date-time"}
+        "retrieved_at": {"type": "string", "format": "date-time"},
+        "transformation": {"$ref": "#/$defs/transformation_provenance"}
       }
     },
     "observation_base_properties": {
       "type": "object",
       "properties": {
+        "semantic_observation_id": {"type": "string", "minLength": 1},
         "observation_id": {"type": "string", "minLength": 1},
         "schema_version": {"const": "0.1"},
         "subject": {"$ref": "#/$defs/subject_ref"},
@@ -149,7 +246,7 @@
         {"$ref": "#/$defs/observation_base_properties"},
         {
           "type": "object",
-          "required": ["observation_id", "schema_version", "observation_kind", "subject", "dimension", "fact_group", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "required": ["semantic_observation_id", "observation_id", "schema_version", "observation_kind", "subject", "dimension", "fact_group", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
           "properties": {
             "observation_kind": {"const": "PRODUCT_FACT"},
             "dimension": {"type": "string", "minLength": 1},
@@ -165,7 +262,7 @@
         {"$ref": "#/$defs/observation_base_properties"},
         {
           "type": "object",
-          "required": ["observation_id", "schema_version", "observation_kind", "subject", "metric", "measurement_type", "metric_semantic", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "required": ["semantic_observation_id", "observation_id", "schema_version", "observation_kind", "subject", "metric", "measurement_type", "metric_semantic", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
           "properties": {
             "observation_kind": {"const": "METRIC"},
             "metric": {"type": "string", "minLength": 1},
@@ -183,7 +280,7 @@
         {"$ref": "#/$defs/observation_base_properties"},
         {
           "type": "object",
-          "required": ["observation_id", "schema_version", "observation_kind", "subject", "keyword", "metric", "metric_semantic", "estimate_method_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "required": ["semantic_observation_id", "observation_id", "schema_version", "observation_kind", "subject", "keyword", "metric", "metric_semantic", "estimate_method_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
           "properties": {
             "observation_kind": {"const": "KEYWORD_METRIC"},
             "keyword": {"$ref": "#/$defs/keyword_identity"},
@@ -201,7 +298,7 @@
         {"$ref": "#/$defs/observation_base_properties"},
         {
           "type": "object",
-          "required": ["observation_id", "relationship_id", "schema_version", "observation_kind", "subject", "product", "keyword", "direction", "relationship_type", "channel", "query_result_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "required": ["semantic_observation_id", "observation_id", "relationship_id", "schema_version", "observation_kind", "subject", "product", "keyword", "direction", "relationship_type", "channel", "query_result_status", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
           "properties": {
             "observation_kind": {"const": "PRODUCT_KEYWORD_RELATIONSHIP"},
             "relationship_id": {"type": "string", "minLength": 1},
@@ -223,7 +320,7 @@
         {"$ref": "#/$defs/observation_base_properties"},
         {
           "type": "object",
-          "required": ["observation_id", "review_observation_id", "schema_version", "observation_kind", "subject", "product", "provider_review_identity", "rating", "title", "body", "review_date", "variant", "helpful_votes", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
+          "required": ["semantic_observation_id", "observation_id", "review_observation_id", "schema_version", "observation_kind", "subject", "product", "provider_review_identity", "rating", "title", "body", "review_date", "variant", "helpful_votes", "evidence_type", "value", "scope", "time", "provenance", "quality_issue_ids", "result_status"],
           "properties": {
             "observation_kind": {"const": "REVIEW"},
             "review_observation_id": {"type": "string", "minLength": 1},
@@ -317,8 +414,53 @@
         "blocking": {"type": "boolean"},
         "blocking_scope": {"enum": ["NONE", "FIELD", "SUBJECT", "BUNDLE"]},
         "source_references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "origin_stage": {"enum": ["RAW_EVIDENCE", "COLLECTION", "MAPPING", "NORMALIZATION", "VALIDATION", "RESOLUTION", "UNKNOWN"]},
+        "collection_run_id": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "transformation_run_id": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "mapping_version": {
+          "oneOf": [
+            {"type": "string", "minLength": 1, "not": {"const": "UNKNOWN"}},
+            {"type": "null"}
+          ]
+        },
         "created_at": {"type": "string", "format": "date-time"}
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"origin_stage": {"const": "COLLECTION"}},
+            "required": ["origin_stage"]
+          },
+          "then": {
+            "required": ["collection_run_id"],
+            "properties": {"collection_run_id": {"type": "string", "minLength": 1}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"origin_stage": {"enum": ["MAPPING", "NORMALIZATION"]}},
+            "required": ["origin_stage"]
+          },
+          "then": {
+            "required": ["collection_run_id", "transformation_run_id", "mapping_version"],
+            "properties": {
+              "collection_run_id": {"type": "string", "minLength": 1},
+              "transformation_run_id": {"type": "string", "minLength": 1},
+              "mapping_version": {"type": "string", "minLength": 1, "not": {"const": "UNKNOWN"}}
+            }
+          }
+        }
+      ]
     }
   }
 }
