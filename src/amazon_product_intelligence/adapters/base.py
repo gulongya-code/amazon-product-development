@@ -20,6 +20,7 @@ from amazon_product_intelligence.contracts import (
     CodeVersionScheme,
     ContractValidationError,
     DataQualityIssue,
+    DirectionalQueryExecutionRecord,
     EstimateMethodStatus,
     EvidenceType,
     FactGroup,
@@ -41,6 +42,7 @@ from amazon_product_intelligence.contracts import (
     RawEvidenceRecord,
     RelationshipDirection,
     RelationshipType,
+    QueryExecutionOutcome,
     ResultStatus,
     ReviewObservation,
     Scope,
@@ -64,13 +66,14 @@ from amazon_product_intelligence.contracts import (
     keyword_id,
     observation_revision_id,
     product_id,
+    query_execution_id,
     raw_evidence_id,
     relationship_observation_id,
     semantic_observation_id,
 )
 
 
-ADAPTER_RULESET_VERSION = "provider-adapters-v0.1.1"
+ADAPTER_RULESET_VERSION = "provider-adapters-v0.1.2"
 _ASIN = re.compile(r"^[A-Z0-9]{10}$")
 
 
@@ -530,6 +533,7 @@ class _AdapterSession:
             },
         )
         self.observations: list[CanonicalObservation] = []
+        self.query_execution_records: list[DirectionalQueryExecutionRecord] = []
         self.issues: list[DataQualityIssue] = []
         self.diagnostics: list[AdapterDiagnostic] = []
         self.errors: list[AdapterFailure] = []
@@ -1019,6 +1023,47 @@ class _AdapterSession:
         self.observations.append(observation)
         return observation
 
+    def add_query_execution(
+        self,
+        *,
+        direction: RelationshipDirection,
+        outcome: QueryExecutionOutcome,
+        related_relationship_observation_ids: tuple[str, ...],
+        source_field: str,
+        source_record_identity: str,
+        query_keyword: KeywordIdentity | None = None,
+        query_product: ProductIdentity | None = None,
+        quality_issue_ids: tuple[str, ...] = (),
+    ) -> DirectionalQueryExecutionRecord:
+        provenance = self._provenance(
+            source_field=source_field,
+            source_record_identity=source_record_identity,
+            provider_semantic="Directional relationship query execution outcome",
+            semantic_status=(
+                SemanticStatus.CONFIRMED
+                if outcome in {
+                    QueryExecutionOutcome.RESULTS_RETURNED,
+                    QueryExecutionOutcome.EXPLICIT_EMPTY,
+                }
+                else SemanticStatus.SEMANTICS_UNCONFIRMED
+            ),
+        )
+        payload = {
+            "query_keyword": query_keyword,
+            "query_product": query_product,
+            "direction": direction,
+            "outcome": outcome,
+            "related_relationship_observation_ids": related_relationship_observation_ids,
+            "provenance": provenance,
+            "quality_issue_ids": quality_issue_ids,
+        }
+        record = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**payload),
+            **payload,
+        )
+        self.query_execution_records.append(record)
+        return record
+
     def add_review(
         self,
         *,
@@ -1101,7 +1146,8 @@ class _AdapterSession:
         return observation
 
     def finish(self) -> AdaptationResult:
-        run_status = TransformationStatus.PARTIAL if self._partial or not self.observations else TransformationStatus.SUCCESS
+        has_outputs = bool(self.observations or self.query_execution_records)
+        run_status = TransformationStatus.PARTIAL if self._partial or not has_outputs else TransformationStatus.SUCCESS
         materialized: list[CanonicalObservation] = []
         for observation in self.observations:
             transform = replace(
@@ -1115,6 +1161,30 @@ class _AdapterSession:
                 )
             )
         self.observations = materialized
+        materialized_queries: list[DirectionalQueryExecutionRecord] = []
+        for record in self.query_execution_records:
+            transform = replace(
+                record.provenance.transformation,
+                transformation_status=run_status,
+            )
+            provenance = replace(record.provenance, transformation=transform)
+            payload = {
+                "query_keyword": record.query_keyword,
+                "query_product": record.query_product,
+                "direction": record.direction,
+                "outcome": record.outcome,
+                "related_relationship_observation_ids": record.related_relationship_observation_ids,
+                "provenance": provenance,
+                "quality_issue_ids": record.quality_issue_ids,
+                "schema_version": record.schema_version,
+            }
+            materialized_queries.append(
+                DirectionalQueryExecutionRecord(
+                    query_execution_id=query_execution_id(**payload),
+                    **payload,
+                )
+            )
+        self.query_execution_records = materialized_queries
         run = TransformationRunRecord(
             provider=self.provider,
             collection_run_id=self.context.collection_run_id,
@@ -1128,6 +1198,9 @@ class _AdapterSession:
             input_raw_evidence_references=(self.raw_evidence_id,),
             output_observation_ids=tuple(item.observation_id for item in self.observations),
             quality_issue_ids=tuple(item.issue_id for item in self.issues),
+            output_query_execution_ids=tuple(
+                item.query_execution_id for item in self.query_execution_records
+            ),
         )
         bundle = CanonicalEvidenceBundle(
             raw_evidence_references=(self.raw_evidence_id,),
@@ -1136,6 +1209,7 @@ class _AdapterSession:
             conflicts=(),
             resolutions=(),
             quality_issues=tuple(self.issues),
+            query_execution_records=tuple(self.query_execution_records),
         )
         return AdaptationResult(
             provider=self.provider,

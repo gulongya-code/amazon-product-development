@@ -1,7 +1,7 @@
-# Provider Adapters V0.1.1
+# Provider Adapters V0.1.2
 
-Status: Level 3 implementation note with audited V0.1.1 semantic correction
-Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`
+Status: Level 3 implementation note with audited V0.1.2 query-execution evidence
+Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`, `TASK-SP-007B`
 
 ## 1. Scope
 
@@ -15,6 +15,10 @@ audited provider payload
 ```
 
 The implementation covers provider-neutral invocation, XiYou audited product/variation/order/BSR/keyword/directional slices, Sorftime audited product/variation/review slices, deterministic identity, structured failures, and strict bundle validation.
+
+### V0.1.2 directional-query evidence
+
+V0.1.2 adds canonical `DirectionalQueryExecutionRecord` outputs for XiYou forward and reverse keyword mappings. Populated queries publish `RESULTS_RETURNED` with concrete relationship-observation references. An explicit empty `data.list` publishes `EXPLICIT_EMPTY` with no fabricated target or metric. A non-empty response that cannot safely publish any relationship is `OUTCOME_UNKNOWN`. These records are part of `CanonicalEvidenceBundle`, not adapter-local diagnostics, so downstream consumers can distinguish execution outcomes without reading provider JSON.
 
 ### V0.1.1 variation correction
 
@@ -32,13 +36,13 @@ Variation safety diagnostics are `MISSING_VARIATION_PARENT_UNCONFIRMED`, `NULL_V
 
 ## 2. Non-goals
 
-V0.1.1 does not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
+V0.1.2 does not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
 
 ## 3. Architecture
 
-`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable while their `adapter_version` is `0.1.1`. Each owns its audited field mappings; no provider field appears in the common boundary.
+`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable. XiYou's `adapter_version` is `0.1.2`; Sorftime remains `0.1.1` because no Sorftime source or mapping changed. Each owns its audited field mappings; no provider field appears in the common boundary.
 
-One adaptation uses one `MappingSpecification`, one explicit `AdaptationContext`, and one immutable raw snapshot. A valid mapping execution creates one `TransformationRunRecord`. Emitted observations embed matching `TransformationProvenance`; `CanonicalEvidenceBundle.validate()` checks run, raw, observation, and issue references. Collection-level failures create no transformation run or observation.
+One adaptation uses one `MappingSpecification`, one explicit `AdaptationContext`, and one immutable raw snapshot. A valid mapping execution creates one `TransformationRunRecord`. Emitted observations and directional query records carry matching `TransformationProvenance`; `CanonicalEvidenceBundle.validate()` checks run, raw, output, and issue references. Collection-level failures create no transformation run or output.
 
 ## 4. Public API
 
@@ -95,11 +99,12 @@ The context never reads the current clock or process environment. `sanitized_req
 - the exact `MappingSpecification` used;
 - `RawEvidenceRecord` plus an immutable raw snapshot;
 - a validated `CanonicalEvidenceBundle`;
+- canonical directional query execution records for supported XiYou query mappings;
 - `AdapterDiagnostic` coverage records;
 - structured `AdapterFailure` records;
 - deterministic `AdaptationStatistics`.
 
-`succeeded` means no collection-level error. A valid empty query may succeed with no canonical observation and a partial transformation run. Field-level issues may coexist with independent safe observations.
+`succeeded` means no collection-level error. A valid explicit-empty directional query succeeds with no canonical relationship observation and a successful transformation run whose output is the canonical query execution record. Field-level issues may coexist with independent safe observations.
 
 ## 7. Raw evidence preservation
 
@@ -113,7 +118,7 @@ Raw identity uses provider, source tool, sanitized-request fingerprint, explicit
 
 Sorted canonical JSON makes mapping insertion order irrelevant. No random value, process hash, object representation, locale, filesystem path, current time, or test order participates in output.
 
-`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.1`. Because the default transformation code version and concrete adapter versions changed, transformation-run identities and embedded transformation provenance change for all supported payload kinds. The two affected variation mappings also have new mapping versions. Raw-evidence identities remain content-derived, and observation identities for unchanged non-variation semantics remain stable because neither adapter version nor transformation provenance participates in their semantic/revision identity inputs.
+`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.2`. The XiYou directional mapping versions and XiYou adapter version changed with the canonical query output. The global default transformation code version therefore changes transformation-run identities and embedded provenance deterministically. Raw-evidence identities remain content-derived, and relationship-observation semantic/revision identities remain stable because adapter version and transformation provenance do not participate in those identity inputs.
 
 ## 9. Error and issue model
 
@@ -132,8 +137,8 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | `asin_orders_last_30_days` | `get_asin_orders_last_30_days` | `xiyou_orders_30d_mapping_v1` |
 | `asin_bsr_trends` | `get_asin_bsr_trends` | `xiyou_bsr_trends_mapping_v1` |
 | `keyword_info` | `get_keyword_info` | `xiyou_keyword_info_mapping_v1` |
-| `keyword_asin_analysis` | `get_keyword_asin_analysis` | `xiyou_keyword_to_asin_mapping_v1` |
-| `asin_keywords` | `get_asin_keywords` | `xiyou_asin_to_keyword_mapping_v1` |
+| `keyword_asin_analysis` | `get_keyword_asin_analysis` | `xiyou_keyword_to_asin_mapping_v1_1` |
+| `asin_keywords` | `get_asin_keywords` | `xiyou_asin_to_keyword_mapping_v1_1` |
 
 ## 11. XiYou mapping coverage
 
@@ -195,16 +200,19 @@ Every supplied field is either mapped, intentionally ignored with a reason, or d
 
 Provider field names never determine semantic truth by themselves. `SalesAmount` is executable only when returned provider documentation explicitly establishes variation sales-volume semantics.
 
-## 15. Empty-result semantics
+## 15. Directional query execution semantics
 
 A successful XiYou forward query with `data.list=[]` produces:
 
 - raw response status `EMPTY`;
 - an immutable raw snapshot retaining `list=[]` and provider `total`;
-- a partial transformation run with no fabricated observation;
+- a successful transformation run with no fabricated relationship observation;
+- a canonical `DirectionalQueryExecutionRecord` whose outcome is `EXPLICIT_EMPTY` and whose query subject is the requested keyword;
 - an `AdapterDiagnostic` with code `QUERY_RETURNED_EMPTY`, the raw reference, source locator, and mapping specification.
 
-Canonical `ProductKeywordRelationshipObservation` requires a concrete product, so the adapter does not invent a placeholder product for an empty set. The empty query is fully auditable through raw evidence, mapping, run, and diagnostic. It never emits `market_size`, `competitor_count`, `demand`, or any zero metric. Independent reverse evidence remains valid and populated.
+Canonical `ProductKeywordRelationshipObservation` requires a concrete product, so the adapter does not invent a placeholder product for an empty set. The empty query is fully auditable inside the canonical bundle through raw evidence, mapping, run, and the query execution record. It never emits `market_size`, `competitor_count`, `demand`, or any zero metric. Independent reverse evidence remains valid and populated.
+
+Populated forward and reverse queries publish `RESULTS_RETURNED` records containing the safely emitted relationship observation IDs. If a provider returns non-empty rows but none can safely become a canonical relationship, the outcome is `OUTCOME_UNKNOWN`, not `EXPLICIT_EMPTY`. Reverse explicit-empty behavior is supported without inventing a keyword, although the V0.1 fixture set contains only a captured forward empty response.
 
 ## 16. Unit safety
 
@@ -253,13 +261,13 @@ Tests cover public API, strict envelopes and primitives, input immutability, unk
 - XiYou rank codes other than `or` and `sb` are not executable.
 - XiYou traffic unit/method/window, order method/grain, and keyword-estimate derivation remain unconfirmed.
 - XiYou variation edges require a valid explicit `parentAsin` and a valid distinct `childAsins[]` member with an exact raw locator; family members without a parent are not directed, and request context cannot fill a missing child member.
-- An empty forward query is represented by raw evidence plus a mapping/run diagnostic because the canonical relationship contract requires a concrete product identity.
+- A directional query outcome is represented independently from relationship observations. Explicit empty remains scoped execution evidence and cannot be interpreted as zero demand, zero competition, or a permanent absence.
 - Sorftime description is not a typed bullet array.
 - Sorftime variation responses do not expose an explicit parent identifier, so no parent/child relationship is published from them.
 - Only audited structured attribute keys and exact audited pressure text patterns are executable.
 - Review pagination, helpful votes, manufacturer, model, included components, and rich A+ text remain unavailable or unsupported.
 - Resolution, unit conversion, parent/child aggregation, and provider preference require separate versioned tasks.
 
-## 21. Product Intelligence is not implemented
+## 21. Product and Demand Intelligence boundary
 
-This package produces provider-neutral source observations only. It does not create a Product Profile, Product Knowledge Snapshot, Demand Profile, relevance judgment, true-competitor set, market reconstruction, demand-supply gap, opportunity score, or final product-selection decision. Product Intelligence must consume the corrected adapter semantics; it must not reinterpret a query ASIN or family-member set as a parent in order to repair adapter output downstream.
+This package produces provider-neutral source observations and directional query execution evidence only. It does not create a Product Profile, Product Knowledge Snapshot, Demand Profile, relevance judgment, true-competitor set, market reconstruction, demand-supply gap, opportunity score, or final product-selection decision. Product Intelligence V0.1 ignores query execution records as non-observation bundle content while retaining their effect on the source bundle fingerprint. A later Demand Intelligence contract may consume those canonical records, but it must not read adapter diagnostics or provider JSON to recover query outcomes. Product Intelligence must consume the corrected adapter semantics; it must not reinterpret a query ASIN or family-member set as a parent in order to repair adapter output downstream.

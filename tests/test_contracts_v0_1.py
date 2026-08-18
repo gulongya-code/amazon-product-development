@@ -16,6 +16,7 @@ from amazon_product_intelligence.contracts.v0_1 import (
     ConflictStatus,
     ContractValidationError,
     DataQualityIssue,
+    DirectionalQueryExecutionRecord,
     EstimateMethodStatus,
     EvidenceType,
     FactGroup,
@@ -36,6 +37,7 @@ from amazon_product_intelligence.contracts.v0_1 import (
     ProviderSchemaVersion,
     RelationshipDirection,
     RelationshipType,
+    QueryExecutionOutcome,
     ResolutionLineage,
     ResolutionStatus,
     ResolvedEvidence,
@@ -63,6 +65,7 @@ from amazon_product_intelligence.contracts.v0_1 import (
     keyword_id,
     observation_revision_id,
     product_id,
+    query_execution_id,
     resolution_record_id,
     semantic_observation_id,
 )
@@ -219,6 +222,109 @@ def make_run(observation: MetricObservation) -> TransformationRunRecord:
         input_raw_evidence_references=(RAW_ID,),
         output_observation_ids=(observation.observation_id,),
         quality_issue_ids=(),
+    )
+
+
+def make_keyword() -> KeywordIdentity:
+    text = "plastic spoons"
+    return KeywordIdentity(
+        keyword_id=keyword_id("US", "en-us", text),
+        marketplace="US",
+        locale="en-us",
+        normalized_text=text,
+        raw_text=text,
+    )
+
+
+def make_relationship(
+    *, direction: RelationshipDirection = RelationshipDirection.KEYWORD_TO_PRODUCT
+) -> ProductKeywordRelationshipObservation:
+    metric = make_metric()
+    product = ProductIdentity(
+        product_id=product_id("US", "B0G2Q22W6D"),
+        marketplace="US",
+        asin="B0G2Q22W6D",
+        parent_asin=None,
+        identity_status="CONFIRMED",
+    )
+    keyword = make_keyword()
+    return ProductKeywordRelationshipObservation(
+        semantic_observation_id="sem:query-test",
+        observation_id="obs:query-test",
+        observation_kind=ObservationKind.PRODUCT_KEYWORD_RELATIONSHIP,
+        subject=SubjectRef(
+            subject_type=SubjectType.PRODUCT_KEYWORD_RELATIONSHIP,
+            subject_id="relationship:query-test",
+            marketplace="US",
+        ),
+        evidence_type=EvidenceType.OBSERVED,
+        value=present_number(1, unit_code="rank"),
+        scope=Scope(
+            scope_type=ScopeType.ASIN,
+            scope_status=ScopeStatus.CONFIRMED,
+            scope_subject_id=product.product_id,
+        ),
+        time=time_window(),
+        provenance=replace(
+            metric.provenance,
+            source_tool="get_keyword_asin_analysis",
+            source_field="data.list[0]",
+            source_record_identity="query-test",
+        ),
+        quality_issue_ids=(),
+        result_status=ResultStatus.POPULATED,
+        relationship_id="rel:query-test",
+        product=product,
+        keyword=keyword,
+        direction=direction,
+        relationship_type=RelationshipType.RANK,
+        channel=Channel.ORGANIC,
+        query_result_status=ResultStatus.POPULATED,
+        rank={"position": 1},
+    )
+
+
+def make_query_execution(
+    *,
+    outcome: QueryExecutionOutcome,
+    relationship: ProductKeywordRelationshipObservation | None = None,
+    direction: RelationshipDirection = RelationshipDirection.KEYWORD_TO_PRODUCT,
+) -> DirectionalQueryExecutionRecord:
+    metric = make_metric()
+    keyword = (
+        relationship.keyword
+        if relationship is not None
+        else make_keyword()
+    )
+    product = (
+        relationship.product
+        if relationship is not None
+        else make_relationship().product
+    )
+    provenance = (
+        relationship.provenance
+        if relationship is not None
+        else replace(
+            metric.provenance,
+            source_tool="get_keyword_asin_analysis",
+            source_field="data.list",
+            source_record_identity=keyword.keyword_id,
+        )
+    )
+    payload = {
+        "query_keyword": keyword if direction is RelationshipDirection.KEYWORD_TO_PRODUCT else None,
+        "query_product": product if direction is RelationshipDirection.PRODUCT_TO_KEYWORD else None,
+        "direction": direction,
+        "outcome": outcome,
+        "related_relationship_observation_ids": (
+            (relationship.observation_id,) if relationship is not None else ()
+        ),
+        "provenance": provenance,
+        "quality_issue_ids": (),
+    }
+    return DirectionalQueryExecutionRecord(
+        query_execution_id=query_execution_id(**payload),
+        **payload,
     )
 
 
@@ -559,6 +665,405 @@ class ProvenanceTests(unittest.TestCase):
             )
 
 
+class DirectionalQueryExecutionTests(unittest.TestCase):
+    def test_explicit_empty_is_first_class_strict_and_legacy_compatible(self) -> None:
+        record = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        run = replace(
+            make_run(make_metric()),
+            output_observation_ids=(),
+            output_query_execution_ids=(record.query_execution_id,),
+        )
+        bundle = CanonicalEvidenceBundle(
+            raw_evidence_references=(RAW_ID,),
+            transformation_runs=(run,),
+            observations=(),
+            conflicts=(),
+            resolutions=(),
+            quality_issues=(),
+            query_execution_records=(record,),
+        )
+        payload = bundle.to_dict()
+        self.assertEqual(payload["query_execution_records"][0]["outcome"], "EXPLICIT_EMPTY")
+        self.assertEqual(CanonicalEvidenceBundle.from_dict(payload).to_dict(), payload)
+
+        legacy = json.loads(json.dumps(payload))
+        legacy.pop("query_execution_records")
+        legacy["transformation_runs"][0].pop("output_query_execution_ids")
+        legacy["transformation_runs"][0]["status"] = "PARTIAL"
+        restored = CanonicalEvidenceBundle.from_dict(legacy)
+        self.assertEqual(restored.query_execution_records, ())
+        self.assertEqual(restored.transformation_runs[0].output_query_execution_ids, ())
+
+    def test_populated_query_cross_references_relationship_and_run(self) -> None:
+        relationship = make_relationship()
+        record = make_query_execution(
+            outcome=QueryExecutionOutcome.RESULTS_RETURNED,
+            relationship=relationship,
+        )
+        run = replace(
+            make_run(make_metric()),
+            output_observation_ids=(relationship.observation_id,),
+            output_query_execution_ids=(record.query_execution_id,),
+        )
+        bundle = CanonicalEvidenceBundle(
+            raw_evidence_references=(RAW_ID,),
+            transformation_runs=(run,),
+            observations=(relationship,),
+            conflicts=(),
+            resolutions=(),
+            quality_issues=(),
+            query_execution_records=(record,),
+        )
+        self.assertIs(bundle.validate(), bundle)
+
+        wrong_direction = replace(
+            relationship,
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+        )
+        with self.assertRaisesRegex(ContractValidationError, "direction mismatch"):
+            replace(bundle, observations=(wrong_direction,))
+
+    def test_outcomes_and_query_subjects_are_strict(self) -> None:
+        empty = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        unknown = make_query_execution(outcome=QueryExecutionOutcome.OUTCOME_UNKNOWN)
+        failed = make_query_execution(outcome=QueryExecutionOutcome.EXECUTION_FAILED)
+        self.assertEqual(
+            {empty.outcome, unknown.outcome, failed.outcome},
+            {
+                QueryExecutionOutcome.EXPLICIT_EMPTY,
+                QueryExecutionOutcome.OUTCOME_UNKNOWN,
+                QueryExecutionOutcome.EXECUTION_FAILED,
+            },
+        )
+        with self.assertRaisesRegex(ContractValidationError, "requires relationship observations"):
+            replace(empty, outcome=QueryExecutionOutcome.RESULTS_RETURNED)
+        with self.assertRaisesRegex(ContractValidationError, "requires only query_keyword"):
+            replace(empty, query_product=make_relationship().product)
+        with self.assertRaisesRegex(ContractValidationError, "query_execution_id must equal"):
+            replace(empty, query_execution_id="query-execution:forged")
+
+        reverse_relationship = make_relationship(
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD
+        )
+        reverse = make_query_execution(
+            outcome=QueryExecutionOutcome.RESULTS_RETURNED,
+            relationship=reverse_relationship,
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+        )
+        self.assertIsNone(reverse.query_keyword)
+        self.assertEqual(reverse.query_product, reverse_relationship.product)
+        with self.assertRaisesRegex(ContractValidationError, "requires only query_product"):
+            replace(reverse, query_product=None)
+        with self.assertRaisesRegex(ContractValidationError, "outcome must be"):
+            replace(empty, outcome="EXPLICIT_EMPTY")
+
+    def test_query_identity_is_deterministic_and_collections_are_immutable(self) -> None:
+        relationship = make_relationship()
+        second = replace(relationship, observation_id="obs:query-test-second")
+        mutable_related = [second.observation_id, relationship.observation_id]
+        mutable_issues = ["issue:second", "issue:first"]
+        payload = {
+            "query_keyword": relationship.keyword,
+            "query_product": None,
+            "direction": RelationshipDirection.KEYWORD_TO_PRODUCT,
+            "outcome": QueryExecutionOutcome.RESULTS_RETURNED,
+            "related_relationship_observation_ids": mutable_related,
+            "provenance": relationship.provenance,
+            "quality_issue_ids": mutable_issues,
+        }
+        first = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**payload),
+            **payload,
+        )
+        reversed_payload = {
+            **payload,
+            "related_relationship_observation_ids": tuple(reversed(mutable_related)),
+            "quality_issue_ids": tuple(reversed(mutable_issues)),
+        }
+        replay = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**reversed_payload),
+            **reversed_payload,
+        )
+        self.assertTrue(first.query_execution_id.startswith("qex:"))
+        self.assertEqual(first, replay)
+        mutable_related.append("obs:caller-mutation")
+        mutable_issues.append("issue:caller-mutation")
+        self.assertNotIn("obs:caller-mutation", first.related_relationship_observation_ids)
+        self.assertNotIn("issue:caller-mutation", first.quality_issue_ids)
+        self.assertIsInstance(first.related_relationship_observation_ids, tuple)
+        self.assertIsInstance(first.quality_issue_ids, tuple)
+
+        records = [make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)]
+        empty_bundle = CanonicalEvidenceBundle(
+            raw_evidence_references=(RAW_ID,),
+            transformation_runs=(
+                replace(
+                    make_run(make_metric()),
+                    output_observation_ids=(),
+                    output_query_execution_ids=(records[0].query_execution_id,),
+                ),
+            ),
+            observations=(), conflicts=(), resolutions=(), quality_issues=(),
+            query_execution_records=records,
+        )
+        records.clear()
+        self.assertEqual(len(empty_bundle.query_execution_records), 1)
+        self.assertIsInstance(empty_bundle.query_execution_records, tuple)
+
+    def test_query_serialization_fails_closed(self) -> None:
+        record = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        payload = record.to_dict()
+        for key in ("query_execution_id", "direction", "outcome", "provenance"):
+            missing = json.loads(json.dumps(payload))
+            missing.pop(key)
+            with self.assertRaisesRegex(ContractValidationError, "required"):
+                DirectionalQueryExecutionRecord.from_dict(missing)
+
+        unknown = json.loads(json.dumps(payload))
+        unknown["provider_payload"] = {}
+        with self.assertRaisesRegex(ContractValidationError, "unknown fields"):
+            DirectionalQueryExecutionRecord.from_dict(unknown)
+
+        invalid_enum = json.loads(json.dumps(payload))
+        invalid_enum["outcome"] = "EMPTY_OR_MAYBE_UNKNOWN"
+        with self.assertRaisesRegex(ContractValidationError, "invalid value"):
+            DirectionalQueryExecutionRecord.from_dict(invalid_enum)
+
+        wrong_primitive = json.loads(json.dumps(payload))
+        wrong_primitive["query_keyword"]["raw_text"] = True
+        with self.assertRaisesRegex(ContractValidationError, "must be a string"):
+            DirectionalQueryExecutionRecord.from_dict(wrong_primitive)
+
+        with self.assertRaises(ContractValidationError):
+            query_execution_id(
+                query_keyword=record.query_keyword,
+                query_product=None,
+                direction=record.direction,
+                outcome=record.outcome,
+                related_relationship_observation_ids=(1,),
+                provenance=record.provenance,
+                quality_issue_ids=(),
+            )
+
+    def test_query_wrong_type_subject_and_outcome_reference_rules(self) -> None:
+        empty = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        with self.assertRaisesRegex(ContractValidationError, "requires only query_keyword"):
+            replace(empty, query_keyword=make_relationship().product)
+        with self.assertRaisesRegex(ContractValidationError, "cannot reference"):
+            replace(
+                empty,
+                related_relationship_observation_ids=("obs:should-not-exist",),
+                query_execution_id=query_execution_id(
+                    query_keyword=empty.query_keyword,
+                    query_product=None,
+                    direction=empty.direction,
+                    outcome=empty.outcome,
+                    related_relationship_observation_ids=("obs:should-not-exist",),
+                    provenance=empty.provenance,
+                    quality_issue_ids=(),
+                ),
+            )
+
+        absent_bundle = CanonicalEvidenceBundle(
+            raw_evidence_references=(),
+            transformation_runs=(), observations=(), conflicts=(), resolutions=(),
+            quality_issues=(), query_execution_records=(),
+        )
+        self.assertEqual(absent_bundle.query_execution_records, ())
+        self.assertNotEqual(empty.outcome, QueryExecutionOutcome.OUTCOME_UNKNOWN)
+        self.assertNotEqual(empty.outcome, QueryExecutionOutcome.EXECUTION_FAILED)
+
+    def test_query_cross_reference_orphans_fail_closed(self) -> None:
+        record = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        run = replace(
+            make_run(make_metric()),
+            output_observation_ids=(),
+            output_query_execution_ids=(record.query_execution_id,),
+        )
+        with self.assertRaisesRegex(ContractValidationError, "no transformation run"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(record,),
+            )
+        with self.assertRaisesRegex(ContractValidationError, "does not list query execution"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(
+                    replace(
+                        run,
+                        status=TransformationStatus.PARTIAL,
+                        output_query_execution_ids=(),
+                    ),
+                ),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(record,),
+            )
+        with self.assertRaisesRegex(ContractValidationError, "unknown raw evidence"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(),
+                transformation_runs=(run,),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(record,),
+            )
+
+    def test_query_cross_reference_types_subjects_and_lineage_fail_closed(self) -> None:
+        metric = make_metric()
+        wrong_type_payload = {
+            "query_keyword": make_keyword(),
+            "query_product": None,
+            "direction": RelationshipDirection.KEYWORD_TO_PRODUCT,
+            "outcome": QueryExecutionOutcome.RESULTS_RETURNED,
+            "related_relationship_observation_ids": (metric.observation_id,),
+            "provenance": metric.provenance,
+            "quality_issue_ids": (),
+        }
+        wrong_type = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**wrong_type_payload),
+            **wrong_type_payload,
+        )
+        wrong_type_run = replace(
+            make_run(metric),
+            output_query_execution_ids=(wrong_type.query_execution_id,),
+        )
+        with self.assertRaisesRegex(ContractValidationError, "non-relationship observation"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(wrong_type_run,), observations=(metric,),
+                conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(wrong_type,),
+            )
+
+        orphan_payload = {
+            **wrong_type_payload,
+            "related_relationship_observation_ids": ("obs:missing-relationship",),
+        }
+        orphan = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**orphan_payload),
+            **orphan_payload,
+        )
+        with self.assertRaisesRegex(ContractValidationError, "unknown relationship observation"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(
+                    replace(
+                        wrong_type_run,
+                        output_observation_ids=(),
+                        output_query_execution_ids=(orphan.query_execution_id,),
+                    ),
+                ),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(orphan,),
+            )
+
+        relationship = make_relationship()
+        different_keyword_text = "plastic forks"
+        different_keyword = KeywordIdentity(
+            keyword_id=keyword_id("US", "en-us", different_keyword_text),
+            marketplace="US", locale="en-us",
+            normalized_text=different_keyword_text,
+            raw_text=different_keyword_text,
+        )
+        subject_payload = {
+            "query_keyword": different_keyword,
+            "query_product": None,
+            "direction": RelationshipDirection.KEYWORD_TO_PRODUCT,
+            "outcome": QueryExecutionOutcome.RESULTS_RETURNED,
+            "related_relationship_observation_ids": (relationship.observation_id,),
+            "provenance": relationship.provenance,
+            "quality_issue_ids": (),
+        }
+        subject_mismatch = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**subject_payload),
+            **subject_payload,
+        )
+        relationship_run = replace(
+            make_run(metric),
+            output_observation_ids=(relationship.observation_id,),
+            output_query_execution_ids=(subject_mismatch.query_execution_id,),
+        )
+        with self.assertRaisesRegex(ContractValidationError, "keyword subject mismatch"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,), transformation_runs=(relationship_run,),
+                observations=(relationship,), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(subject_mismatch,),
+            )
+
+        empty = make_query_execution(outcome=QueryExecutionOutcome.EXPLICIT_EMPTY)
+        base_run = replace(
+            make_run(metric),
+            output_observation_ids=(),
+            output_query_execution_ids=(empty.query_execution_id,),
+        )
+        for field_name, changed_value, message in (
+            ("mapping_version", "different_mapping_v2", "mismatched mapping_version"),
+            ("collection_run_id", "collection:sorftime:OTHER", "mismatched collection_run_id"),
+        ):
+            changed_transform = replace(
+                empty.provenance.transformation,
+                **{field_name: changed_value},
+            )
+            changed_provenance = replace(empty.provenance, transformation=changed_transform)
+            changed_payload = {
+                "query_keyword": empty.query_keyword,
+                "query_product": None,
+                "direction": empty.direction,
+                "outcome": empty.outcome,
+                "related_relationship_observation_ids": (),
+                "provenance": changed_provenance,
+                "quality_issue_ids": (),
+            }
+            changed = DirectionalQueryExecutionRecord(
+                query_execution_id=query_execution_id(**changed_payload),
+                **changed_payload,
+            )
+            with self.assertRaisesRegex(ContractValidationError, message):
+                CanonicalEvidenceBundle(
+                    raw_evidence_references=(RAW_ID,),
+                    transformation_runs=(
+                        replace(base_run, output_query_execution_ids=(changed.query_execution_id,)),
+                    ),
+                    observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                    query_execution_records=(changed,),
+                )
+
+        issue_payload = {
+            "query_keyword": empty.query_keyword,
+            "query_product": None,
+            "direction": empty.direction,
+            "outcome": empty.outcome,
+            "related_relationship_observation_ids": (),
+            "provenance": empty.provenance,
+            "quality_issue_ids": ("issue:missing",),
+        }
+        issue_orphan = DirectionalQueryExecutionRecord(
+            query_execution_id=query_execution_id(**issue_payload),
+            **issue_payload,
+        )
+        with self.assertRaisesRegex(ContractValidationError, "unknown quality issue"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(
+                    replace(base_run, output_query_execution_ids=(issue_orphan.query_execution_id,)),
+                ),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(issue_orphan,),
+            )
+
+        with self.assertRaisesRegex(ContractValidationError, "duplicate query_execution_id"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,), transformation_runs=(base_run,),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(empty, empty),
+            )
+        with self.assertRaisesRegex(ContractValidationError, "mismatched transformation_status"):
+            CanonicalEvidenceBundle(
+                raw_evidence_references=(RAW_ID,),
+                transformation_runs=(replace(base_run, status=TransformationStatus.PARTIAL),),
+                observations=(), conflicts=(), resolutions=(), quality_issues=(),
+                query_execution_records=(empty,),
+            )
 class BundleTests(unittest.TestCase):
     def test_valid_bundle_serializes_to_provider_neutral_json(self) -> None:
         observation = make_metric()

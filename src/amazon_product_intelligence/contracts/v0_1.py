@@ -178,6 +178,13 @@ class RelationshipDirection(StrEnum):
     PRODUCT_TO_KEYWORD = "PRODUCT_TO_KEYWORD"
 
 
+class QueryExecutionOutcome(StrEnum):
+    RESULTS_RETURNED = "RESULTS_RETURNED"
+    EXPLICIT_EMPTY = "EXPLICIT_EMPTY"
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
+    EXECUTION_FAILED = "EXECUTION_FAILED"
+
+
 class RelationshipType(StrEnum):
     CANDIDATE_MEMBERSHIP = "CANDIDATE_MEMBERSHIP"
     RANK = "RANK"
@@ -251,6 +258,8 @@ def _require_text(name: str, value: str) -> None:
 
 
 def _require_unique(name: str, values: Sequence[str]) -> None:
+    for index, value in enumerate(values):
+        _require_text(f"{name}[{index}]", value)
     if len(values) != len(set(values)):
         raise ContractValidationError(f"{name} must contain unique values")
 
@@ -525,6 +534,39 @@ def relationship_observation_id(
             "relationship_type": relationship_type,
             "channel": channel,
             "canonical_content": canonical_content,
+        },
+    )
+
+
+def query_execution_id(
+    *,
+    query_keyword: "KeywordIdentity | None",
+    query_product: "ProductIdentity | None",
+    direction: RelationshipDirection,
+    outcome: QueryExecutionOutcome,
+    related_relationship_observation_ids: Sequence[str],
+    provenance: "Provenance",
+    quality_issue_ids: Sequence[str],
+    schema_version: str = SCHEMA_VERSION,
+) -> str:
+    related_ids = tuple(related_relationship_observation_ids)
+    issue_ids = tuple(quality_issue_ids)
+    _require_unique(
+        "related_relationship_observation_ids",
+        related_ids,
+    )
+    _require_unique("query_execution.quality_issue_ids", issue_ids)
+    return deterministic_id(
+        "qex",
+        {
+            "query_keyword": query_keyword,
+            "query_product": query_product,
+            "direction": direction,
+            "outcome": outcome,
+            "related_relationship_observation_ids": sorted(related_ids),
+            "provenance": provenance,
+            "quality_issue_ids": sorted(issue_ids),
+            "schema_version": schema_version,
         },
     )
 
@@ -891,6 +933,73 @@ class ProductKeywordRelationshipObservation(CanonicalObservation):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class DirectionalQueryExecutionRecord(JsonContract):
+    """Provider-neutral evidence that one directional relationship query executed."""
+
+    query_execution_id: str
+    query_keyword: KeywordIdentity | None
+    query_product: ProductIdentity | None
+    direction: RelationshipDirection
+    outcome: QueryExecutionOutcome
+    related_relationship_observation_ids: tuple[str, ...]
+    provenance: Provenance
+    quality_issue_ids: tuple[str, ...]
+    schema_version: str = SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        related_ids = tuple(self.related_relationship_observation_ids)
+        issue_ids = tuple(self.quality_issue_ids)
+        _require_unique("related_relationship_observation_ids", related_ids)
+        _require_unique("query_execution.quality_issue_ids", issue_ids)
+        object.__setattr__(
+            self,
+            "related_relationship_observation_ids",
+            tuple(sorted(related_ids)),
+        )
+        object.__setattr__(
+            self,
+            "quality_issue_ids",
+            tuple(sorted(issue_ids)),
+        )
+        _require_text("query_execution_id", self.query_execution_id)
+        if self.schema_version != SCHEMA_VERSION:
+            raise ContractValidationError("query execution schema_version must be 0.1")
+        if not isinstance(self.direction, RelationshipDirection):
+            raise ContractValidationError("query execution direction must be RelationshipDirection")
+        if not isinstance(self.outcome, QueryExecutionOutcome):
+            raise ContractValidationError("query execution outcome must be QueryExecutionOutcome")
+        if not isinstance(self.provenance, Provenance):
+            raise ContractValidationError("query execution provenance must be Provenance")
+        if self.direction is RelationshipDirection.KEYWORD_TO_PRODUCT:
+            if not isinstance(self.query_keyword, KeywordIdentity) or self.query_product is not None:
+                raise ContractValidationError("KEYWORD_TO_PRODUCT query requires only query_keyword")
+        elif self.direction is RelationshipDirection.PRODUCT_TO_KEYWORD:
+            if not isinstance(self.query_product, ProductIdentity) or self.query_keyword is not None:
+                raise ContractValidationError("PRODUCT_TO_KEYWORD query requires only query_product")
+        else:
+            raise ContractValidationError("invalid query execution direction")
+        if self.outcome is QueryExecutionOutcome.RESULTS_RETURNED:
+            if not self.related_relationship_observation_ids:
+                raise ContractValidationError("RESULTS_RETURNED requires relationship observations")
+        elif self.related_relationship_observation_ids:
+            raise ContractValidationError(
+                f"{self.outcome.value} cannot reference relationship observations"
+            )
+        expected = query_execution_id(
+            query_keyword=self.query_keyword,
+            query_product=self.query_product,
+            direction=self.direction,
+            outcome=self.outcome,
+            related_relationship_observation_ids=self.related_relationship_observation_ids,
+            provenance=self.provenance,
+            quality_issue_ids=self.quality_issue_ids,
+            schema_version=self.schema_version,
+        )
+        if self.query_execution_id != expected:
+            raise ContractValidationError(f"query_execution_id must equal {expected}")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ReviewObservation(CanonicalObservation):
     review_observation_id: str
     product: ProductIdentity
@@ -923,8 +1032,14 @@ class TransformationRunRecord(JsonContract):
     input_raw_evidence_references: tuple[str, ...]
     output_observation_ids: tuple[str, ...]
     quality_issue_ids: tuple[str, ...]
+    output_query_execution_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "output_query_execution_ids",
+            tuple(self.output_query_execution_ids),
+        )
         for name in ("provider", "collection_run_id", "mapping_version", "transformation_run_id"):
             _require_text(name, getattr(self, name))
         if self.mapping_version == "UNKNOWN":
@@ -933,11 +1048,22 @@ class TransformationRunRecord(JsonContract):
         _require_datetime("completed_at", self.completed_at)
         if not self.input_raw_evidence_references:
             raise ContractValidationError("transformation run requires at least one raw input")
-        for name in ("input_raw_evidence_references", "output_observation_ids", "quality_issue_ids"):
+        for name in (
+            "input_raw_evidence_references",
+            "output_observation_ids",
+            "quality_issue_ids",
+            "output_query_execution_ids",
+        ):
             _require_unique(name, getattr(self, name))
-        if self.status is TransformationStatus.SUCCESS and not self.output_observation_ids:
+        if (
+            self.status is TransformationStatus.SUCCESS
+            and not self.output_observation_ids
+            and not self.output_query_execution_ids
+        ):
             raise ContractValidationError("SUCCESS transformation requires an output")
-        if self.status is TransformationStatus.FAILED and self.output_observation_ids:
+        if self.status is TransformationStatus.FAILED and (
+            self.output_observation_ids or self.output_query_execution_ids
+        ):
             raise ContractValidationError("FAILED transformation cannot list outputs")
 
 
@@ -1108,9 +1234,22 @@ class CanonicalEvidenceBundle(JsonContract):
     resolutions: tuple[ResolvedEvidence, ...]
     quality_issues: tuple[DataQualityIssue, ...]
     raw_evidence_references: tuple[str, ...] = ()
+    query_execution_records: tuple[DirectionalQueryExecutionRecord, ...] = ()
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "query_execution_records",
+            tuple(self.query_execution_records),
+        )
+        if not all(
+            isinstance(record, DirectionalQueryExecutionRecord)
+            for record in self.query_execution_records
+        ):
+            raise ContractValidationError(
+                "query_execution_records must contain DirectionalQueryExecutionRecord values"
+            )
         if self.schema_version != SCHEMA_VERSION:
             raise ContractValidationError("bundle schema_version must be 0.1")
         self.validate()
@@ -1121,12 +1260,20 @@ class CanonicalEvidenceBundle(JsonContract):
         _collect_duplicate_ids(errors, "conflict_id", (item.conflict_id for item in self.conflicts))
         _collect_duplicate_ids(errors, "resolution_id", (item.resolution_id for item in self.resolutions))
         _collect_duplicate_ids(errors, "issue_id", (item.issue_id for item in self.quality_issues))
+        _collect_duplicate_ids(
+            errors,
+            "query_execution_id",
+            (item.query_execution_id for item in self.query_execution_records),
+        )
         _require_unique("raw_evidence_references", self.raw_evidence_references)
 
         raw_ids = set(self.raw_evidence_references)
         runs = {run.transformation_run_id: run for run in self.transformation_runs}
         issue_ids = {issue.issue_id for issue in self.quality_issues}
         observation_ids = {item.observation_id for item in self.observations}
+        query_execution_ids = {
+            item.query_execution_id for item in self.query_execution_records
+        }
         observations_by_id: dict[str, CanonicalObservation] = {}
         conflicts = {item.conflict_id: item for item in self.conflicts}
         resolution_ids = {item.resolution_id for item in self.resolutions}
@@ -1140,6 +1287,11 @@ class CanonicalEvidenceBundle(JsonContract):
             for output_id in run.output_observation_ids:
                 if output_id not in observation_ids:
                     errors.append(f"run {run.transformation_run_id} references unknown observation {output_id}")
+            for output_id in run.output_query_execution_ids:
+                if output_id not in query_execution_ids:
+                    errors.append(
+                        f"run {run.transformation_run_id} references unknown query execution {output_id}"
+                    )
             for issue_id in run.quality_issue_ids:
                 if issue_id not in issue_ids:
                     errors.append(f"run {run.transformation_run_id} references unknown quality issue {issue_id}")
@@ -1180,6 +1332,80 @@ class CanonicalEvidenceBundle(JsonContract):
                 if issue_id not in issue_ids:
                     errors.append(f"observation {observation.observation_id} references unknown quality issue {issue_id}")
 
+        for query_execution in self.query_execution_records:
+            transform = query_execution.provenance.transformation
+            run = runs.get(transform.transformation_run_id)
+            if run is None:
+                errors.append(
+                    f"query execution {query_execution.query_execution_id} has no transformation run"
+                )
+                continue
+            expected_pairs = (
+                ("provider", query_execution.provenance.provider, run.provider),
+                ("collection_run_id", transform.collection_run_id, run.collection_run_id),
+                ("mapping_version", transform.mapping_version, run.mapping_version),
+                ("provider_schema_version", transform.provider_schema_version, run.provider_schema_version),
+                (
+                    "transformation_code_version",
+                    transform.transformation_code_version,
+                    run.transformation_code_version,
+                ),
+                ("transformation_status", transform.transformation_status, run.status),
+            )
+            for name, embedded, recorded in expected_pairs:
+                if embedded != recorded:
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} has mismatched {name}"
+                    )
+            if query_execution.query_execution_id not in run.output_query_execution_ids:
+                errors.append(
+                    f"run {run.transformation_run_id} does not list query execution "
+                    f"{query_execution.query_execution_id}"
+                )
+            if transform.raw_evidence_reference not in run.input_raw_evidence_references:
+                errors.append(
+                    f"query execution {query_execution.query_execution_id} primary raw input is not listed by its run"
+                )
+            for issue_id in query_execution.quality_issue_ids:
+                if issue_id not in issue_ids:
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} references unknown quality issue {issue_id}"
+                    )
+            for observation_id in query_execution.related_relationship_observation_ids:
+                observation = observations_by_id.get(observation_id)
+                if observation is None:
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} references unknown relationship observation {observation_id}"
+                    )
+                    continue
+                if not isinstance(observation, ProductKeywordRelationshipObservation):
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} references non-relationship observation {observation_id}"
+                    )
+                    continue
+                if observation.direction is not query_execution.direction:
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} relationship direction mismatch"
+                    )
+                if (
+                    query_execution.direction is RelationshipDirection.KEYWORD_TO_PRODUCT
+                    and observation.keyword != query_execution.query_keyword
+                ):
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} keyword subject mismatch"
+                    )
+                if (
+                    query_execution.direction is RelationshipDirection.PRODUCT_TO_KEYWORD
+                    and observation.product != query_execution.query_product
+                ):
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} product subject mismatch"
+                    )
+                if observation.provenance.transformation != transform:
+                    errors.append(
+                        f"query execution {query_execution.query_execution_id} relationship transformation mismatch"
+                    )
+
         for conflict in self.conflicts:
             for observation_id in conflict.candidate_observation_ids:
                 if observation_id not in observation_ids:
@@ -1217,7 +1443,14 @@ class CanonicalEvidenceBundle(JsonContract):
                 if issue_id not in issue_ids:
                     errors.append(f"resolution {resolution.resolution_id} references unknown quality issue {issue_id}")
 
-        valid_source_references = raw_ids | observation_ids | set(conflicts) | resolution_ids | set(runs)
+        valid_source_references = (
+            raw_ids
+            | observation_ids
+            | query_execution_ids
+            | set(conflicts)
+            | resolution_ids
+            | set(runs)
+        )
         collection_ids = {run.collection_run_id for run in self.transformation_runs}
         for issue in self.quality_issues:
             for source_reference in issue.source_references:
@@ -1280,6 +1513,7 @@ __all__ = (
     "FactGroup",
     "EstimateMethodStatus",
     "RelationshipDirection",
+    "QueryExecutionOutcome",
     "RelationshipType",
     "Channel",
     "Severity",
@@ -1297,6 +1531,7 @@ __all__ = (
     "observation_revision_id",
     "raw_evidence_id",
     "relationship_observation_id",
+    "query_execution_id",
     "conflict_record_id",
     "resolution_record_id",
     "ProviderSchemaVersion",
@@ -1316,6 +1551,7 @@ __all__ = (
     "MetricObservation",
     "KeywordMetricObservation",
     "ProductKeywordRelationshipObservation",
+    "DirectionalQueryExecutionRecord",
     "ReviewObservation",
     "TransformationRunRecord",
     "DataQualityIssue",

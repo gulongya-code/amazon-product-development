@@ -25,6 +25,7 @@ from amazon_product_intelligence.contracts import (
     ObservedAtStatus,
     PeriodType,
     PresenceStatus,
+    QueryExecutionOutcome,
     RelationshipDirection,
     ScopeType,
     ScopeStatus,
@@ -131,8 +132,12 @@ def reverse_mapping_order(value):
     return value
 
 
-def fresh_process_serialization(provider: str, payload_kind: str) -> str:
-    fixture = FIXTURES / FIXTURE_BY_KIND[(provider, payload_kind)]
+def fresh_process_serialization(
+    provider: str,
+    payload_kind: str,
+    fixture_name: str | None = None,
+) -> str:
+    fixture = FIXTURES / (fixture_name or FIXTURE_BY_KIND[(provider, payload_kind)])
     source_tool = SOURCE_TOOLS[(provider, payload_kind)]
     script = """
 import json
@@ -162,7 +167,17 @@ context = AdaptationContext(
     sanitized_request=(
         {"asin": "B0G2VV4RBW"}
         if payload_kind in {"product_detail", "product_variations", "product_reviews", "asin_keywords"}
-        else ({"keyword": "plastic spoons"} if payload_kind == "keyword_asin_analysis" else {})
+        else (
+            {
+                "keyword": (
+                    "1/2 ball valve"
+                    if Path(fixture).name == "xiyou_keyword_forward_empty.json"
+                    else "plastic spoons"
+                )
+            }
+            if payload_kind == "keyword_asin_analysis"
+            else {}
+        )
     ),
     currency="USD",
 )
@@ -203,10 +218,10 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertTrue(isinstance(XiYouAdapterV0_1(), ProviderAdapter))
         self.assertTrue(isinstance(SorftimeAdapterV0_1(), ProviderAdapter))
 
-    def test_v0_1_1_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
+    def test_v0_1_2_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
         self.assertEqual(len(adapters.__all__), 14)
-        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.1")
-        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.1")
+        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.2")
+        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.2")
         self.assertEqual(SorftimeAdapterV0_1.adapter_version, "0.1.1")
 
         xiyou_specs = XiYouAdapterV0_1.mapping_specifications
@@ -216,6 +231,16 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
             "xiyou_variations_mapping_v1_1",
         )
         self.assertEqual(xiyou_specs["asin_info"].version, "0.1")
+        self.assertEqual(xiyou_specs["keyword_asin_analysis"].version, "0.1.1")
+        self.assertEqual(
+            xiyou_specs["keyword_asin_analysis"].mapping_version,
+            "xiyou_keyword_to_asin_mapping_v1_1",
+        )
+        self.assertEqual(xiyou_specs["asin_keywords"].version, "0.1.1")
+        self.assertEqual(
+            xiyou_specs["asin_keywords"].mapping_version,
+            "xiyou_asin_to_keyword_mapping_v1_1",
+        )
 
         sorftime_specs = SorftimeAdapterV0_1.mapping_specifications
         self.assertEqual(sorftime_specs["product_variations"].version, "0.1.1")
@@ -339,6 +364,10 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
                 first = adapt_fixture(provider, kind)
                 second = adapt_fixture(provider, kind)
                 self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
+                self.assertIs(first.bundle.validate(), first.bundle)
+                restored = CanonicalEvidenceBundle.from_dict(first.bundle.to_dict())
+                self.assertIs(restored.validate(), restored)
+                self.assertEqual(canonical_json(restored), canonical_json(first.bundle))
 
     def test_fresh_process_replay_is_identical(self) -> None:
         for provider, kind in (
@@ -351,6 +380,44 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
                 first = fresh_process_serialization(provider, kind)
                 second = fresh_process_serialization(provider, kind)
                 self.assertEqual(first, second)
+
+    def test_directional_query_fixtures_are_deterministic_and_immutable(self) -> None:
+        cases = (
+            ("keyword_asin_analysis", "xiyou_keyword_forward_populated.json"),
+            ("keyword_asin_analysis", "xiyou_keyword_forward_empty.json"),
+            ("asin_keywords", "xiyou_asin_keywords_reverse.json"),
+        )
+        for kind, fixture_name in cases:
+            with self.subTest(kind=kind, fixture=fixture_name):
+                payload = load_fixture(fixture_name)
+                original = deepcopy(payload)
+                adapter = XiYouAdapterV0_1()
+                request = (
+                    {"keyword": "1/2 ball valve"}
+                    if fixture_name == "xiyou_keyword_forward_empty.json"
+                    else None
+                )
+                first = adapter.adapt(payload, context("xiyou", kind, request=request))
+                same_process = adapter.adapt(
+                    deepcopy(payload),
+                    context("xiyou", kind, request=request),
+                )
+                reordered = adapter.adapt(
+                    reverse_mapping_order(payload),
+                    context("xiyou", kind, request=request),
+                )
+                first_json = canonical_json(first.to_dict())
+                self.assertEqual(first_json, canonical_json(same_process.to_dict()))
+                self.assertEqual(first_json, canonical_json(reordered.to_dict()))
+                self.assertEqual(payload, original)
+                self.assertEqual(
+                    CanonicalEvidenceBundle.from_dict(first.bundle.to_dict()),
+                    first.bundle,
+                )
+                self.assertEqual(
+                    fresh_process_serialization("xiyou", kind, fixture_name),
+                    fresh_process_serialization("xiyou", kind, fixture_name),
+                )
 
     def test_variation_adaptation_does_not_mutate_inputs(self) -> None:
         for provider, kind in (
@@ -574,6 +641,72 @@ class XiYouMappingTests(unittest.TestCase):
         forbidden = {"market_size", "competitor_count", "demand"}
         self.assertFalse(forbidden & {getattr(item, "metric", None) for item in empty.bundle.observations})
         self.assertTrue(relationship_observations(reverse))
+
+    def test_forward_populated_publishes_canonical_query_execution(self) -> None:
+        result = adapt_fixture("xiyou", "keyword_asin_analysis")
+        self.assertEqual(len(result.bundle.query_execution_records), 1)
+        record = result.bundle.query_execution_records[0]
+        relationships = relationship_observations(result)
+        self.assertEqual(record.direction, RelationshipDirection.KEYWORD_TO_PRODUCT)
+        self.assertEqual(record.outcome, QueryExecutionOutcome.RESULTS_RETURNED)
+        self.assertEqual(record.query_keyword.normalized_text, "plastic spoons")
+        self.assertIsNone(record.query_product)
+        self.assertEqual(
+            set(record.related_relationship_observation_ids),
+            {item.observation_id for item in relationships},
+        )
+        run = result.bundle.transformation_runs[0]
+        self.assertEqual(run.output_query_execution_ids, (record.query_execution_id,))
+        self.assertEqual(record.provenance.transformation.transformation_run_id, run.transformation_run_id)
+        self.assertEqual(record.provenance.transformation.mapping_version, "xiyou_keyword_to_asin_mapping_v1_1")
+        self.assertEqual(CanonicalEvidenceBundle.from_dict(result.bundle.to_dict()), result.bundle)
+
+    def test_forward_empty_is_reconstructable_from_bundle_alone(self) -> None:
+        result = XiYouAdapterV0_1().adapt(
+            load_fixture("xiyou_keyword_forward_empty.json"),
+            context("xiyou", "keyword_asin_analysis", request={"keyword": "1/2 ball valve"}),
+        )
+        bundle = CanonicalEvidenceBundle.from_dict(result.bundle.to_dict())
+        self.assertEqual(relationship_observations(result), [])
+        self.assertEqual(len(bundle.query_execution_records), 1)
+        record = bundle.query_execution_records[0]
+        run = bundle.transformation_runs[0]
+        self.assertEqual(record.outcome, QueryExecutionOutcome.EXPLICIT_EMPTY)
+        self.assertEqual(record.direction, RelationshipDirection.KEYWORD_TO_PRODUCT)
+        self.assertEqual(record.query_keyword.normalized_text, "1/2 ball valve")
+        self.assertIsNone(record.query_product)
+        self.assertEqual(record.related_relationship_observation_ids, ())
+        self.assertEqual(run.status, TransformationStatus.SUCCESS)
+        self.assertEqual(run.output_observation_ids, ())
+        self.assertEqual(run.output_query_execution_ids, (record.query_execution_id,))
+        self.assertEqual(record.provenance.transformation.raw_evidence_reference, bundle.raw_evidence_references[0])
+        self.assertEqual(record.provenance.source_tool, "get_keyword_asin_analysis")
+        self.assertFalse(bundle.quality_issues)
+        serialized = canonical_json(bundle)
+        for forbidden in ("demand_zero", "market_size", "competitor_count"):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_reverse_populated_publishes_product_subject_query_execution(self) -> None:
+        result = adapt_fixture("xiyou", "asin_keywords")
+        self.assertEqual(len(result.bundle.query_execution_records), 1)
+        record = result.bundle.query_execution_records[0]
+        relationships = relationship_observations(result)
+        self.assertEqual(record.direction, RelationshipDirection.PRODUCT_TO_KEYWORD)
+        self.assertEqual(record.outcome, QueryExecutionOutcome.RESULTS_RETURNED)
+        self.assertEqual(record.query_product.product_id, "product:US:B0G2VV4RBW")
+        self.assertIsNone(record.query_keyword)
+        self.assertEqual(
+            set(record.related_relationship_observation_ids),
+            {item.observation_id for item in relationships},
+        )
+        self.assertEqual(
+            record.provenance.transformation.mapping_version,
+            "xiyou_asin_to_keyword_mapping_v1_1",
+        )
+        self.assertEqual(
+            result.bundle.transformation_runs[0].output_query_execution_ids,
+            (record.query_execution_id,),
+        )
 
     def test_variation_relationships_use_explicit_parent_as_subject(self) -> None:
         variations = adapt_fixture("xiyou", "asin_variations")
@@ -891,10 +1024,48 @@ class FixturePolicyTests(unittest.TestCase):
                 first = adapt_fixture(provider, kind)
                 second = adapt_fixture(provider, kind)
                 self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
-                self.assertIs(first.bundle.validate(), first.bundle)
-                restored = CanonicalEvidenceBundle.from_dict(first.bundle.to_dict())
-                self.assertIs(restored.validate(), restored)
-                self.assertEqual(canonical_json(restored), canonical_json(first.bundle))
+
+    def test_all_eleven_provider_fixtures_produce_valid_non_orphan_bundles(self) -> None:
+        cases = [
+            (provider, kind, fixture_name)
+            for (provider, kind), fixture_name in FIXTURE_BY_KIND.items()
+        ]
+        cases.append(
+            ("xiyou", "keyword_asin_analysis", "xiyou_keyword_forward_empty.json")
+        )
+        self.assertEqual(len(cases), 11)
+        query_ids: set[str] = set()
+        for provider, kind, fixture_name in cases:
+            with self.subTest(provider=provider, kind=kind, fixture=fixture_name):
+                result = adapter_for(provider).adapt(
+                    load_fixture(fixture_name),
+                    context(
+                        provider,
+                        kind,
+                        request=(
+                            {"keyword": "1/2 ball valve"}
+                            if fixture_name == "xiyou_keyword_forward_empty.json"
+                            else None
+                        ),
+                    ),
+                )
+                self.assertIs(result.bundle.validate(), result.bundle)
+                self.assertEqual(
+                    CanonicalEvidenceBundle.from_dict(result.bundle.to_dict()),
+                    result.bundle,
+                )
+                expected_query_count = 1 if kind in {
+                    "keyword_asin_analysis",
+                    "asin_keywords",
+                } else 0
+                self.assertEqual(
+                    len(result.bundle.query_execution_records),
+                    expected_query_count,
+                )
+                for record in result.bundle.query_execution_records:
+                    self.assertNotIn(record.query_execution_id, query_ids)
+                    query_ids.add(record.query_execution_id)
+        self.assertEqual(len(query_ids), 3)
 
 
 if __name__ == "__main__":

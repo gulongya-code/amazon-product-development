@@ -17,6 +17,8 @@ from amazon_product_intelligence.contracts import (
     OriginStage,
     PeriodType,
     PresenceStatus,
+    ProductKeywordRelationshipObservation,
+    QueryExecutionOutcome,
     RelationshipDirection,
     RelationshipType,
     ResultStatus,
@@ -85,10 +87,14 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     "keyword_asin_analysis": _spec(
         "keyword_asin_analysis",
         "get_keyword_asin_analysis",
-        "xiyou_keyword_to_asin_mapping_v1",
+        "xiyou_keyword_to_asin_mapping_v1_1",
+        version="0.1.1",
     ),
     "asin_keywords": _spec(
-        "asin_keywords", "get_asin_keywords", "xiyou_asin_to_keyword_mapping_v1"
+        "asin_keywords",
+        "get_asin_keywords",
+        "xiyou_asin_to_keyword_mapping_v1_1",
+        version="0.1.1",
     ),
 }
 
@@ -1279,6 +1285,14 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
         )
     if not rows:
         session.raw_evidence = replace(session.raw_evidence, response_status="EMPTY")
+        session.add_query_execution(
+            query_keyword=keyword,
+            direction=RelationshipDirection.KEYWORD_TO_PRODUCT,
+            outcome=QueryExecutionOutcome.EXPLICIT_EMPTY,
+            related_relationship_observation_ids=(),
+            source_field="data.list",
+            source_record_identity=keyword.keyword_id,
+        )
         session.diagnostic(
             code="QUERY_RETURNED_EMPTY",
             message=(
@@ -1287,6 +1301,7 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             ),
             source_locator="$.data.list",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+            affects_status=False,
         )
         _report_fields(
             session,
@@ -1352,6 +1367,26 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
         mapped={"list"},
         ignored={"total": "Provider row count is retained but is not a market-size metric."},
     )
+    related_ids = tuple(
+        item.observation_id
+        for item in session.observations
+        if isinstance(item, ProductKeywordRelationshipObservation)
+        and item.direction is RelationshipDirection.KEYWORD_TO_PRODUCT
+        and item.keyword == keyword
+    )
+    session.add_query_execution(
+        query_keyword=keyword,
+        direction=RelationshipDirection.KEYWORD_TO_PRODUCT,
+        outcome=(
+            QueryExecutionOutcome.RESULTS_RETURNED
+            if related_ids
+            else QueryExecutionOutcome.OUTCOME_UNKNOWN
+        ),
+        related_relationship_observation_ids=related_ids,
+        source_field="data.list",
+        source_record_identity=keyword.keyword_id,
+        quality_issue_ids=tuple(item.issue_id for item in session.issues),
+    )
     return session.finish()
 
 
@@ -1374,6 +1409,34 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             "Reverse relationship data requires list array and non-negative integer total.",
             "$.data",
         )
+    if not rows:
+        session.raw_evidence = replace(session.raw_evidence, response_status="EMPTY")
+        session.add_query_execution(
+            query_product=product,
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+            outcome=QueryExecutionOutcome.EXPLICIT_EMPTY,
+            related_relationship_observation_ids=(),
+            source_field="data.list",
+            source_record_identity=product.product_id,
+        )
+        session.diagnostic(
+            code="QUERY_RETURNED_EMPTY",
+            message=(
+                "Valid ASIN to Keyword query returned no rows. This is not demand, relevance, "
+                "or a zero-valued metric."
+            ),
+            source_locator="$.data.list",
+            disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+            affects_status=False,
+        )
+        _report_fields(
+            session,
+            data,
+            locator="$.data",
+            mapped={"list"},
+            ignored={"total": "Provider row count is retained but is not a demand metric."},
+        )
+        return session.finish()
     for index, row in enumerate(rows):
         locator = f"$.data.list[{index}]"
         if not isinstance(row, MappingABC):
@@ -1421,14 +1484,34 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
         mapped={"list"},
         ignored={"total": "Provider row count is retained but is not a demand metric."},
     )
+    related_ids = tuple(
+        item.observation_id
+        for item in session.observations
+        if isinstance(item, ProductKeywordRelationshipObservation)
+        and item.direction is RelationshipDirection.PRODUCT_TO_KEYWORD
+        and item.product == product
+    )
+    session.add_query_execution(
+        query_product=product,
+        direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+        outcome=(
+            QueryExecutionOutcome.RESULTS_RETURNED
+            if related_ids
+            else QueryExecutionOutcome.OUTCOME_UNKNOWN
+        ),
+        related_relationship_observation_ids=related_ids,
+        source_field="data.list",
+        source_record_identity=product.product_id,
+        quality_issue_ids=tuple(item.issue_id for item in session.issues),
+    )
     return session.finish()
 
 
 class XiYouAdapterV0_1:
-    """Offline audited XiYou adapter with no provider transport."""
+    """Offline audited XiYou adapter with V0.1.2 provenance rules."""
 
     provider = "xiyou"
-    adapter_version = "0.1.1"
+    adapter_version = "0.1.2"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 
