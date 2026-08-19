@@ -6,6 +6,35 @@ from .errors import (
     OpportunityScoringSerializationError,
     OpportunityScoringValidationError,
 )
+from .engine import (
+    DimensionEvaluator,
+    ExplanationBuilder,
+    QualityEvaluator,
+    RiskEvaluator,
+    ScoringEngine,
+)
+from .engine_contracts import (
+    BUSINESS_DECISION_REQUIRED,
+    ENGINE_ARCHITECTURE_VERSION,
+    CompletenessLevel,
+    CompletenessResult,
+    ConfidenceLevel,
+    ConfidenceResult,
+    DimensionResult,
+    EvidenceReference,
+    ExplanationRecord,
+    InputQuality,
+    MetricInput,
+    MetricInputStatus,
+    OpportunityDimension,
+    OpportunityScoringEngineInput,
+    OpportunityScoringEngineResult,
+    ProductIdentityInput,
+    ProvenanceReference,
+    RiskRecord,
+    ScoringConfigurationStatus,
+    ScoringState,
+)
 from .models import (
     OPPORTUNITY_SCORING_RULESET_VERSION,
     OpportunityScoringRequest,
