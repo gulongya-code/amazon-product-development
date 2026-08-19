@@ -1,6 +1,7 @@
 """Public pluggable Provider Connector Foundation V0.1."""
 
 from .base import AdapterBackedProvider, DataProvider
+from .base_client import BaseAPIClient
 from .errors import ProviderConnectorError, ProviderErrorCode
 from .models import (
     CanonicalSelector,
@@ -19,6 +20,7 @@ from .resolver import (
     ProviderResolver,
 )
 from .sorftime_v0_1 import SORFTIME_CAPABILITIES, SORFTIME_OPERATIONS, SorftimeProvider
+from .sorftime_client import SorftimeClient
 from .transport import (
     BoundedTransientRetryPolicy,
     HttpJsonTransport,
@@ -31,10 +33,12 @@ from .transport import (
     TransportResponse,
 )
 from .xiyou_v0_1 import XIYOU_CAPABILITIES, XIYOU_OPERATIONS, XiYouProvider
+from .xiyou_client import XiYouClient, XiyouClient
 
 
 __all__ = (
     "AdapterBackedProvider",
+    "BaseAPIClient",
     "BoundedTransientRetryPolicy",
     "CanonicalSelector",
     "CapabilityStatus",
@@ -61,10 +65,13 @@ __all__ = (
     "SORFTIME_CAPABILITIES",
     "SORFTIME_OPERATIONS",
     "SorftimeProvider",
+    "SorftimeClient",
     "TransportRequest",
     "TransportResponse",
     "XIYOU_CAPABILITIES",
     "XIYOU_OPERATIONS",
     "XiYouProvider",
+    "XiYouClient",
+    "XiyouClient",
     "build_registry",
 )
