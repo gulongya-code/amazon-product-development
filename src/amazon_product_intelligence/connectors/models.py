@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 from amazon_product_intelligence.adapters import AdaptationResult
 from amazon_product_intelligence.contracts import CanonicalObservation, ObservationKind, Provenance
+from amazon_product_intelligence.provider_capabilities import CapabilityStatus
 
 
 _PROVIDER_ID = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -75,15 +76,6 @@ def _parse_bool(name: str, value: str) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"{name} must be a boolean value")
-
-
-class CapabilityStatus(StrEnum):
-    """Provider API capability; CALCULATED intentionally does not exist."""
-
-    AVAILABLE = "AVAILABLE"
-    PARTIAL = "PARTIAL"
-    UNAVAILABLE = "UNAVAILABLE"
-    UNKNOWN = "UNKNOWN"
 
 
 class ProviderFetchStatus(StrEnum):
