@@ -99,6 +99,21 @@ class CanonicalSelector:
             raise ValueError("canonical selector names must be non-empty text")
         object.__setattr__(self, "canonical_names", names)
 
+    def matches(self, observation: CanonicalObservation) -> bool:
+        """Return whether an existing Canonical observation belongs to this field."""
+
+        if self.observation_kind is not None and observation.observation_kind is not self.observation_kind:
+            return False
+        if not self.canonical_names:
+            return True
+        if observation.observation_kind is ObservationKind.PRODUCT_FACT:
+            canonical_name = getattr(observation, "dimension", None)
+        elif observation.observation_kind in {ObservationKind.METRIC, ObservationKind.KEYWORD_METRIC}:
+            canonical_name = getattr(observation, "metric", None)
+        else:
+            canonical_name = None
+        return canonical_name in self.canonical_names
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ProviderCapability:

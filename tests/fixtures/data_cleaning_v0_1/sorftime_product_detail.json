@@ -1,0 +1,30 @@
+{
+  "doc": {
+    "asin": "Product ASIN.",
+    "attributes": "Product attribute key-value pairs.",
+    "brand": "Brand.",
+    "category": "Product category.",
+    "description": "Product description containing HTML tags.",
+    "monthly_sales_volume": "Monthly sales volume in units.",
+    "node_id": "Category node identifier.",
+    "parent_asin": "Parent ASIN.",
+    "price": "Selling price in USD.",
+    "review_count": "Number of reviews.",
+    "star_rating": "Star rating out of 5.",
+    "title": "Product title."
+  },
+  "data": {
+    "asin": "B0G2VV4RBW",
+    "attributes": "{\"Material\":\"Stainless Steel\",\"Brand\":\"SKLSSVF\"}",
+    "brand": "SKLSSVF",
+    "category": "VALVE",
+    "description": "High Quality Ball Valve<br>",
+    "monthly_sales_volume": 333.0,
+    "node_id": "1265144011",
+    "parent_asin": "B0G2VVX3ML",
+    "price": 18.99,
+    "review_count": 21,
+    "star_rating": 4.9,
+    "title": "2 Pack 1/2 Inch Full Port Ball Valve"
+  }
+}

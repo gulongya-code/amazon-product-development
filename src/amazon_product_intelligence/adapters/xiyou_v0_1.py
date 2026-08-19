@@ -69,6 +69,11 @@ def _spec(
 
 _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     "asin_info": _spec("asin_info", "get_asin_info", "xiyou_product_info_mapping_v1"),
+    "asin_info_http_v2": _spec(
+        "asin_info_http_v2",
+        "get_asin_info",
+        "xiyou_product_info_http_v2_mapping_v1",
+    ),
     "asin_variations": _spec(
         "asin_variations",
         "get_asin_variations",
@@ -214,13 +219,25 @@ def _string_value(raw: str) -> Any:
     )
 
 
-def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _product_info_at(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str,
+    source_prefix: str,
+) -> AdaptationResult:
     entities = data.get("entities")
     if not isinstance(entities, (tuple, list)):
-        return _fail(session, "MALFORMED_PROVIDER_ENVELOPE", "data.entities must be an array", "$.data.entities")
-    _report_fields(session, data, locator="$.data", mapped={"entities"})
+        return _fail(
+            session,
+            "MALFORMED_PROVIDER_ENVELOPE",
+            f"{source_prefix}entities must be an array",
+            f"{root_locator}.entities",
+        )
+    _report_fields(session, data, locator=root_locator, mapped={"entities"})
     for index, record in enumerate(entities):
-        locator = f"$.data.entities[{index}]"
+        locator = f"{root_locator}.entities[{index}]"
+        source_record = f"{source_prefix}entities[{index}]"
         if not isinstance(record, MappingABC):
             _record_issue(
                 session,
@@ -255,7 +272,7 @@ def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                 dimension="title",
                 fact_group=FactGroup.IDENTITY_RELATED,
                 value=_string_value(title),
-                source_field=f"data.entities[{index}].title",
+                source_field=f"{source_record}.title",
                 source_record_identity=source_identity,
                 provider_semantic="Displayed product title",
             )
@@ -296,7 +313,7 @@ def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.CONFIRMED,
                     ),
-                    source_field=f"data.entities[{index}].price",
+                    source_field=f"{source_record}.price",
                     source_record_identity=source_identity,
                     metric_semantic="Displayed product selling price",
                     evidence_type=EvidenceType.OBSERVED,
@@ -329,7 +346,7 @@ def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.CONFIRMED,
                     ),
-                    source_field=f"data.entities[{index}].stars",
+                    source_field=f"{source_record}.stars",
                     source_record_identity=source_identity,
                     metric_semantic="Displayed product rating on a five-star scale",
                     evidence_type=EvidenceType.OBSERVED,
@@ -360,7 +377,7 @@ def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.CONFIRMED,
                     ),
-                    source_field=f"data.entities[{index}].ratings",
+                    source_field=f"{source_record}.ratings",
                     source_record_identity=source_identity,
                     metric_semantic="Displayed rating/review count",
                     evidence_type=EvidenceType.OBSERVED,
@@ -380,6 +397,40 @@ def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
             },
         )
     return session.finish()
+
+
+def _product_info(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+    """Retain the audited legacy provider-tool envelope mapping."""
+
+    return _product_info_at(
+        session,
+        data,
+        root_locator="$.data",
+        source_prefix="data.",
+    )
+
+
+def _product_info_http_v2(
+    session: _AdapterSession,
+    payload: Mapping[str, Any],
+) -> AdaptationResult:
+    """Map the verified OpenAPI V2 top-level response without rewriting evidence."""
+
+    if isinstance(payload.get("entities"), (tuple, list)):
+        return _product_info_at(
+            session,
+            payload,
+            root_locator="$",
+            source_prefix="",
+        )
+
+    # The earlier audited provider-tool fixture used a status/data envelope.  It
+    # remains accepted under this distinct mapping version for offline migration,
+    # while source locators continue to describe the actual raw shape.
+    data = _xiyou_data(session)
+    if isinstance(data, AdaptationResult):
+        return data
+    return _product_info(session, data)
 
 
 def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
@@ -1525,6 +1576,8 @@ class XiYouAdapterV0_1:
         )
         if isinstance(prepared, AdaptationResult):
             return prepared
+        if context.payload_kind == "asin_info_http_v2":
+            return _product_info_http_v2(prepared, prepared.payload)
         data = _xiyou_data(prepared)
         if isinstance(data, AdaptationResult):
             return data

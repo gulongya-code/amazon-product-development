@@ -11,11 +11,7 @@ from amazon_product_intelligence.adapters import (
     AdapterError,
     ProviderAdapter,
 )
-from amazon_product_intelligence.contracts import (
-    ContractValidationError,
-    ObservationKind,
-    QueryExecutionOutcome,
-)
+from amazon_product_intelligence.contracts import ContractValidationError, QueryExecutionOutcome
 
 from .errors import ProviderConnectorError, ProviderErrorCode
 from .models import (
@@ -327,22 +323,7 @@ class AdapterBackedProvider:
         selector = capability.selector
         if selector is None:
             return ()
-        matches: list[Any] = []
-        for observation in observations:
-            if selector.observation_kind is not None and observation.observation_kind is not selector.observation_kind:
-                continue
-            if not selector.canonical_names:
-                matches.append(observation)
-                continue
-            if observation.observation_kind is ObservationKind.PRODUCT_FACT:
-                canonical_name = getattr(observation, "dimension", None)
-            elif observation.observation_kind in {ObservationKind.METRIC, ObservationKind.KEYWORD_METRIC}:
-                canonical_name = getattr(observation, "metric", None)
-            else:
-                canonical_name = None
-            if canonical_name in selector.canonical_names:
-                matches.append(observation)
-        return tuple(matches)
+        return tuple(observation for observation in observations if selector.matches(observation))
 
 
 __all__ = ("AdapterBackedProvider", "DataProvider")

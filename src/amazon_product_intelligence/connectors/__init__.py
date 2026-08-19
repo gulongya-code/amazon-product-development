@@ -20,6 +20,8 @@ from .resolver import (
 )
 from .sorftime_v0_1 import SORFTIME_CAPABILITIES, SORFTIME_OPERATIONS, SorftimeProvider
 from .transport import (
+    BoundedTransientRetryPolicy,
+    HttpJsonTransport,
     NoRetryPolicy,
     ProviderCredential,
     ProviderOperation,
@@ -33,9 +35,11 @@ from .xiyou_v0_1 import XIYOU_CAPABILITIES, XIYOU_OPERATIONS, XiYouProvider
 
 __all__ = (
     "AdapterBackedProvider",
+    "BoundedTransientRetryPolicy",
     "CanonicalSelector",
     "CapabilityStatus",
     "DataProvider",
+    "HttpJsonTransport",
     "NoRetryPolicy",
     "ProviderAttempt",
     "ProviderAttemptStatus",
