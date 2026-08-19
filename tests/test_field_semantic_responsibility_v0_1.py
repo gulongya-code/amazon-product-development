@@ -8,6 +8,8 @@ import unittest
 from amazon_product_intelligence.calculations import (
     CALCULATED_FIELD_SPECS,
     D2A_IMPLEMENTED_FIELD_IDS,
+    D2C_IMPLEMENTED_FIELD_IDS,
+    D2_IMPLEMENTED_FIELD_IDS,
     FormulaStatus,
     ImplementationStatus,
     build_audited_registry,
@@ -157,8 +159,8 @@ class FieldSemanticResponsibilityAuditTests(unittest.TestCase):
                 "NOT_IN_CALC_AUDIT": 58,
                 "CLASSIFICATION_REVIEW_REQUIRED": 86,
                 "FORMULA_UNSPECIFIED": 1,
-                "DEFINED_IMPLEMENTED": 7,
-                "DEFINED_READY": 4,
+                "DEFINED_IMPLEMENTED": 9,
+                "DEFINED_READY": 2,
                 "DEFINED_SEMANTIC_BLOCKED": 1,
             }),
             Counter(row["current_status"] for row in rows),
@@ -226,16 +228,21 @@ class FieldSemanticResponsibilityAuditTests(unittest.TestCase):
                 with self.subTest(field_id=row["field_id"]):
                     self.assertIsNone(registry.function(row["field_id"]))
 
-    def test_d2a_formula_inventory_remains_seven_counts_only(self) -> None:
+    def test_d2_formula_inventory_preserves_d2a_and_adds_exactly_two_d2c_fields(self) -> None:
         registry = build_audited_registry()
         rows_by_id = {row["field_id"]: row for row in _rows()}
         self.assertEqual(99, len(CALCULATED_FIELD_SPECS))
         self.assertEqual(7, len(D2A_IMPLEMENTED_FIELD_IDS))
-        self.assertEqual(tuple(sorted(D2A_IMPLEMENTED_FIELD_IDS)), registry.executable_field_ids)
+        self.assertEqual(2, len(D2C_IMPLEMENTED_FIELD_IDS))
+        self.assertEqual(tuple(sorted(D2_IMPLEMENTED_FIELD_IDS)), registry.executable_field_ids)
         self.assertTrue(all(
             rows_by_id[field_id]["semantic_class"] == "AGGREGATION"
-            for field_id in registry.executable_field_ids
+            for field_id in D2A_IMPLEMENTED_FIELD_IDS
         ))
+        self.assertEqual(
+            {"AGGREGATION", "DETERMINISTIC_CALCULATION"},
+            {rows_by_id[field_id]["semantic_class"] for field_id in D2C_IMPLEMENTED_FIELD_IDS},
+        )
 
 
 if __name__ == "__main__":

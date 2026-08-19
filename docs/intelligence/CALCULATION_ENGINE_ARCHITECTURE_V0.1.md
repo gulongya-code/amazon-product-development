@@ -1,6 +1,6 @@
 # Calculation Engine Architecture V0.1
 
-Status: TASK-SP-018D1 foundation with TASK-SP-018D2A count-formula registration
+Status: TASK-SP-018D1 foundation with TASK-SP-018D2A count formulas and TASK-SP-018D2C ready-field registration
 
 Engine version: `calculation-engine-foundation-v0.1`
 
@@ -42,8 +42,8 @@ The engine does not:
 | `CalculationEngine` | Input validation, policy propagation, partial execution, evaluator isolation, and result assembly. |
 | `CalculationResult` | Value or explicit non-success status, input fields, issues, rule/version, and calculated provenance. |
 | `CalculationProvenance` | Run/configuration versions, normalized input lineage, calculated dependency result IDs, and stable input/output fingerprints. |
-| `functions.py` | Provider-neutral production count evaluator plus Decimal, ratio, unit, and currency safety helpers. |
-| `audit_v0_1.py` | Machine-readable 99/99 Workbook V0.2 calculated-field audit, D2A disposition, and accepted evaluator registration. |
+| `functions.py` | Provider-neutral production count, ProductIdentity membership, and observed-share evaluators plus Decimal, ratio, unit, and currency safety helpers. |
+| `audit_v0_1.py` | Machine-readable 99/99 Workbook V0.2 calculated-field audit, D2A/D2C dispositions, and accepted evaluator registration. |
 
 ## 3. Dependency graph
 
@@ -63,11 +63,14 @@ The audited graph contains one deliberate calculated-to-calculated example:
 
 ```text
 workbook.product_structure.product_count ─┐
-                                             ├→ workbook.product_structure.observed_share
+                                              ├→ workbook.product_structure.observed_share
 workbook.market_overview.observed_product_count ─┘
+
+canonical.group_product_identities ────────────┐ scope validation
+canonical.snapshot_product_identities ─────────┘
 ```
 
-`Observed Share` is defined as an observed-set ratio, never market share. Its evaluator is intentionally deferred to D2.
+`Observed Share` is defined as an observed-set ratio, never market share. D2C registers it only over the two calculated count dependencies shown above.
 
 ## 4. Planning and partial execution
 
@@ -80,7 +83,7 @@ workbook.market_overview.observed_product_count ─┘
 
 `calculate(requested_fields, inputs, context)` executes that same closure. An unrelated registered field is not executed. A failed dependency blocks descendants with `DEPENDENCY_BLOCKED`; independent requested fields continue.
 
-The audited registry now registers one governed strict-count evaluator for seven accepted D2A fields. The four explicitly deferred formulas and `Variation Evidence Count` remain unregistered. Planning therefore exposes only those five as `EVALUATOR_NOT_REGISTERED`; the other 87 specifications remain non-executable according to their existing formula status and ownership.
+The audited registry registers one governed strict-count evaluator for seven accepted D2A fields plus the two D2C evaluators. The two comparable-price formulas and `Variation Evidence Count` remain unregistered. Planning over the 12 defined candidates therefore exposes only those three as `EVALUATOR_NOT_REGISTERED`; the other 87 specifications remain non-executable according to their existing formula status and ownership.
 
 ## 5. Canonical input gate
 
@@ -115,6 +118,8 @@ Each specification declares a `MissingPolicy`; there is no global coercion. `REQ
 
 The D2A count evaluator receives exactly one already-normalized tuple of authoritative Canonical or governed system-record identity strings. An explicitly present empty tuple calculates to integer `0`. Members must be non-empty, unique, and in the deterministic order established by the owning contract. Duplicate, malformed, or out-of-order collections fail safely; the Calculation layer never silently creates a second deduplication or ordering authority.
 
+The D2C membership evaluator receives the authoritative exact-group identity tuple and returns it unchanged, including a present empty tuple. In addition to the shared collection constraints, every member must round-trip through the Canonical `ProductIdentity` constructor as exact `product:<MARKETPLACE>:<ASIN>` material. It does not derive identity from labels, titles, row order, or provider keys.
+
 ## 7. Numeric, unit, and currency safety
 
 - Decimal helpers preserve `Decimal` and convert explicit finite integers, floats, or numeric strings without using binary-float arithmetic internally.
@@ -123,7 +128,7 @@ The D2A count evaluator receives exactly one already-normalized tuple of authori
 - Monetary inputs require explicit ISO currency units. Missing or mixed currencies become `CURRENCY_MISMATCH`.
 - No FX lookup or implicit conversion exists.
 
-The numeric helpers remain formula-neutral. D2A adds only the strict integer/count evaluator and makes no price, ratio, score, or decision formula executable.
+The numeric helpers remain formula-neutral. D2C registers one Decimal ratio: Product Count divided by the same-scope Observed Product Count, evaluated in a fixed 28-significant-digit, half-even context so ambient process Decimal settings cannot change the result. Both calculated dependencies must be non-negative integer/count results. Their authoritative ProductIdentity collections must reproduce those counts, resolve to one matching marketplace, and prove the group is a subset of the explicit snapshot. Zero denominator returns `DIVISION_BY_ZERO`, and a numerator above the denominator fails the domain invariant. No price, score, decision, AI, or provider formula becomes executable.
 
 ## 8. Failure and error model
 
@@ -192,9 +197,12 @@ No Calculation Engine core change is required. Formula confidence must be `CONFI
 | Formula-defined D2 candidates | 12 |
 | Formula unspecified | 1 |
 | Classification review required | 86 |
+| Production fields implemented | 9 |
 | Production count fields implemented | 7 |
+| ProductIdentity membership fields implemented | 1 |
+| Observed-set ratio fields implemented | 1 |
 | Blocked by semantic ambiguity | 1 |
-| Explicitly deferred D2 formulas | 4 |
+| Explicitly deferred D2 formulas | 2 |
 | Audited graph unknown calculated dependencies | 0 |
 | Audited graph cycles | 0 |
 

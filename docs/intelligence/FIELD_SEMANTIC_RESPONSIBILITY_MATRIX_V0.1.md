@@ -9,7 +9,7 @@ This audit separates two independent questions for all 157 Operator Workbook V0.
 
 The acquisition status is copied unchanged from `API_FIELD_COVERAGE_MATRIX_V0.1.md`. In particular, its broad `CALCULATED` label means “system-produced”; it is **not** an instruction to register a formula in the Calculation Engine.
 
-This task does not change the Workbook schema, Canonical contracts, provider mappings, intelligence logic, scoring rules, recommendation rules, or the existing 99-field calculation audit. It authorizes no new evaluator.
+The D2B classification did not change the Workbook schema, Canonical contracts, provider mappings, intelligence logic, scoring rules, recommendation rules, or the 99-field calculation inventory. D2C changes only the implementation status of the two fields that D2B explicitly classified READY.
 
 ## 2. Controlled vocabulary
 
@@ -34,13 +34,13 @@ Confidence values are `HIGH`, `MEDIUM`, and `UNRESOLVED`. Requirement cells use 
 
 `F=<formula>; AI=<model>; M=<manual>; P=<provider>; A=<aggregation>; B=<business rule>`.
 
-Current-status values preserve the D1/D2A audit:
+Current-status values preserve the D1 inventory and record the accepted D2A/D2C implementations:
 
 - `NOT_IN_CALC_AUDIT`: not one of the 99 acquisition rows labelled `CALCULATED`;
 - `CLASSIFICATION_REVIEW_REQUIRED`: one of the 86 rows audited here;
 - `FORMULA_UNSPECIFIED`: the existing trend field;
-- `DEFINED_IMPLEMENTED`: one of the seven D2A count evaluators;
-- `DEFINED_READY`: one of the four deliberately deferred defined fields;
+- `DEFINED_IMPLEMENTED`: one of the seven D2A count evaluators or two D2C ready-field evaluators;
+- `DEFINED_READY`: one of the two deliberately deferred comparable-price fields;
 - `DEFINED_SEMANTIC_BLOCKED`: the variation-count field.
 
 ## 3. Evidence and authority codes
@@ -54,7 +54,7 @@ Current-status values preserve the D1/D2A audit:
 | `EE` / `CR` | Evidence Evaluation and Conflict Resolution V0.1 contracts |
 | `OS` / `RF` | Opportunity Scoring and Recommendation Framework V0.1 contracts |
 | `OO` / `OE` / `XD` | Operator Output, Operator Export, and XLSX Delivery contracts |
-| `CALC` | Calculated Field Specification, calculation audit, and D2A registry |
+| `CALC` | Calculated Field Specification, calculation audit, and D2A/D2C registry |
 
 ## 4. Complete 157-field semantic responsibility matrix
 
@@ -159,7 +159,7 @@ The row number is the fixed Workbook field order. `Evidence` records where the s
 | F095 | `workbook.product_structure.marketplace` | Marketplace | PARTIAL | NOT_IN_CALC_AUDIT | NORMALIZED_SOURCE | HIGH | API,CAN,PI,WB | Product scope marketplace | Canonical/Provider mapping | F=N;AI=N;M=N;P=Y;A=N;B=C | PROVIDER_REVIEW | PROVIDER_REVIEW | Exact aggregation boundary. |
 | F096 | `workbook.product_structure.product_type` | Product Type | PARTIAL | NOT_IN_CALC_AUDIT | NORMALIZED_SOURCE | HIGH | API,PI,WB | Exact product_type fact candidate | Product Intelligence | F=N;AI=N;M=N;P=Y;A=N;B=Y | PROVIDER_REVIEW | PROVIDER_REVIEW | No clustering; unresolved candidates remain separate. |
 | F097 | `workbook.product_structure.product_count` | Product Count | CALCULATED | DEFINED_IMPLEMENTED | AGGREGATION | HIGH | CALC,PI,WB | Exact group identity inventory | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | IMPLEMENTED | KEEP | Distinct validated product identities. |
-| F098 | `workbook.product_structure.observed_share` | Observed Share | CALCULATED | DEFINED_READY | DETERMINISTIC_CALCULATION | HIGH | CALC,WB | Group count divided by same-scope snapshot count | Calculation Engine | F=Y;AI=N;M=N;P=N;A=N;B=Y | READY | D2C | Denominator is the snapshot-wide distinct validated identity count for the same marketplace/scope; never market size. |
+| F098 | `workbook.product_structure.observed_share` | Observed Share | CALCULATED | DEFINED_IMPLEMENTED | DETERMINISTIC_CALCULATION | HIGH | CALC,WB | Group count divided by same-scope snapshot count | Calculation Engine | F=Y;AI=N;M=N;P=N;A=N;B=Y | IMPLEMENTED | KEEP | Authoritative identity collections enforce count coherence, matching marketplace, and group membership in the explicit snapshot; denominator is never market size. |
 | F099 | `workbook.product_structure.sales_evidence_summary` | Sales Evidence Summary | CALCULATED | CLASSIFICATION_REVIEW_REQUIRED | DISPLAY | HIGH | PI,WB | Sales-candidate display projection | Workbook Presentation | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | P2_DISPLAY | Keep values, units, methods, and states separate. |
 | F100 | `workbook.product_structure.minimum_comparable_price` | Minimum Comparable Price | CALCULATED | DEFINED_READY | AGGREGATION | HIGH | CALC,PI,WB | Comparable price candidate set | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | BUSINESS_RULE_BLOCKED | D2C | Workbook Presentation contract must version the comparable-set predicate. |
 | F101 | `workbook.product_structure.maximum_comparable_price` | Maximum Comparable Price | CALCULATED | DEFINED_READY | AGGREGATION | HIGH | CALC,PI,WB | Comparable price candidate set | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | BUSINESS_RULE_BLOCKED | D2C | Same governed comparable set as minimum. |
@@ -168,7 +168,7 @@ The row number is the fixed Workbook field order. `Evidence` records where the s
 | F104 | `workbook.product_structure.data_state` | Data State | CALCULATED | CLASSIFICATION_REVIEW_REQUIRED | SYSTEM_STATUS | HIGH | PI,EE,WB | Structure evidence/quality state | PI/EE projection | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | NO_CALCULATION | Evidence state, not a quality score. |
 | F105 | `workbook.product_structure.provider_count` | Provider Count | CALCULATED | DEFINED_IMPLEMENTED | AGGREGATION | HIGH | CALC,CAN,PI,WB | Exact-group provenance providers | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | IMPLEMENTED | KEEP | Provider inventory is not confidence. |
 | F106 | `workbook.product_structure.limitations` | Limitations | CALCULATED | CLASSIFICATION_REVIEW_REQUIRED | EVIDENCE | HIGH | PI,EE,WB | Structure diagnostics/limits | PI/EE projection | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | NO_CALCULATION | Includes no-clustering and no-market-share boundaries. |
-| F107 | `workbook.product_structure.member_product_ids` | Member Product IDs | CALCULATED | DEFINED_READY | AGGREGATION | HIGH | CALC,PI,WB | Exact group membership | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | READY | D2C | Sorted distinct ProductIdentity values; membership evidence, not a score. |
+| F107 | `workbook.product_structure.member_product_ids` | Member Product IDs | CALCULATED | DEFINED_IMPLEMENTED | AGGREGATION | HIGH | CALC,PI,WB | Exact group membership | Calculation Engine | F=N;AI=N;M=N;P=C;A=Y;B=Y | IMPLEMENTED | KEEP | Sorted distinct full ProductIdentity values; membership evidence, not a score. |
 | F108 | `workbook.opportunity_analysis.product` | Product | PARTIAL | NOT_IN_CALC_AUDIT | EVIDENCE | MEDIUM | API,OI,OO,WB | Opportunity subject identity/set | Opportunity Intelligence/OO | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | P1_DECISION | Multiple subjects must remain MULTIPLE or UNRESOLVED. |
 | F109 | `workbook.opportunity_analysis.demand_signal` | Demand Signal | CALCULATED | CLASSIFICATION_REVIEW_REQUIRED | EVIDENCE | HIGH | OI,OO,WB | Opportunity demand signal projection | Opportunity Intelligence | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | NO_CALCULATION | Evidence-existence signal, not demand conclusion. |
 | F110 | `workbook.opportunity_analysis.competition_signal` | Competition Signal | CALCULATED | CLASSIFICATION_REVIEW_REQUIRED | EVIDENCE | HIGH | OI,OO,WB | Opportunity relationship signal | Opportunity Intelligence | F=N;AI=N;M=N;P=C;A=N;B=Y | EXISTING_OWNER | NO_CALCULATION | No competition-strength judgment. |
@@ -269,14 +269,13 @@ The original 99-field audit is intentionally unchanged: `DEFINED=12`, `FORMULA_U
 
 | Field | State | Exact responsibility |
 |---|---|---|
-| `workbook.product_structure.observed_share` | `READY` | `product_count / observed_product_count`, where both counts use the same marketplace and explicit snapshot scope. Zero denominator blocks the result; it never means market share. |
+| `workbook.product_structure.observed_share` | `IMPLEMENTED` | `product_count / observed_product_count`; authoritative identity dependencies mechanically enforce matching marketplace, count coherence, and group containment in the explicit snapshot. Zero denominator blocks the result; it never means market share. |
 
 ### 6.2 Aggregations
 
 | State | Fields | Required action |
 |---|---|---|
-| `IMPLEMENTED` | Observed Product Count; Child Count; Related Product Count; Competition Evidence Count; Product Count; Provider Count; Recommendation Evidence Count | Keep the seven accepted D2A distinct-identity evaluators. |
-| `READY` | Member Product IDs | Return stable sorted distinct ProductIdentity values for the exact governed group. |
+| `IMPLEMENTED` | Observed Product Count; Child Count; Related Product Count; Competition Evidence Count; Product Count; Provider Count; Recommendation Evidence Count; Member Product IDs | Keep the seven accepted D2A count evaluators and D2C exact-membership evaluator. |
 | `BUSINESS_RULE_BLOCKED` | Minimum Comparable Price; Maximum Comparable Price | Encode and version the already documented same-currency, same-unit, same-measurement-semantic, same-scope, comparable-period predicate before execution. |
 | `DEPENDENCY_BLOCKED` | Observed Feature Inventory | Approve the structured attribute set and exact product-type group before building a frequency inventory. |
 
@@ -347,36 +346,29 @@ Repository evidence explicitly describes Product, Demand, Competition, Opportuni
 1. Approve presentation-only formatting for attribute, feature, and sales evidence summaries.
 2. Decide whether future cell-level lineage attribution is needed; current V0.2 truthfully provides row-level lineage.
 
-## 11. Special D2A deferred fields
+## 11. Special D2 fields
 
 | Field | Semantic decision | Exact boundary | D2C readiness |
 |---|---|---|---|
 | Variation Evidence Count | `SEMANTIC_UNRESOLVED` | Edge count and evidence-record count are not interchangeable. | `BUSINESS_RULE_BLOCKED` |
-| Observed Share | `DETERMINISTIC_CALCULATION` | Denominator is snapshot-wide distinct validated products under the same marketplace/scope, not group total and not the real market. | `READY` |
+| Observed Share | `DETERMINISTIC_CALCULATION` | Denominator is snapshot-wide distinct validated products under the same marketplace/scope, not group total and not the real market. | `IMPLEMENTED` |
 | Minimum/Maximum Comparable Price | `AGGREGATION` | Comparable set requires equal currency, unit, price semantic, scope, and comparable period; no conversion or candidate preference. | `BUSINESS_RULE_BLOCKED` pending versioned predicate ownership |
-| Member Product IDs | `AGGREGATION` | Membership evidence for the exact product-type group; unique by full ProductIdentity and stably sorted by canonical identity material. | `READY` |
+| Member Product IDs | `AGGREGATION` | Membership evidence for the exact product-type group; unique by full ProductIdentity and stably sorted by canonical identity material. | `IMPLEMENTED` |
 
-## 12. Next implementation batch
+## 12. D2C implementation result and remaining queue
 
-Recommended next task:
+D2C implements only the two fields accepted as READY by D2B:
 
-`TASK-SP-018D2C — Remaining Deterministic Calculations and Aggregation Semantics`
+1. `Observed Share`, with governed calculated-count dependencies, exact Decimal division, zero-denominator blocking, and the same-scope subset-count invariant;
+2. `Member Product IDs`, by validating and projecting the authoritative unique, sorted, full ProductIdentity tuple unchanged.
 
-Scope it to:
-
-1. implement `Observed Share` with same-scope dependency validation and zero-denominator blocking;
-2. implement `Member Product IDs` with authoritative unique ProductIdentity input and stable ordering;
-3. implement min/max price only after the versioned comparability predicate is accepted;
-4. implement Observed Feature Inventory only after the attribute/group contract is accepted;
-5. leave Variation Evidence Count and Evidence-backed Trend unregistered until their P0 decisions are complete.
-
-Do not include source mapping, AI execution, scoring changes, recommendation changes, metadata projection, status generation, or Workbook redesign in D2C.
+Minimum/Maximum Comparable Price, Observed Feature Inventory, Variation Evidence Count, and Evidence-backed Trend remain unregistered pending their documented business or dependency decisions. Source mapping, AI execution, scoring, recommendation, metadata projection, status generation, and Workbook design remain outside D2C.
 
 ## 13. Verification invariants
 
 - The matrix contains exactly 157 unique rows and exactly the fixed 157 Workbook field IDs.
 - All five acquisition statuses match the existing coverage matrix unchanged.
 - Exactly 86 rows retain the original `CLASSIFICATION_REVIEW_REQUIRED` current status, and all 86 have a legal resolved semantic class.
-- The existing 99-field calculation audit, seven D2A evaluators, and five non-evaluator D2A fields remain unchanged.
+- The 99-field calculation inventory remains unchanged; seven D2A count evaluators and exactly two D2C evaluators are registered, while the other three defined fields have no evaluator.
 - No evaluator exists for AI, manual, metadata, display, evidence, configuration, decision-output, status, unresolved, or business-rule-blocked fields.
-- No Workbook, provider, Canonical, intelligence, scoring, recommendation, output, export, or XLSX production module is changed by this task.
+- No Workbook, provider, Canonical, intelligence, scoring, recommendation, output, export, or XLSX production module is changed by D2C.

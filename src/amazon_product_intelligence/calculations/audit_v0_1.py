@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import re
 
-from .functions import count_unique_canonical_identifiers
+from .functions import (
+    calculate_observed_share,
+    count_unique_canonical_identifiers,
+    project_member_product_ids,
+)
 from .models import (
     CalculatedFieldSpec,
     CalculationDependency,
@@ -215,6 +219,8 @@ _DEFINED: dict[str, dict[str, object]] = {
         "dependencies": (
             ("workbook.product_structure.product_count", DependencyType.CALCULATED_FIELD),
             ("workbook.market_overview.observed_product_count", DependencyType.CALCULATED_FIELD),
+            ("canonical.group_product_identities", DependencyType.CANONICAL_INPUT),
+            ("canonical.snapshot_product_identities", DependencyType.CANONICAL_INPUT),
         ),
         "formula": "Exact-group Product Count divided by Observed Product Count; this is observed-set share, never market share.",
         "unit": "ratio",
@@ -281,6 +287,20 @@ D2A_DEFERRED_FIELD_IDS = (
     "workbook.product_structure.observed_share",
 )
 
+# D2A_DEFERRED_FIELD_IDS remains the immutable history of the D2A batch.
+# D2C promotes exactly two of those fields without rewriting that prior disposition.
+D2C_IMPLEMENTED_FIELD_IDS = (
+    "workbook.product_structure.member_product_ids",
+    "workbook.product_structure.observed_share",
+)
+
+D2_IMPLEMENTED_FIELD_IDS = D2A_IMPLEMENTED_FIELD_IDS + D2C_IMPLEMENTED_FIELD_IDS
+
+D2_CURRENT_DEFERRED_FIELD_IDS = (
+    "workbook.product_structure.maximum_comparable_price",
+    "workbook.product_structure.minimum_comparable_price",
+)
+
 
 _DEFAULT_DEPENDENCY = {
     "01_市场概览": ("intelligence.opportunity_snapshot", DependencyType.SYSTEM_RECORD),
@@ -330,6 +350,10 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
         if field_id in D2A_IMPLEMENTED_FIELD_IDS:
             implementation_status = ImplementationStatus.IMPLEMENTED
             calculation_version = "v0.1-count-formula"
+            zero_semantics = (
+                "Zero and False are present data; an explicitly present empty collection "
+                "has count zero."
+            )
             quality_implication = (
                 "Deterministic count of an authoritative unique identity collection; "
                 "count is not confidence, demand, competition strength, or market size."
@@ -338,9 +362,44 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
                 "Production evaluator verifies the upstream collection contract, rejects "
                 "duplicates or malformed identifiers, and does not establish a second dedupe authority."
             )
+        elif field_id == "workbook.product_structure.member_product_ids":
+            implementation_status = ImplementationStatus.IMPLEMENTED
+            calculation_version = "v0.1-member-product-ids-formula"
+            zero_semantics = (
+                "A present empty authoritative group remains an empty member collection; "
+                "missing and unknown do not become empty."
+            )
+            quality_implication = (
+                "Projects only validated Canonical ProductIdentity IDs from the exact group; "
+                "it does not derive, repair, deduplicate, or reorder identities."
+            )
+            notes = (
+                "Production evaluator requires unique, canonical product:<marketplace>:<ASIN> "
+                "identifiers in the deterministic order established upstream."
+            )
+        elif field_id == "workbook.product_structure.observed_share":
+            implementation_status = ImplementationStatus.IMPLEMENTED
+            calculation_version = "v0.1-observed-share-formula"
+            zero_semantics = (
+                "A zero group count is valid when the same-scope denominator is positive; "
+                "a zero denominator returns DIVISION_BY_ZERO and never zero share."
+            )
+            quality_implication = (
+                "Ratio is bounded to the explicit observed snapshot set and cannot be "
+                "interpreted as real market share."
+            )
+            notes = (
+                "Production evaluator calculates from the two governed count results, requires "
+                "canonical count units, and validates marketplace and subset scope against their "
+                "authoritative ProductIdentity collections."
+            )
         elif field_id in D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS:
             implementation_status = ImplementationStatus.BLOCKED_BY_SEMANTIC_AMBIGUITY
             calculation_version = "v0.1-specification"
+            zero_semantics = (
+                "Zero and False are present data; no zero behavior is executable until the "
+                "counting grain is accepted."
+            )
             quality_implication = (
                 "Blocked because counting explicit variation edges is not interchangeable "
                 "with counting competition variation-evidence records."
@@ -352,6 +411,10 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
         else:
             implementation_status = ImplementationStatus.READY_FOR_IMPLEMENTATION
             calculation_version = "v0.1-specification"
+            zero_semantics = (
+                "Zero and False are present data; present empty inputs remain distinct from "
+                "missing and require formula-specific handling."
+            )
             quality_implication = (
                 "Eligible for a later deterministic implementation after its separately deferred "
                 "compatibility and business semantics are accepted."
@@ -377,7 +440,7 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
             formula_status=FormulaStatus.DEFINED,
             formula_reference=str(defined["formula"]),
             missing_policy=MissingPolicy.REQUIRE_ALL,
-            zero_semantics="Zero and False are present data; an explicitly present empty collection has count zero.",
+            zero_semantics=zero_semantics,
             invalid_input_policy="Block this field on unresolved, ambiguous, semantically unconfirmed, invalid, or blocking-quality inputs.",
             partial_input_policy="No partial execution; every declared dependency must be usable.",
             calculation_version=calculation_version,
@@ -454,16 +517,19 @@ D2_READY_FIELD_IDS = tuple(spec.field_id for spec in CALCULATED_FIELD_SPECS if s
 
 
 def build_audited_registry() -> CalculatedFieldRegistry:
-    """Return all 99 specs and the accepted D2A production count evaluators."""
+    """Return all 99 specs and the nine accepted D2A/D2C evaluators."""
 
     registry = CalculatedFieldRegistry()
+    evaluators = {
+        **{
+            field_id: count_unique_canonical_identifiers
+            for field_id in D2A_IMPLEMENTED_FIELD_IDS
+        },
+        "workbook.product_structure.member_product_ids": project_member_product_ids,
+        "workbook.product_structure.observed_share": calculate_observed_share,
+    }
     for specification in CALCULATED_FIELD_SPECS:
-        function = (
-            count_unique_canonical_identifiers
-            if specification.field_id in D2A_IMPLEMENTED_FIELD_IDS
-            else None
-        )
-        registry.register(specification, function)
+        registry.register(specification, evaluators.get(specification.field_id))
     registry.validate()
     return registry
 
@@ -482,6 +548,16 @@ if (
     | set(D2A_DEFERRED_FIELD_IDS)
 ) != set(_DEFINED):
     raise RuntimeError("D2A disposition must cover every D1-defined candidate exactly once")
+if not set(D2C_IMPLEMENTED_FIELD_IDS) < set(D2A_DEFERRED_FIELD_IDS):
+    raise RuntimeError("D2C fields must be a strict subset of the historical D2A deferred set")
+if (
+    set(D2_IMPLEMENTED_FIELD_IDS)
+    | set(D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS)
+    | set(D2_CURRENT_DEFERRED_FIELD_IDS)
+) != set(_DEFINED):
+    raise RuntimeError("current D2 disposition must cover every D1-defined candidate exactly once")
+if len(set(D2_IMPLEMENTED_FIELD_IDS)) != len(D2_IMPLEMENTED_FIELD_IDS):
+    raise RuntimeError("current D2 implemented field set contains duplicates")
 
 
 __all__ = (
@@ -490,6 +566,9 @@ __all__ = (
     "D2A_DEFERRED_FIELD_IDS",
     "D2A_IMPLEMENTED_FIELD_IDS",
     "D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS",
+    "D2C_IMPLEMENTED_FIELD_IDS",
+    "D2_CURRENT_DEFERRED_FIELD_IDS",
+    "D2_IMPLEMENTED_FIELD_IDS",
     "D2_READY_FIELD_IDS",
     "build_audited_registry",
 )

@@ -10,6 +10,9 @@ from amazon_product_intelligence.calculations import (
     D2A_DEFERRED_FIELD_IDS,
     D2A_IMPLEMENTED_FIELD_IDS,
     D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS,
+    D2C_IMPLEMENTED_FIELD_IDS,
+    D2_CURRENT_DEFERRED_FIELD_IDS,
+    D2_IMPLEMENTED_FIELD_IDS,
     CalculationContext,
     CalculationEngine,
     CalculationInput,
@@ -18,6 +21,7 @@ from amazon_product_intelligence.calculations import (
     ImplementationStatus,
     InputResolutionStatus,
     build_audited_registry,
+    count_unique_canonical_identifiers,
 )
 from amazon_product_intelligence.contracts import (
     CodeVersionScheme,
@@ -120,10 +124,7 @@ class DeterministicCountFormulaTests(unittest.TestCase):
 
     def test_registry_exposes_exactly_seven_governed_count_formulas(self) -> None:
         self.assertEqual(7, len(D2A_IMPLEMENTED_FIELD_IDS))
-        self.assertEqual(
-            tuple(sorted(D2A_IMPLEMENTED_FIELD_IDS)),
-            self.registry.executable_field_ids,
-        )
+        self.assertEqual(tuple(sorted(D2_IMPLEMENTED_FIELD_IDS)), self.registry.executable_field_ids)
         for field_id in D2A_IMPLEMENTED_FIELD_IDS:
             with self.subTest(field_id=field_id):
                 spec = self.registry.get(field_id)
@@ -131,6 +132,7 @@ class DeterministicCountFormulaTests(unittest.TestCase):
                 self.assertIs(ImplementationStatus.IMPLEMENTED, spec.implementation_status)
                 self.assertEqual("v0.1-count-formula", spec.calculation_version)
                 self.assertIsNotNone(spec.calculation_rule_id)
+                self.assertIs(count_unique_canonical_identifiers, self.registry.function(field_id))
 
     def test_each_formula_counts_a_present_non_empty_canonical_collection(self) -> None:
         members = ("canonical:identity:1", "canonical:identity:2", "canonical:identity:3")
@@ -275,18 +277,20 @@ class DeterministicCountFormulaTests(unittest.TestCase):
         self.assertIs(CalculationStatus.CALCULATED, batch.get(good_field).status)
         self.assertEqual(2, batch.get(good_field).value)
 
-    def test_ambiguous_and_explicitly_deferred_fields_have_no_evaluator(self) -> None:
+    def test_ambiguous_and_currently_deferred_fields_have_no_evaluator(self) -> None:
         self.assertEqual(
             ("workbook.competition_evidence.variation_evidence_count",),
             D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS,
         )
         self.assertEqual(4, len(D2A_DEFERRED_FIELD_IDS))
+        self.assertEqual(2, len(D2C_IMPLEMENTED_FIELD_IDS))
+        self.assertTrue(set(D2C_IMPLEMENTED_FIELD_IDS) < set(D2A_DEFERRED_FIELD_IDS))
         for field_id in D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS:
             self.assertIs(
                 ImplementationStatus.BLOCKED_BY_SEMANTIC_AMBIGUITY,
                 self.registry.get(field_id).implementation_status,
             )
-        for field_id in D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS + D2A_DEFERRED_FIELD_IDS:
+        for field_id in D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS + D2_CURRENT_DEFERRED_FIELD_IDS:
             with self.subTest(field_id=field_id):
                 self.assertIsNone(self.registry.function(field_id))
 
@@ -306,12 +310,12 @@ class DeterministicCountFormulaTests(unittest.TestCase):
             status: sum(spec.implementation_status is status for spec in CALCULATED_FIELD_SPECS)
             for status in ImplementationStatus
         }
-        self.assertEqual(7, implementation_counts[ImplementationStatus.IMPLEMENTED])
+        self.assertEqual(9, implementation_counts[ImplementationStatus.IMPLEMENTED])
         self.assertEqual(
             1,
             implementation_counts[ImplementationStatus.BLOCKED_BY_SEMANTIC_AMBIGUITY],
         )
-        self.assertEqual(4, implementation_counts[ImplementationStatus.READY_FOR_IMPLEMENTATION])
+        self.assertEqual(2, implementation_counts[ImplementationStatus.READY_FOR_IMPLEMENTATION])
         self.assertEqual(1, implementation_counts[ImplementationStatus.FORMULA_MISSING])
         self.assertEqual(86, implementation_counts[ImplementationStatus.CLASSIFICATION_REVIEW])
         self.assertEqual(99, sum(implementation_counts.values()))

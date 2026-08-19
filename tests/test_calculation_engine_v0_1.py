@@ -8,9 +8,9 @@ import unittest
 from amazon_product_intelligence.calculations import (
     AUDITED_CALCULATED_FIELDS,
     CALCULATED_FIELD_SPECS,
-    D2A_DEFERRED_FIELD_IDS,
-    D2A_IMPLEMENTED_FIELD_IDS,
     D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS,
+    D2_CURRENT_DEFERRED_FIELD_IDS,
+    D2_IMPLEMENTED_FIELD_IDS,
     D2_READY_FIELD_IDS,
     CalculatedFieldRegistry,
     CalculatedFieldSpec,
@@ -268,12 +268,12 @@ class CalculationSpecificationAuditTests(unittest.TestCase):
             order.index("workbook.product_structure.observed_share"),
         )
 
-    def test_audited_registry_only_exposes_accepted_d2a_formulas(self) -> None:
+    def test_audited_registry_only_exposes_accepted_d2_formulas(self) -> None:
         registry = build_audited_registry()
-        self.assertEqual(tuple(sorted(D2A_IMPLEMENTED_FIELD_IDS)), registry.executable_field_ids)
+        self.assertEqual(tuple(sorted(D2_IMPLEMENTED_FIELD_IDS)), registry.executable_field_ids)
         plan = CalculationEngine(registry).plan(D2_READY_FIELD_IDS)
         self.assertEqual(
-            set(D2A_DEFERRED_FIELD_IDS) | set(D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS),
+            set(D2_CURRENT_DEFERRED_FIELD_IDS) | set(D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS),
             set(plan.blocked_fields),
         )
         self.assertTrue(all("EVALUATOR_NOT_REGISTERED" in reasons for reasons in plan.blocked_fields.values()))

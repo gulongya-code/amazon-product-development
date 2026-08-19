@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from decimal import Context, Decimal, InvalidOperation, ROUND_HALF_EVEN, localcontext
 from typing import Any, Iterable
 
-from amazon_product_intelligence.contracts import Unit
+from amazon_product_intelligence.contracts import ContractValidationError, Unit, product_id
 
 from .errors import (
     CalculationCurrencyMismatchError,
@@ -17,6 +17,76 @@ from .models import CalculationEvaluationContext, CalculationOutcome
 
 
 COUNT_UNIT = Unit(dimension="COUNT", unit_code="COUNT", unit_system=None)
+RATIO_UNIT = Unit(dimension="RATIO", unit_code="RATIO", unit_system=None)
+
+_OBSERVED_SHARE_PRECISION = 28
+
+
+def _authoritative_identifier_collection(
+    context: CalculationEvaluationContext,
+    *,
+    formula_name: str,
+) -> tuple[str, ...]:
+    dependency_ids = tuple(item.field_id for item in context.spec.dependencies)
+    if len(dependency_ids) != 1 or tuple(context.values) != dependency_ids:
+        raise CalculationEvaluationError(
+            f"{formula_name} requires exactly its one declared resolved dependency"
+        )
+    return _validated_identifier_collection(
+        context.values[dependency_ids[0]],
+        formula_name=formula_name,
+    )
+
+
+def _validated_identifier_collection(
+    members: Any,
+    *,
+    formula_name: str,
+) -> tuple[str, ...]:
+    if not isinstance(members, tuple):
+        raise CalculationEvaluationError(
+            f"{formula_name} dependency must be an authoritative Canonical identity collection"
+        )
+    if any(type(member) is not str or not member.strip() for member in members):
+        raise CalculationEvaluationError(
+            f"{formula_name} collection must contain only non-empty canonical identifiers"
+        )
+    if len(members) != len(set(members)):
+        raise CalculationEvaluationError(
+            f"{formula_name} collection violates upstream canonical uniqueness"
+        )
+    if members != tuple(sorted(members)):
+        raise CalculationEvaluationError(
+            f"{formula_name} collection violates upstream canonical ordering"
+        )
+    return members
+
+
+def _canonical_product_identity_marketplaces(
+    members: tuple[str, ...],
+    *,
+    formula_name: str,
+) -> frozenset[str]:
+    marketplaces: set[str] = set()
+    for member in members:
+        parts = member.split(":")
+        try:
+            expected = product_id(parts[1], parts[2]) if len(parts) == 3 else None
+        except ContractValidationError as exc:
+            raise CalculationEvaluationError(
+                f"{formula_name} contains a non-canonical ProductIdentity"
+            ) from exc
+        if (
+            len(parts) != 3
+            or parts[0] != "product"
+            or not parts[1]
+            or expected != member
+        ):
+            raise CalculationEvaluationError(
+                f"{formula_name} contains a non-canonical ProductIdentity"
+            )
+        marketplaces.add(parts[1])
+    return frozenset(marketplaces)
 
 
 def count_unique_canonical_identifiers(
@@ -31,29 +101,112 @@ def count_unique_canonical_identifiers(
     identity authority in the Calculation layer.
     """
 
-    dependency_ids = tuple(item.field_id for item in context.spec.dependencies)
-    if len(dependency_ids) != 1 or tuple(context.values) != dependency_ids:
-        raise CalculationEvaluationError(
-            "count formula requires exactly its one declared resolved dependency"
-        )
-    members = context.values[dependency_ids[0]]
-    if not isinstance(members, tuple):
-        raise CalculationEvaluationError(
-            "count formula dependency must be an authoritative Canonical identity collection"
-        )
-    if any(type(member) is not str or not member.strip() for member in members):
-        raise CalculationEvaluationError(
-            "count formula collection must contain only non-empty canonical identifiers"
-        )
-    if len(members) != len(set(members)):
-        raise CalculationEvaluationError(
-            "count formula collection violates upstream canonical uniqueness"
-        )
-    if members != tuple(sorted(members)):
-        raise CalculationEvaluationError(
-            "count formula collection violates upstream canonical ordering"
-        )
+    members = _authoritative_identifier_collection(context, formula_name="count formula")
     return CalculationOutcome(value=len(members), unit=COUNT_UNIT)
+
+
+def project_member_product_ids(
+    context: CalculationEvaluationContext,
+) -> CalculationOutcome:
+    """Project one authoritative exact-group ProductIdentity collection.
+
+    The Canonical owner has already established identity, group membership,
+    uniqueness, and ordering.  This evaluator verifies that every member is the
+    deterministic ``product:<MARKETPLACE>:<ASIN>`` identity defined by the
+    Canonical contract and returns the collection unchanged.  It never derives
+    identity from a title, label, row, provider key, or presentation position.
+    """
+
+    members = _authoritative_identifier_collection(
+        context,
+        formula_name="member product IDs formula",
+    )
+    _canonical_product_identity_marketplaces(
+        members,
+        formula_name="member product IDs collection",
+    )
+    return CalculationOutcome(value=members, unit=None)
+
+
+def calculate_observed_share(
+    context: CalculationEvaluationContext,
+) -> CalculationOutcome:
+    """Return exact-group count divided by the same-scope observed-set count."""
+
+    expected_dependencies = (
+        "workbook.product_structure.product_count",
+        "workbook.market_overview.observed_product_count",
+        "canonical.group_product_identities",
+        "canonical.snapshot_product_identities",
+    )
+    if (
+        tuple(item.field_id for item in context.spec.dependencies) != expected_dependencies
+        or tuple(context.values) != expected_dependencies
+        or tuple(context.units) != expected_dependencies
+    ):
+        raise CalculationEvaluationError(
+            "observed share requires its exact ordered count and identity-scope dependencies"
+        )
+    count_dependencies = expected_dependencies[:2]
+    identity_dependencies = expected_dependencies[2:]
+    if any(context.units[field_id] != COUNT_UNIT for field_id in count_dependencies):
+        raise CalculationUnitMismatchError(
+            "observed share dependencies must use the canonical count unit"
+        )
+    if any(context.units[field_id] is not None for field_id in identity_dependencies):
+        raise CalculationUnitMismatchError(
+            "observed share identity-scope dependencies must not declare a unit"
+        )
+    numerator = context.values[count_dependencies[0]]
+    denominator = context.values[count_dependencies[1]]
+    if any(type(value) is not int or value < 0 for value in (numerator, denominator)):
+        raise CalculationEvaluationError(
+            "observed share dependencies must be non-negative integer counts"
+        )
+    if denominator == 0:
+        raise CalculationDivisionByZeroError("ratio denominator is zero")
+
+    group_members = _validated_identifier_collection(
+        context.values[identity_dependencies[0]],
+        formula_name="observed share group scope",
+    )
+    snapshot_members = _validated_identifier_collection(
+        context.values[identity_dependencies[1]],
+        formula_name="observed share snapshot scope",
+    )
+    if numerator != len(group_members) or denominator != len(snapshot_members):
+        raise CalculationEvaluationError(
+            "observed share counts do not match their authoritative identity collections"
+        )
+    group_marketplaces = _canonical_product_identity_marketplaces(
+        group_members,
+        formula_name="observed share group scope",
+    )
+    snapshot_marketplaces = _canonical_product_identity_marketplaces(
+        snapshot_members,
+        formula_name="observed share snapshot scope",
+    )
+    if len(group_marketplaces) > 1 or len(snapshot_marketplaces) != 1:
+        raise CalculationEvaluationError(
+            "observed share requires one explicit marketplace scope"
+        )
+    if group_marketplaces and group_marketplaces != snapshot_marketplaces:
+        raise CalculationEvaluationError(
+            "observed share group and snapshot marketplace scopes do not match"
+        )
+    if not set(group_members).issubset(snapshot_members):
+        raise CalculationEvaluationError(
+            "observed share group is not contained in the explicit snapshot scope"
+        )
+    if numerator > denominator:
+        raise CalculationEvaluationError(
+            "observed share group count cannot exceed the same-scope observed-set count"
+        )
+    with localcontext(
+        Context(prec=_OBSERVED_SHARE_PRECISION, rounding=ROUND_HALF_EVEN)
+    ):
+        ratio = safe_decimal_ratio(numerator, denominator)
+    return CalculationOutcome(value=ratio, unit=RATIO_UNIT)
 
 
 def decimal_value(value: Any) -> Decimal:
@@ -117,8 +270,11 @@ def require_compatible_currencies(units: Iterable[Unit | None]) -> Unit:
 
 __all__ = (
     "COUNT_UNIT",
+    "RATIO_UNIT",
+    "calculate_observed_share",
     "count_unique_canonical_identifiers",
     "decimal_value",
+    "project_member_product_ids",
     "require_compatible_currencies",
     "require_compatible_units",
     "safe_decimal_ratio",
