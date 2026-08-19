@@ -22,9 +22,9 @@ PYTHONPATH: src
 
 ```text
 filename: amazon_product_analysis.xlsx
-size: 52,228 bytes
-SHA-256: 984bd0ba662b93e9e85c6b40809ddf6029a899586f652da2320cdbe5217b1217
-delivery snapshot: xlsx-delivery-snapshot:ecbec6ed9f85b76dad64790b6cfd6039a317ae71d50ed2a70bbfea568989cd5f
+size: 52,267 bytes
+SHA-256: 5003d07e7c6172291338c01a0a71a80ce9fef36949cfc5040f4793eeb9659657
+delivery snapshot: xlsx-delivery-snapshot:2a316fc50778d888a450753a4ab1e1fa26567219246e8f8e5f1a467746e0eab4
 operator export snapshot: operator-export-snapshot:8b0dbaa1e8b09240c5a3bacd4c1e05a46c59eb841fe5433765b9cb3e9ddec7ba
 operator output snapshot: operator-output-snapshot:c1b2618855d5f26478b289882a5e46612d25adeb4b9306d52c6d1fc48bfa013b
 ```
