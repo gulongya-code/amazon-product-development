@@ -1,0 +1,75 @@
+{
+  "schema_version": "business-scoring-configuration-schema-v0.1",
+  "configuration_id": "test-only:opportunity-scoring:configuration:v0.1",
+  "score_version": "test-only:opportunity-score:v0.1",
+  "lifecycle_status": "APPROVED",
+  "test_only": true,
+  "dimensions": {
+    "DEMAND_POTENTIAL": {
+      "weight": 0.4,
+      "formula": "WEIGHTED_AVERAGE",
+      "eligible_states": ["READY"],
+      "missing_data_policy": "BLOCK",
+      "rules": [
+        {
+          "rule_id": "test-only:demand:keyword-volume",
+          "metric_id": "keyword_volume",
+          "weight": 1.0,
+          "operator": "GTE",
+          "threshold": 1.0,
+          "score_if_true": 80.0,
+          "score_if_false": 20.0
+        }
+      ]
+    },
+    "COMPETITION_ACCESSIBILITY": {
+      "weight": 0.3,
+      "formula": "WEIGHTED_AVERAGE",
+      "eligible_states": ["READY"],
+      "missing_data_policy": "BLOCK",
+      "rules": [
+        {
+          "rule_id": "test-only:competition:review",
+          "metric_id": "top_asin_review",
+          "weight": 1.0,
+          "operator": "LTE",
+          "threshold": 2000.0,
+          "score_if_true": 70.0,
+          "score_if_false": 30.0
+        }
+      ]
+    },
+    "PRODUCT_ECONOMICS_READINESS": {
+      "weight": 0.3,
+      "formula": "WEIGHTED_AVERAGE",
+      "eligible_states": ["READY"],
+      "missing_data_policy": "BLOCK",
+      "rules": [
+        {
+          "rule_id": "test-only:economics:selling-price",
+          "metric_id": "selling_price",
+          "weight": 1.0,
+          "operator": "GTE",
+          "threshold": 1.0,
+          "score_if_true": 90.0,
+          "score_if_false": 10.0
+        }
+      ]
+    }
+  },
+  "aggregation": {
+    "formula": "WEIGHTED_AVERAGE",
+    "missing_dimension_policy": "BLOCK",
+    "score_min": 0.0,
+    "score_max": 100.0,
+    "rounding_mode": "HALF_UP",
+    "decimal_places": 2
+  },
+  "audit": {
+    "business_owner": "test-suite-only",
+    "decision_reference": "test-fixture:SP-022D-2",
+    "approved_by": "test-fixture-owner",
+    "approved_at": "2026-08-19T05:00:00Z",
+    "configuration_fingerprint": "test-only:not-for-production"
+  }
+}
