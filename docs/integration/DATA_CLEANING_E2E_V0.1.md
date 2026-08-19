@@ -1,6 +1,6 @@
 # Data Cleaning End-to-End V0.1
 
-Status: implementation complete; live validation requires a configured provider credential
+Status: implementation complete; XiYou single- and multi-product live validation complete
 
 ## 1. Definition and boundary
 
@@ -53,9 +53,11 @@ fixtures, and documentation.
 The current official OpenAPI V2 response example exposes `entities` at the response root,
 whereas the earlier audited provider-tool fixture used `status/data`. The production
 Connector therefore uses the distinct, versioned mapping
-`xiyou_product_info_http_v2_mapping_v1`. It maps the verified top-level shape without
+`xiyou_product_info_http_v2_mapping_v2`. It maps the verified top-level shape without
 rewriting raw evidence and retains the legacy envelope only as an offline migration shape
-with truthful source locators. This avoids treating a Transport rewrite as provenance.
+with truthful source locators. It also preserves a real `price: null` entity value as
+product-scoped `EXPLICIT_NULL` rather than silently converting it to field absence. This
+avoids treating a Transport rewrite or an explicit Provider null as different evidence.
 
 References: [XiYou OpenAPI](https://openapi-doc.xydc.com/) and
 [XiYou ASIN information operation](https://openapi-doc.xydc.com/335282030e0).

@@ -155,6 +155,19 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(metric.excluded_unknown_count, 1)
         self.assertEqual(metric.status, MarketMetricStatus.PARTIAL)
 
+    def test_explicit_null_price_has_its_own_exclusion_category(self) -> None:
+        clean = clean_products(
+            product("B000000001", price="10"),
+            product("B000000002", price=None),
+        )
+        metric = analyze(clean).numeric_metric("market_analysis.observed_product_price")
+        self.assertEqual(metric.status, MarketMetricStatus.PARTIAL)
+        self.assertEqual(metric.valid_sample_count, 1)
+        self.assertEqual(metric.excluded_explicit_null_count, 1)
+        self.assertEqual(metric.excluded_missing_count, 0)
+        self.assertEqual(metric.distribution.minimum, Decimal(10))
+        self.assertIn("EXPLICIT_NULL_INPUTS_EXCLUDED", metric.limitations)
+
     def test_multiple_candidates_for_one_subject_block_instead_of_average(self) -> None:
         clean = clean_products(product("B000000001", price="10"))
         duplicate_price = next(

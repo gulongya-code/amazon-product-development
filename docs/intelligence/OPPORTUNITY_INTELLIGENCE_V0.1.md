@@ -291,7 +291,7 @@ content.
 
 ## 13. Audited fixture integration
 
-The integration tests execute real Adapter V0.1.2 paths for:
+The integration tests execute real Adapter V0.1.3 paths for:
 
 - XiYou keyword metrics;
 - XiYou populated keyword-to-product query;

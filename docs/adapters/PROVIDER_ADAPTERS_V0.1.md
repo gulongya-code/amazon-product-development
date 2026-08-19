@@ -1,6 +1,6 @@
-# Provider Adapters V0.1.2
+# Provider Adapters V0.1.3
 
-Status: Level 3 implementation note with audited V0.1.2 query-execution evidence
+Status: Level 3 implementation note with audited V0.1.3 XiYou absence semantics
 Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`, `TASK-SP-007B`
 
 ## 1. Scope
@@ -15,6 +15,15 @@ audited provider payload
 ```
 
 The implementation covers provider-neutral invocation, XiYou audited product/variation/order/BSR/keyword/directional slices, Sorftime audited product/variation/review slices, deterministic identity, structured failures, and strict bundle validation.
+
+### V0.1.3 XiYou HTTP V2 absence correction
+
+Real multi-product validation established that `/v1/asins/info` can return an entity with
+`price: null` and a valid currency. Mapping `xiyou_product_info_http_v2_mapping_v2`
+preserves that evidence as a product-scoped `EXPLICIT_NULL` price with its known currency
+unit and `PARTIAL` result status. It no longer silently omits the observation and lets a
+downstream multi-product consumer misclassify the value as a missing field. No other null
+or field semantic is inferred from this sample.
 
 ### V0.1.2 directional-query evidence
 
@@ -36,11 +45,11 @@ Variation safety diagnostics are `MISSING_VARIATION_PARENT_UNCONFIRMED`, `NULL_V
 
 ## 2. Non-goals
 
-V0.1.2 does not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
+V0.1.3 adapters do not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
 
 ## 3. Architecture
 
-`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable. XiYou's `adapter_version` is `0.1.2`; Sorftime remains `0.1.1` because no Sorftime source or mapping changed. Each owns its audited field mappings; no provider field appears in the common boundary.
+`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable. XiYou's `adapter_version` is `0.1.3`; Sorftime remains `0.1.1` because no Sorftime source or mapping changed. Each owns its audited field mappings; no provider field appears in the common boundary.
 
 One adaptation uses one `MappingSpecification`, one explicit `AdaptationContext`, and one immutable raw snapshot. A valid mapping execution creates one `TransformationRunRecord`. Emitted observations and directional query records carry matching `TransformationProvenance`; `CanonicalEvidenceBundle.validate()` checks run, raw, output, and issue references. Collection-level failures create no transformation run or output.
 
@@ -118,7 +127,7 @@ Raw identity uses provider, source tool, sanitized-request fingerprint, explicit
 
 Sorted canonical JSON makes mapping insertion order irrelevant. No random value, process hash, object representation, locale, filesystem path, current time, or test order participates in output.
 
-`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.2`. The XiYou directional mapping versions and XiYou adapter version changed with the canonical query output. The global default transformation code version therefore changes transformation-run identities and embedded provenance deterministically. Raw-evidence identities remain content-derived, and relationship-observation semantic/revision identities remain stable because adapter version and transformation provenance do not participate in those identity inputs.
+`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.3`. The XiYou HTTP V2 product-info mapping and XiYou adapter version changed with the corrected explicit-null price output. The global default transformation code version therefore changes transformation-run identities and embedded provenance deterministically. Raw-evidence identities remain content-derived, and observation semantic/revision identities continue to follow their contract identity material.
 
 ## 9. Error and issue model
 
@@ -133,6 +142,7 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | Payload kind | Source tool | Mapping version |
 |---|---|---|
 | `asin_info` | `get_asin_info` | `xiyou_product_info_mapping_v1` |
+| `asin_info_http_v2` | `get_asin_info` | `xiyou_product_info_http_v2_mapping_v2` |
 | `asin_variations` | `get_asin_variations` | `xiyou_variations_mapping_v1_1` |
 | `asin_orders_last_30_days` | `get_asin_orders_last_30_days` | `xiyou_orders_30d_mapping_v1` |
 | `asin_bsr_trends` | `get_asin_bsr_trends` | `xiyou_bsr_trends_mapping_v1` |
@@ -145,7 +155,7 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | Source locator | Canonical output | Classification and handling |
 |---|---|---|
 | `data.entities[].title` | product fact `title` | `APPROVED_EXECUTABLE`; observed, ASIN scope, observation time unknown. |
-| `price` + `currency` | metric `price` | `APPROVED_EXECUTABLE`; only audited numeric strings/numbers, raw value retained. |
+| `price` + `currency` | metric `price` | `APPROVED_EXECUTABLE`; audited numeric strings/numbers are retained and normalized; a real HTTP V2 `price: null` is retained as product-scoped `EXPLICIT_NULL` with a known valid currency unit. |
 | `stars` | metric `rating` | `APPROVED_EXECUTABLE`; observed five-star scale. |
 | `ratings` | metric `review_count` | `APPROVED_EXECUTABLE`; strict non-negative integer. |
 | explicit `parentAsin` + valid `childAsins[]` member | `child_product_relationship` with the explicit parent as subject | `APPROVED_EXECUTABLE`; only distinct `parentAsin -> child` edges with exact child-list raw locators are published. A query ASIN is linked only when it is also an explicit `childAsins[]` member. |

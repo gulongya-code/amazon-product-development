@@ -244,9 +244,9 @@ XLSX 二进制确定性包括：
 基准 fixture 的结果为：
 
 ```text
-snapshot_id: xlsx-delivery-snapshot:d19ba936c09f0e275623f79fd17b01163461f53430653ad45258c1216aac5575
-content_sha256: 90640a176fbf62d81fabbb0919e59e6782cb1fa312f60c98b89c97783cc0b56f
-size_bytes: 52260
+snapshot_id: xlsx-delivery-snapshot:2d6b3c4d49768f6036ebf6054626a4c554ab6df3cec0093b4ae8c3ebb9540292
+content_sha256: 302259b95976cefc8b6467e60856983a4b49a4597ab96d3bbd0eda1e6ac2191b
+size_bytes: 52245
 worksheets: 5
 source_export_rows: 17
 rendered_rows: 22

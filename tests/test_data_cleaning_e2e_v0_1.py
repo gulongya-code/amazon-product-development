@@ -288,7 +288,7 @@ class CleaningServiceTests(unittest.TestCase):
         self.assertEqual(price.provenance.provider, "xiyou")
         self.assertEqual(price.provenance.source_tool, "get_asin_info")
         self.assertEqual(price.provenance.source_field, "entities[0].price")
-        self.assertEqual(result.mapping_versions, ("xiyou_product_info_http_v2_mapping_v1",))
+        self.assertEqual(result.mapping_versions, ("xiyou_product_info_http_v2_mapping_v2",))
 
     def test_sorftime_uses_same_service_core(self) -> None:
         result = service_for(
@@ -323,6 +323,49 @@ class CleaningServiceTests(unittest.TestCase):
         review = next(item for item in result.fields if item.canonical_field == "metric.review_count")
         self.assertEqual(review.presence_status, PresenceStatus.MISSING)
         self.assertIsNone(review.normalized_value)
+
+    def test_explicit_null_price_is_subject_preserving_not_missing(self) -> None:
+        body = {
+            "entities": [
+                {
+                    "asin": "B000000001",
+                    "country": "US",
+                    "currency": "USD",
+                    "price": "10.00",
+                    "ratings": 10,
+                    "stars": "4.5",
+                    "title": "Valid price",
+                },
+                {
+                    "asin": "B000000002",
+                    "country": "US",
+                    "currency": "USD",
+                    "price": None,
+                    "ratings": 20,
+                    "stars": "4.6",
+                    "title": "Explicit null price",
+                },
+            ]
+        }
+        result = service_for("xiyou", "asin_info", body).clean(
+            cleaning_request("xiyou", "asin_info", {"entities": []})
+        )
+        prices = {
+            field.subject.subject_id: field
+            for field in result.fields
+            if field.canonical_field == "metric.price" and field.subject is not None
+        }
+        explicit_null = prices["product:US:B000000002"]
+        self.assertEqual(result.status.value, "PARTIAL_SUCCESS")
+        self.assertEqual(result.quality_summary.fields_explicit_null, 1)
+        self.assertEqual(result.quality_summary.fields_missing, 0)
+        self.assertEqual(explicit_null.presence_status, PresenceStatus.EXPLICIT_NULL)
+        self.assertIsNone(explicit_null.normalized_value)
+        self.assertEqual(explicit_null.unit.unit_code, "USD")
+        self.assertEqual(
+            result.mapping_versions,
+            ("xiyou_product_info_http_v2_mapping_v2",),
+        )
 
     def test_extra_provider_field_is_retained_as_diagnostic_not_invented_canonical(self) -> None:
         body = payload("xiyou_asin_info_http_v2.json")

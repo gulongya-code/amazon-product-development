@@ -1,6 +1,6 @@
 # Market Analysis V0.1
 
-Status: implemented; Provider-neutral fixture and XiYou live validation complete
+Status: implemented; Provider-neutral fixtures and XiYou multi-product live validation complete
 
 ## 1. Purpose and boundary
 
@@ -199,6 +199,50 @@ All three numeric product summaries had one valid sample and no missing, unknown
 invalid input. Their `PARTIAL` status and `SMALL_SAMPLE_SIZE_LT_2` limitation are expected:
 the run validates the integration and formulas but does not pretend that one product is a
 reliable market sample.
+
+### 8.2 XiYou real multi-product validation
+
+On 2026-08-19, a bounded public sample of 12 US English-book ASINs was sent in one
+`POST /v1/asins/info` request through the existing explicit `--live` gate. The Connector
+was configured for one attempt, so the validation used exactly one API request and could
+not automatically repeat credit consumption. Requested, received, unique usable, and
+Canonical product counts were all 12. No full response or live ASIN list was persisted.
+
+The live response had the audited top-level `entities[]` shape. Every entity contained
+string `asin`, `country`, `currency`, `stars`, and `title` values plus integer `ratings`.
+Price was a numeric string in 11 records and an explicit JSON null in one record. There
+were no malformed records, duplicate ASINs, empty titles, unexpected fields, mixed
+currencies, or identity failures. The operation exposed no parent/child/variation fields,
+so variation-family composition cannot be inferred from this sample. The explicit-null
+price was the only partial record and the only newly discovered absence shape.
+
+That live shape exposed one mapping defect: the HTTP V2 XiYou adapter omitted
+`price: null`, causing downstream analysis to synthesize `MISSING`. Mapping
+`xiyou_product_info_http_v2_mapping_v2` now emits a subject-preserving `EXPLICIT_NULL`
+price observation with its known USD unit and partial result status. A minimal redacted
+schema regression covers the Adapter, Cleaning, and Market Analysis boundaries. The
+corrected Cleaning summary is 47 present fields, 23 normalized values, 24 unchanged
+values, one explicit-null field, and zero missing, unknown, invalid, or quality-issue
+fields. The clean run is truthfully `PARTIAL_SUCCESS`; 36 diagnostics identify already
+audited URL/image fields that are intentionally ignored and do not become quality issues.
+
+The resulting product statistics, independently recalculated from the Clean Canonical
+values with the documented Decimal rules, were:
+
+| Metric | Total | Valid | Excluded | Minimum | Maximum | Mean | Median | Independent match |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Observed product count | 12 | 12 | 0 | n/a | n/a | n/a | n/a | yes, 12 = 12 |
+| Observed product price (USD) | 12 | 11 | 1 explicit null | 5.29 | 16.19 | 9.123636363636363636363636364 | 8.99 | yes |
+| Product rating (stars/5) | 12 | 12 | 0 | 4.3 | 4.7 | 4.575 | 4.6 | yes |
+| Product review count | 12 | 12 | 0 | 3152 | 183267 | 64652.91666666666666666666667 | 34162 | yes |
+
+The price summary is `PARTIAL` with one explicit-null exclusion; rating and review
+summaries are `CALCULATED`. All included values used compatible units, partial records did
+not suppress valid records, and Market Analysis provenance reached each normalized input,
+raw-evidence reference, transformation mapping, source field, and XiYou Provider identity.
+CPC, ABA rank, and search volume were not returned by this product-information operation,
+so this validation makes no claim or fabricated value for those metrics. Twelve products
+remain a bounded integration sample, not a statistically representative market conclusion.
 
 ## 9. V1 exclusions
 

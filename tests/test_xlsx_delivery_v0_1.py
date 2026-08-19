@@ -211,13 +211,13 @@ class XlsxDeliveryV01Tests(unittest.TestCase):
         )
         self.assertEqual(
             self.snapshot.snapshot_id,
-            "xlsx-delivery-snapshot:d19ba936c09f0e275623f79fd17b01163461f53430653ad45258c1216aac5575",
+            "xlsx-delivery-snapshot:2d6b3c4d49768f6036ebf6054626a4c554ab6df3cec0093b4ae8c3ebb9540292",
         )
         self.assertEqual(
             self.snapshot.workbook.content_sha256,
-            "90640a176fbf62d81fabbb0919e59e6782cb1fa312f60c98b89c97783cc0b56f",
+            "302259b95976cefc8b6467e60856983a4b49a4597ab96d3bbd0eda1e6ac2191b",
         )
-        self.assertEqual(self.snapshot.workbook.size_bytes, 52260)
+        self.assertEqual(self.snapshot.workbook.size_bytes, 52245)
 
     def test_real_xlsx_is_an_open_packaging_convention_zip(self):
         content = self.snapshot.to_xlsx_bytes()

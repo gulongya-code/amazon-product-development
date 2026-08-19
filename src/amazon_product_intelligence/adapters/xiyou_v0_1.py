@@ -1,4 +1,4 @@
-"""Audited offline XiYou mapping slice V0.1.1."""
+"""Audited offline XiYou mapping slice V0.1.3."""
 
 from __future__ import annotations
 
@@ -72,7 +72,8 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     "asin_info_http_v2": _spec(
         "asin_info_http_v2",
         "get_asin_info",
-        "xiyou_product_info_http_v2_mapping_v1",
+        "xiyou_product_info_http_v2_mapping_v2",
+        version="0.1.1",
     ),
     "asin_variations": _spec(
         "asin_variations",
@@ -287,39 +288,69 @@ def _product_info_at(
             )
 
         price_raw = record.get("price")
-        if "price" in record and price_raw is not None:
-            price = strict_number(price_raw, allow_numeric_string=True)
-            currency = record.get("currency")
-            if price is None or not isinstance(currency, str) or len(currency.strip()) != 3:
-                _record_issue(
-                    session,
-                    subject=subject,
-                    dimension="price",
-                    code="INVALID_PRICE_PRIMITIVE_OR_UNIT",
-                    message="price requires an approved numeric primitive/string and three-letter currency.",
-                    locator=f"{locator}.price",
-                )
-            else:
-                currency = currency.strip().upper()
+        if "price" in record:
+            currency_raw = record.get("currency")
+            currency = (
+                currency_raw.strip().upper()
+                if isinstance(currency_raw, str) and len(currency_raw.strip()) == 3
+                else None
+            )
+            if price_raw is None:
                 session.add_metric(
                     product=product,
                     metric="price",
-                    value=value_envelope(
-                        presence_status=PresenceStatus.PRESENT,
-                        raw_value=price_raw,
-                        normalized_value=price,
-                        value_type=ValueType.NUMBER,
-                        unit=Unit(dimension="CURRENCY", unit_code=currency, unit_system="ISO_4217"),
-                        normalization_status=NormalizationStatus.NORMALIZED,
-                        semantic_status=SemanticStatus.CONFIRMED,
+                    value=absent_value(
+                        PresenceStatus.EXPLICIT_NULL,
+                        ValueType.NUMBER,
+                        unit=(
+                            Unit(
+                                dimension="CURRENCY",
+                                unit_code=currency,
+                                unit_system="ISO_4217",
+                            )
+                            if currency is not None
+                            else None
+                        ),
                     ),
                     source_field=f"{source_record}.price",
                     source_record_identity=source_identity,
-                    metric_semantic="Displayed product selling price",
+                    metric_semantic="Provider explicitly returned null for displayed product selling price",
                     evidence_type=EvidenceType.OBSERVED,
                     currency=currency,
                     period_type=PeriodType.INSTANT,
+                    result_status=ResultStatus.PARTIAL,
                 )
+            else:
+                price = strict_number(price_raw, allow_numeric_string=True)
+                if price is None or currency is None:
+                    _record_issue(
+                        session,
+                        subject=subject,
+                        dimension="price",
+                        code="INVALID_PRICE_PRIMITIVE_OR_UNIT",
+                        message="price requires an approved numeric primitive/string and three-letter currency.",
+                        locator=f"{locator}.price",
+                    )
+                else:
+                    session.add_metric(
+                        product=product,
+                        metric="price",
+                        value=value_envelope(
+                            presence_status=PresenceStatus.PRESENT,
+                            raw_value=price_raw,
+                            normalized_value=price,
+                            value_type=ValueType.NUMBER,
+                            unit=Unit(dimension="CURRENCY", unit_code=currency, unit_system="ISO_4217"),
+                            normalization_status=NormalizationStatus.NORMALIZED,
+                            semantic_status=SemanticStatus.CONFIRMED,
+                        ),
+                        source_field=f"{source_record}.price",
+                        source_record_identity=source_identity,
+                        metric_semantic="Displayed product selling price",
+                        evidence_type=EvidenceType.OBSERVED,
+                        currency=currency,
+                        period_type=PeriodType.INSTANT,
+                    )
 
         stars_raw = record.get("stars")
         if "stars" in record and stars_raw is not None:
@@ -1559,10 +1590,10 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
 
 
 class XiYouAdapterV0_1:
-    """Offline audited XiYou adapter with V0.1.2 provenance rules."""
+    """Offline audited XiYou adapter with V0.1.3 provenance rules."""
 
     provider = "xiyou"
-    adapter_version = "0.1.2"
+    adapter_version = "0.1.3"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 

@@ -218,13 +218,18 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertTrue(isinstance(XiYouAdapterV0_1(), ProviderAdapter))
         self.assertTrue(isinstance(SorftimeAdapterV0_1(), ProviderAdapter))
 
-    def test_v0_1_2_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
+    def test_v0_1_3_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
         self.assertEqual(len(adapters.__all__), 14)
-        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.2")
-        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.2")
+        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.3")
+        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.3")
         self.assertEqual(SorftimeAdapterV0_1.adapter_version, "0.1.1")
 
         xiyou_specs = XiYouAdapterV0_1.mapping_specifications
+        self.assertEqual(xiyou_specs["asin_info_http_v2"].version, "0.1.1")
+        self.assertEqual(
+            xiyou_specs["asin_info_http_v2"].mapping_version,
+            "xiyou_product_info_http_v2_mapping_v2",
+        )
         self.assertEqual(xiyou_specs["asin_variations"].version, "0.1.1")
         self.assertEqual(
             xiyou_specs["asin_variations"].mapping_version,
@@ -544,6 +549,39 @@ class PresenceAndPrimitiveTests(unittest.TestCase):
         result = SorftimeAdapterV0_1().adapt(payload, context("sorftime", "product_detail"))
         self.assertFalse(metric_observations(result, "price"))
         self.assertIn("INVALID_METRIC_PRIMITIVE", {item.issue_code for item in result.bundle.quality_issues})
+
+    def test_http_v2_explicit_null_price_is_preserved_with_subject_and_currency(self) -> None:
+        payload = {
+            "entities": [
+                {
+                    "asin": "B000000001",
+                    "country": "US",
+                    "currency": "USD",
+                    "price": None,
+                    "ratings": 10,
+                    "stars": "4.5",
+                    "title": "Schema-focused product",
+                }
+            ]
+        }
+        result = XiYouAdapterV0_1().adapt(
+            payload,
+            context(
+                "xiyou",
+                "asin_info_http_v2",
+                source_tool="get_asin_info",
+            ),
+        )
+        price = metric_observations(result, "price")[0]
+        self.assertEqual(price.subject.subject_id, "product:US:B000000001")
+        self.assertEqual(price.value.presence_status, PresenceStatus.EXPLICIT_NULL)
+        self.assertIsNone(price.value.normalized_value)
+        self.assertEqual(price.value.unit.unit_code, "USD")
+        self.assertEqual(price.provenance.source_field, "entities[0].price")
+        self.assertEqual(
+            price.provenance.transformation.mapping_version,
+            "xiyou_product_info_http_v2_mapping_v2",
+        )
 
 
 class XiYouMappingTests(unittest.TestCase):
