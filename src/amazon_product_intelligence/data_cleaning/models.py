@@ -15,6 +15,7 @@ from amazon_product_intelligence.contracts import (
     PresenceStatus,
     Provenance,
     SemanticStatus,
+    SubjectRef,
     Unit,
 )
 from amazon_product_intelligence.normalization import NormalizationRuleApplication
@@ -64,6 +65,7 @@ class DataCleaningRequest:
 @dataclass(frozen=True, slots=True, kw_only=True)
 class CleanFieldResult:
     canonical_field: str
+    subject: SubjectRef | None
     provider: str
     source_operation: str
     source_field: str | None
@@ -87,6 +89,7 @@ class CleanFieldResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "canonical_field": self.canonical_field,
+            "subject": None if self.subject is None else self.subject.to_dict(),
             "provider": self.provider,
             "source_operation": self.source_operation,
             "source_field": self.source_field,

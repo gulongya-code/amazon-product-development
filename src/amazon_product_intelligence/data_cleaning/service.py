@@ -138,6 +138,7 @@ class DataCleaningService:
                 fields.append(
                     CleanFieldResult(
                         canonical_field=capability.canonical_field,
+                        subject=observation.subject,
                         provider=capability.provider_id,
                         source_operation=request.operation,
                         source_field=observation.provenance.source_field,
@@ -204,6 +205,7 @@ class DataCleaningService:
         invalid = bool(issues)
         return CleanFieldResult(
             canonical_field=capability.canonical_field,
+            subject=None,
             provider=capability.provider_id,
             source_operation=operation,
             source_field=capability.source_field,
