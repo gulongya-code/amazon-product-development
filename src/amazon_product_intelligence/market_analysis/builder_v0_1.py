@@ -30,6 +30,7 @@ from amazon_product_intelligence.contracts import (
     NormalizationStatus,
     PresenceStatus,
     Provenance,
+    RelationshipType,
     SemanticStatus,
     SubjectType,
     Unit,
@@ -61,6 +62,8 @@ _CALCULATION_PRECISION = 28
 _SUMMARY_VERSION = "v0.1-observed-summary"
 _OBSERVED_PRODUCT_COUNT = "workbook.market_overview.observed_product_count"
 _PRODUCT_IDENTITY_INPUT = "canonical.snapshot_product_identities"
+_RELATED_PRODUCT_COUNT = "workbook.keyword_demand.related_product_count"
+_DIRECTIONAL_RELATIONSHIP_INPUT = "canonical.directional_product_keyword_relationships"
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,8 +188,23 @@ class MarketAnalysisBuilderV0_1:
         )
         issues = self._issues(request.clean_results)
         self._validate_marketplace(request.marketplace, fields, issues)
-        product_ids = self._subject_ids(fields, issues, SubjectType.PRODUCT)
-        keyword_ids = self._subject_ids(fields, issues, SubjectType.KEYWORD)
+        relationship_fields = self._relationship_membership_fields(fields)
+        product_ids = tuple(
+            sorted(
+                {
+                    *self._subject_ids(fields, issues, SubjectType.PRODUCT),
+                    *(field.relationship_product_id for field in relationship_fields),
+                }
+            )
+        )
+        keyword_ids = tuple(
+            sorted(
+                {
+                    *self._subject_ids(fields, issues, SubjectType.KEYWORD),
+                    *(field.relationship_keyword_id for field in relationship_fields),
+                }
+            )
+        )
         providers = tuple(
             sorted(
                 {
@@ -227,7 +245,12 @@ class MarketAnalysisBuilderV0_1:
         )
         count_metrics = tuple(
             sorted(
-                self._count_metrics(product_ids, fields, calculation_run_id),
+                self._count_metrics(
+                    product_ids,
+                    fields,
+                    relationship_fields,
+                    calculation_run_id,
+                ),
                 key=lambda item: item.field_id,
             )
         )
@@ -307,6 +330,27 @@ class MarketAnalysisBuilderV0_1:
             )
 
     @staticmethod
+    def _relationship_membership_fields(
+        fields: tuple[CleanFieldResult, ...],
+    ) -> tuple[CleanFieldResult, ...]:
+        return tuple(
+            field
+            for field in fields
+            if field.canonical_field
+            in {"relationship.keyword_to_product", "relationship.product_to_keyword"}
+            and field.relationship_type is RelationshipType.CANDIDATE_MEMBERSHIP
+            and field.relationship_product_id is not None
+            and field.relationship_keyword_id is not None
+            and field.relationship_direction is not None
+            and field.presence_status is PresenceStatus.PRESENT
+            and field.semantic_status is SemanticStatus.CONFIRMED
+            and field.normalization_status
+            in {NormalizationStatus.NORMALIZED, NormalizationStatus.NOT_APPLICABLE}
+            and not any(issue.blocking for issue in field.issues)
+            and field.provenance is not None
+        )
+
+    @staticmethod
     def _subject_ids(
         fields: tuple[CleanFieldResult, ...],
         issues: tuple[DataQualityIssue, ...],
@@ -325,14 +369,20 @@ class MarketAnalysisBuilderV0_1:
         self,
         product_ids: tuple[str, ...],
         fields: tuple[CleanFieldResult, ...],
+        relationship_fields: tuple[CleanFieldResult, ...],
         calculation_run_id: str,
     ) -> tuple[Any, ...]:
         product_fields = tuple(
             field
             for field in fields
-            if field.subject is not None
-            and field.subject.subject_type is SubjectType.PRODUCT
-            and field.subject.subject_id in product_ids
+            if (
+                (
+                    field.subject is not None
+                    and field.subject.subject_type is SubjectType.PRODUCT
+                    and field.subject.subject_id in product_ids
+                )
+                or field in relationship_fields
+            )
             and field.provenance is not None
         )
         inputs: dict[str, CalculationInput] = {}
@@ -351,8 +401,30 @@ class MarketAnalysisBuilderV0_1:
                 provenances=provenances,
                 quality_issues=(),
             )
+        relationship_scopes = {
+            (field.relationship_keyword_id, field.relationship_direction)
+            for field in relationship_fields
+        }
+        requested = [_OBSERVED_PRODUCT_COUNT]
+        if relationship_fields and len(relationship_scopes) == 1:
+            related_product_ids = tuple(
+                sorted({field.relationship_product_id for field in relationship_fields})
+            )
+            inputs[_DIRECTIONAL_RELATIONSHIP_INPUT] = CalculationInput(
+                field_id=_DIRECTIONAL_RELATIONSHIP_INPUT,
+                value=related_product_ids,
+                presence_status=PresenceStatus.PRESENT,
+                normalization_status=NormalizationStatus.NOT_APPLICABLE,
+                semantic_status=SemanticStatus.CONFIRMED,
+                unit=None,
+                resolution_status=InputResolutionStatus.RESOLVED,
+                evidence_references=_evidence_references(relationship_fields),
+                provenances=_unique_provenances(relationship_fields),
+                quality_issues=(),
+            )
+            requested.append(_RELATED_PRODUCT_COUNT)
         batch = self._calculation_engine.calculate(
-            (_OBSERVED_PRODUCT_COUNT,),
+            tuple(requested),
             inputs,
             CalculationContext(
                 calculation_run_id=calculation_run_id,

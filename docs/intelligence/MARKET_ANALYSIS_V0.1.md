@@ -1,6 +1,6 @@
 # Market Analysis V0.1
 
-Status: implemented; Provider-neutral fixtures and XiYou multi-product live validation complete
+Status: implemented; Provider-neutral fixtures plus XiYou product and keyword/demand live validation complete
 
 ## 1. Purpose and boundary
 
@@ -62,6 +62,13 @@ field ordering. Full raw Provider responses are not included.
 
 This reuses the audited Calculation Engine evaluator. It is a bounded observed-set count,
 never total market size.
+
+For exactly one clean directional keyword scope, Market Analysis also reuses
+`calculation.related_product_count` to emit
+`workbook.keyword_demand.related_product_count`. Its dependency is the sorted unique
+Canonical product identity set from confirmed `CANDIDATE_MEMBERSHIP` relationships with
+one `(keyword, direction)` pair. Duplicates are removed. A paginated result is an observed
+page count only; it is never promoted to provider `total`, market size, or competition.
 
 ### 4.2 Numeric observed-sample summaries
 
@@ -141,6 +148,10 @@ Observed product count retains the Calculation Engine's normal provenance over t
 authoritative Canonical product-identity collection. Market outputs are therefore
 system-derived; they are not labeled as values supplied directly by XiYou, Sorftime, or
 another Provider.
+
+Directional count provenance follows the same chain through the preserved relationship
+product ID, keyword ID, direction, type, channel, Clean field, transformation mapping,
+raw evidence reference, source operation/field, and Provider.
 
 ## 7. Explicitly blocked metrics
 
@@ -243,6 +254,56 @@ raw-evidence reference, transformation mapping, source field, and XiYou Provider
 CPC, ABA rank, and search volume were not returned by this product-information operation,
 so this validation makes no claim or fabricated value for those metrics. Twelve products
 remain a bounded integration sample, not a statistically representative market conclusion.
+
+### 8.3 XiYou real keyword/demand validation
+
+On 2026-08-19, credential state was `CONFIGURED` and two bounded requests were made
+through the existing explicit `--live` gate: one
+[`POST /v1/searchTerms/info`](https://openapi-doc.xydc.com/333379279e0) request for three
+public US keywords, and one
+[`POST /v1/searchTerms/analysis/list/period`](https://openapi-doc.xydc.com/451262166e0)
+request for the first 10 relationships of one keyword. Each request used one attempt and
+one credit. No live payload, keyword list, credential, authorization header, account data,
+or trace identifier was written to the repository.
+
+The keyword-info response contained three unique usable rows. Its current V2 root was
+`list`/`total`, and row fields were `searchTerm`, `competitiveDifficulty`, `abaReport`,
+`costPerClick`, `clickConversionRate`, and `organicRotation`. The first four feed approved
+Canonical mappings; the latter two plus nested top-ASIN details remain intentionally raw.
+Cleaning produced 12 present fields: 3 values changed by numeric normalization, 9 values
+were already canonical, and there were no missing, explicit-null, unknown, or invalid
+fields. Six blocking semantic issues made the run `PARTIAL_SUCCESS`: three
+`DIFFICULTY_SCALE_UNCONFIRMED` and three `SEARCH_VOLUME_METHOD_UNCONFIRMED`.
+
+The actual live Market Analysis values and independent Decimal recalculation were:
+
+| Metric | Valid | Excluded | Minimum | Maximum | Mean | Median | Independent match |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Keyword CPC (USD) | 3 | 0 | 1.23 | 2.08 | 1.696666666666666666666666667 | 1.78 | yes |
+| Keyword ABA rank (`aba_sfr`) | 3 | 0 | 30 | 451 | 222 | 185 | yes |
+| Weekly search-volume estimate | 0 | 3 invalid-semantic | n/a | n/a | n/a | n/a | yes, remained `BLOCKED` |
+
+The forward relationship response returned 10 unique usable ASINs while provider total
+was 1005. Market Analysis emitted related product count 10 from 10 distinct confirmed
+membership identities; an independent set count also returned 10. The result is explicitly
+the observed first-page count, not 1005, market size, or comparable-product membership.
+Pagination is now retained as `PARTIAL_PAGE` in Raw Evidence.
+
+The live relationship rows contained 28 rank records and actual position-code counts
+`or=10`, `sb=5`, `sbv=1`, `sor=6`, and `sp=6`. The official current contract documents
+the field and examples but does not establish every code's semantic mapping. Thirteen
+`sbv/sor/sp` records therefore remained unconfirmed diagnostics. Twenty traffic values
+were retained with `TRAFFIC_METHOD_PERIOD_UNCONFIRMED` issues. The live run also exposed
+a Cleaning defect: 35 rank/traffic observations selected for `keyword.channel` were being
+sent to scalar normalization as their evidence values and reported `UNSUPPORTED_FIELD`.
+V0.1.4 now normalizes the typed relationship channel context and preserves product,
+keyword, direction, relationship type, and channel in `CleanFieldResult`. The redacted
+offline regression proves the correction without repeating a billable live request.
+
+Provenance checks succeeded for both keyword distributions and related product count:
+Market metric/rule -> Clean field/application -> Canonical observation -> XiYou HTTP V2
+mapping -> raw evidence reference -> operation/source field -> XiYou. The repository
+stores references and schema-focused tests, not full production responses.
 
 ## 9. V1 exclusions
 

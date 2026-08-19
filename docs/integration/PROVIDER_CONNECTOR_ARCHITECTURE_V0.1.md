@@ -1,6 +1,6 @@
 # Provider Connector Architecture V0.1
 
-Status: TASK-SP-018B implementation contract
+Status: TASK-SP-021A implementation contract with XiYou HTTP V2 keyword roots live-verified
 Baseline: `442b0e8a05b54d5595992f9b4191c162b3cc3a47`
 Runtime: Python 3.12, standard library only
 
@@ -21,8 +21,7 @@ Third-party transport
 
 It deliberately does not implement:
 
-- production HTTP clients or real API calls;
-- credential provisioning or storage;
+- credential provisioning or storage (the later Cleaning boundary injects an existing environment reference only);
 - the 99 `CALCULATED` Workbook fields;
 - provider weighting, conflict resolution, normalization policy, scoring, recommendations, or Workbook writes;
 - SellerSprite or any other undocumented production connector.
@@ -165,11 +164,16 @@ The XiYou connector describes the SP-018A P0 operations already supported by `Xi
 | Variations | `/v1/asins/variations` | `asin_variations` |
 | Recent orders | `/v1/asins/orders` | `asin_orders_last_30_days` |
 | BSR trend | `/v1/asins/bsrInfo/trends/daily` | `asin_bsr_trends` |
-| Keyword metrics | `/v1/searchTerms/info` | `keyword_info` |
-| Keyword to product | `/v1/searchTerms/analysis/list/period` | `keyword_asin_analysis` |
-| Product to keyword | `/v1/asins/research/list/period` | `asin_keywords` |
+| Keyword metrics | `/v1/searchTerms/info` | `keyword_info_http_v2` |
+| Keyword to product | `/v1/searchTerms/analysis/list/period` | `keyword_asin_analysis_http_v2` |
+| Product to keyword | `/v1/asins/research/list/period` | `asin_keywords_http_v2` |
 
 Forward and reverse relationship capabilities have different Canonical field identifiers and different operations. They are never merged into a source-less bidirectional edge.
+
+The live-verified HTTP V2 keyword responses use root `list`/`total`, not the legacy
+`status/data` envelope. Relationship Raw Evidence records bounded page metadata and marks
+`PARTIAL` when provider `total` exceeds the returned list. The production capability
+locators therefore start at `list[]`; legacy payload kinds remain fixture-only mappings.
 
 XiYou authentication is represented as an ephemeral `X-Api-Key` credential plus the public `X-Auth-Version: 2.0` header. The credential is not included in safe request serialization, request `repr`, Canonical context, raw request parameters, or error details.
 
@@ -297,9 +301,9 @@ Additional tests cover duplicate registration, all four capability states, absen
 
 ## 15. Deferred work
 
-- Production transport implementation and credential provisioning.
+- Credential provisioning and rotation.
 - Exact Sorftime public transport schema after official documentation becomes testable.
-- Broader P1/P2 operations and pagination/completeness policies per endpoint.
+- Broader P1/P2 operations and pagination/completeness policies for endpoints not yet live-verified.
 - Cleaning/normalization and the 99 calculated fields in their later tasks.
 - Conflict policy, weighting, freshness policy, AI analysis, and Workbook/UI integration.
 

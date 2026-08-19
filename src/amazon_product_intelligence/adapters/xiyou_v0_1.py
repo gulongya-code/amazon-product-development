@@ -1,4 +1,4 @@
-"""Audited offline XiYou mapping slice V0.1.3."""
+"""Audited offline XiYou mapping slice V0.1.4."""
 
 from __future__ import annotations
 
@@ -90,17 +90,32 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
         "asin_bsr_trends", "get_asin_bsr_trends", "xiyou_bsr_trends_mapping_v1"
     ),
     "keyword_info": _spec("keyword_info", "get_keyword_info", "xiyou_keyword_info_mapping_v1"),
+    "keyword_info_http_v2": _spec(
+        "keyword_info_http_v2",
+        "get_keyword_info",
+        "xiyou_keyword_info_http_v2_mapping_v1",
+    ),
     "keyword_asin_analysis": _spec(
         "keyword_asin_analysis",
         "get_keyword_asin_analysis",
         "xiyou_keyword_to_asin_mapping_v1_1",
         version="0.1.1",
     ),
+    "keyword_asin_analysis_http_v2": _spec(
+        "keyword_asin_analysis_http_v2",
+        "get_keyword_asin_analysis",
+        "xiyou_keyword_to_asin_http_v2_mapping_v1",
+    ),
     "asin_keywords": _spec(
         "asin_keywords",
         "get_asin_keywords",
         "xiyou_asin_to_keyword_mapping_v1_1",
         version="0.1.1",
+    ),
+    "asin_keywords_http_v2": _spec(
+        "asin_keywords_http_v2",
+        "get_asin_keywords",
+        "xiyou_asin_to_keyword_http_v2_mapping_v1",
     ),
 }
 
@@ -815,12 +830,24 @@ def _null_keyword_metric(
     )
 
 
-def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _keyword_info(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str = "$.data",
+    source_prefix: str = "data.",
+) -> AdaptationResult:
     rows = data.get("list")
     if not isinstance(rows, (tuple, list)):
-        return _fail(session, "MALFORMED_PROVIDER_ENVELOPE", "data.list must be an array.", "$.data.list")
+        return _fail(
+            session,
+            "MALFORMED_PROVIDER_ENVELOPE",
+            "list must be an array.",
+            f"{root_locator}.list",
+        )
     for index, row in enumerate(rows):
-        locator = f"$.data.list[{index}]"
+        locator = f"{root_locator}.list[{index}]"
+        source_record = f"{source_prefix}list[{index}]"
         if not isinstance(row, MappingABC):
             _record_issue(
                 session,
@@ -857,7 +884,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                 session,
                 keyword=keyword,
                 metric="search_volume",
-                source_field=f"data.list[{index}].abaReport",
+                source_field=f"{source_record}.abaReport",
                 source_identity=source_identity,
                 evidence_type=EvidenceType.PROVIDER_ESTIMATE,
                 semantic_status=SemanticStatus.SEMANTICS_UNCONFIRMED,
@@ -866,7 +893,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                 session,
                 keyword=keyword,
                 metric="aba_search_frequency_rank",
-                source_field=f"data.list[{index}].abaReport",
+                source_field=f"{source_record}.abaReport",
                 source_identity=source_identity,
                 evidence_type=EvidenceType.OBSERVED,
                 semantic_status=SemanticStatus.CONFIRMED,
@@ -907,7 +934,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.SEMANTICS_UNCONFIRMED,
                     ),
-                    source_field=f"data.list[{index}].abaReport.weeklySearchVolume",
+                    source_field=f"{source_record}.abaReport.weeklySearchVolume",
                     source_record_identity=source_identity,
                     metric_semantic=f"Weekly search volume; provider derivation is unconfirmed. {period_note}",
                     evidence_type=EvidenceType.PROVIDER_ESTIMATE,
@@ -938,7 +965,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.CONFIRMED,
                     ),
-                    source_field=f"data.list[{index}].abaReport.searchFrequencyRank",
+                    source_field=f"{source_record}.abaReport.searchFrequencyRank",
                     source_record_identity=source_identity,
                     metric_semantic=f"Provider-reported ABA search frequency rank. {period_note}",
                     evidence_type=EvidenceType.OBSERVED,
@@ -992,7 +1019,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                 session,
                 keyword=keyword,
                 metric="competition_difficulty",
-                source_field=f"data.list[{index}].competitiveDifficulty",
+                source_field=f"{source_record}.competitiveDifficulty",
                 source_identity=source_identity,
                 evidence_type=EvidenceType.PROVIDER_ESTIMATE,
                 semantic_status=SemanticStatus.SEMANTICS_UNCONFIRMED,
@@ -1025,7 +1052,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.SEMANTICS_UNCONFIRMED,
                     ),
-                    source_field=f"data.list[{index}].competitiveDifficulty",
+                    source_field=f"{source_record}.competitiveDifficulty",
                     source_record_identity=source_identity,
                     metric_semantic="Provider competition/difficulty score; scale semantics are unconfirmed",
                     evidence_type=EvidenceType.PROVIDER_ESTIMATE,
@@ -1055,7 +1082,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                 session,
                 keyword=keyword,
                 metric="cpc",
-                source_field=f"data.list[{index}].costPerClick",
+                source_field=f"{source_record}.costPerClick",
                 source_identity=source_identity,
                 evidence_type=EvidenceType.PROVIDER_ESTIMATE,
                 semantic_status=SemanticStatus.CONFIRMED,
@@ -1097,7 +1124,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
                         normalization_status=NormalizationStatus.NORMALIZED,
                         semantic_status=SemanticStatus.CONFIRMED,
                     ),
-                    source_field=f"data.list[{index}].costPerClick.value",
+                    source_field=f"{source_record}.costPerClick.value",
                     source_record_identity=source_identity,
                     metric_semantic="Provider CPC/suggested-bid estimate",
                     evidence_type=EvidenceType.PROVIDER_ESTIMATE,
@@ -1141,7 +1168,7 @@ def _keyword_info(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptati
     _report_fields(
         session,
         data,
-        locator="$.data",
+        locator=root_locator,
         mapped={"list"},
         ignored={"total": "Row count is retained in raw evidence and is not a market-size metric."},
     )
@@ -1346,7 +1373,13 @@ def _map_relationship_row(
         )
 
 
-def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _keyword_to_asin(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str = "$.data",
+    source_prefix: str = "data.",
+) -> AdaptationResult:
     query = _request_text(session, "keyword")
     if query is None:
         return _fail(
@@ -1363,7 +1396,19 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             session,
             "MALFORMED_PROVIDER_ENVELOPE",
             "Forward relationship data requires list array and non-negative integer total.",
-            "$.data",
+            root_locator,
+        )
+    if source_prefix == "":
+        session.raw_evidence = replace(
+            session.raw_evidence,
+            response_status=("PARTIAL" if total > len(rows) else session.raw_evidence.response_status),
+            pagination={
+                "request_page": session.context.sanitized_request.get("page"),
+                "request_page_size": session.context.sanitized_request.get("pageSize"),
+                "returned_count": len(rows),
+                "provider_total": total,
+                "collection_status": "PARTIAL_PAGE" if total > len(rows) else "COMPLETE_OR_SINGLE_PAGE",
+            },
         )
     if not rows:
         session.raw_evidence = replace(session.raw_evidence, response_status="EMPTY")
@@ -1372,7 +1417,7 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             direction=RelationshipDirection.KEYWORD_TO_PRODUCT,
             outcome=QueryExecutionOutcome.EXPLICIT_EMPTY,
             related_relationship_observation_ids=(),
-            source_field="data.list",
+            source_field=f"{source_prefix}list",
             source_record_identity=keyword.keyword_id,
         )
         session.diagnostic(
@@ -1381,20 +1426,20 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
                 "Valid Keyword to ASIN query returned no rows. This is not market_size, demand, "
                 "competitor_count, or a zero-valued metric."
             ),
-            source_locator="$.data.list",
+            source_locator=f"{root_locator}.list",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
             affects_status=False,
         )
         _report_fields(
             session,
             data,
-            locator="$.data",
+            locator=root_locator,
             mapped={"list"},
             ignored={"total": "Provider row count is not a market-size metric."},
         )
         return session.finish()
     for index, row in enumerate(rows):
-        locator = f"$.data.list[{index}]"
+        locator = f"{root_locator}.list[{index}]"
         if not isinstance(row, MappingABC):
             _record_issue(
                 session,
@@ -1445,7 +1490,7 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
     _report_fields(
         session,
         data,
-        locator="$.data",
+        locator=root_locator,
         mapped={"list"},
         ignored={"total": "Provider row count is retained but is not a market-size metric."},
     )
@@ -1465,14 +1510,20 @@ def _keyword_to_asin(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             else QueryExecutionOutcome.OUTCOME_UNKNOWN
         ),
         related_relationship_observation_ids=related_ids,
-        source_field="data.list",
+        source_field=f"{source_prefix}list",
         source_record_identity=keyword.keyword_id,
         quality_issue_ids=tuple(item.issue_id for item in session.issues),
     )
     return session.finish()
 
 
-def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _asin_to_keyword(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str = "$.data",
+    source_prefix: str = "data.",
+) -> AdaptationResult:
     request_asin = normalized_asin(_request_text(session, "asin"))
     if request_asin is None:
         return _fail(
@@ -1489,7 +1540,19 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             session,
             "MALFORMED_PROVIDER_ENVELOPE",
             "Reverse relationship data requires list array and non-negative integer total.",
-            "$.data",
+            root_locator,
+        )
+    if source_prefix == "":
+        session.raw_evidence = replace(
+            session.raw_evidence,
+            response_status=("PARTIAL" if total > len(rows) else session.raw_evidence.response_status),
+            pagination={
+                "request_page": session.context.sanitized_request.get("page"),
+                "request_page_size": session.context.sanitized_request.get("pageSize"),
+                "returned_count": len(rows),
+                "provider_total": total,
+                "collection_status": "PARTIAL_PAGE" if total > len(rows) else "COMPLETE_OR_SINGLE_PAGE",
+            },
         )
     if not rows:
         session.raw_evidence = replace(session.raw_evidence, response_status="EMPTY")
@@ -1498,7 +1561,7 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
             outcome=QueryExecutionOutcome.EXPLICIT_EMPTY,
             related_relationship_observation_ids=(),
-            source_field="data.list",
+            source_field=f"{source_prefix}list",
             source_record_identity=product.product_id,
         )
         session.diagnostic(
@@ -1507,20 +1570,20 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
                 "Valid ASIN to Keyword query returned no rows. This is not demand, relevance, "
                 "or a zero-valued metric."
             ),
-            source_locator="$.data.list",
+            source_locator=f"{root_locator}.list",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
             affects_status=False,
         )
         _report_fields(
             session,
             data,
-            locator="$.data",
+            locator=root_locator,
             mapped={"list"},
             ignored={"total": "Provider row count is retained but is not a demand metric."},
         )
         return session.finish()
     for index, row in enumerate(rows):
-        locator = f"$.data.list[{index}]"
+        locator = f"{root_locator}.list[{index}]"
         if not isinstance(row, MappingABC):
             _record_issue(
                 session,
@@ -1562,7 +1625,7 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
     _report_fields(
         session,
         data,
-        locator="$.data",
+        locator=root_locator,
         mapped={"list"},
         ignored={"total": "Provider row count is retained but is not a demand metric."},
     )
@@ -1582,7 +1645,7 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
             else QueryExecutionOutcome.OUTCOME_UNKNOWN
         ),
         related_relationship_observation_ids=related_ids,
-        source_field="data.list",
+        source_field=f"{source_prefix}list",
         source_record_identity=product.product_id,
         quality_issue_ids=tuple(item.issue_id for item in session.issues),
     )
@@ -1590,10 +1653,10 @@ def _asin_to_keyword(session: _AdapterSession, data: Mapping[str, Any]) -> Adapt
 
 
 class XiYouAdapterV0_1:
-    """Offline audited XiYou adapter with V0.1.3 provenance rules."""
+    """Offline audited XiYou adapter with V0.1.4 provenance rules."""
 
     provider = "xiyou"
-    adapter_version = "0.1.3"
+    adapter_version = "0.1.4"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 
@@ -1607,8 +1670,22 @@ class XiYouAdapterV0_1:
         )
         if isinstance(prepared, AdaptationResult):
             return prepared
-        if context.payload_kind == "asin_info_http_v2":
-            return _product_info_http_v2(prepared, prepared.payload)
+        http_v2_handlers = {
+            "asin_info_http_v2": _product_info_http_v2,
+            "keyword_info_http_v2": _keyword_info,
+            "keyword_asin_analysis_http_v2": _keyword_to_asin,
+            "asin_keywords_http_v2": _asin_to_keyword,
+        }
+        if context.payload_kind in http_v2_handlers:
+            return http_v2_handlers[context.payload_kind](
+                prepared,
+                prepared.payload,
+                **(
+                    {}
+                    if context.payload_kind == "asin_info_http_v2"
+                    else {"root_locator": "$", "source_prefix": ""}
+                ),
+            )
         data = _xiyou_data(prepared)
         if isinstance(data, AdaptationResult):
             return data

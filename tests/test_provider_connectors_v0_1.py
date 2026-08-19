@@ -431,7 +431,11 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
     def test_explicit_empty_query_is_selected_evidence_not_failure(self) -> None:
         provider = XiYouProvider(
             StubTransport(
-                {"keyword_asin_analysis": load_fixture("xiyou_keyword_forward_empty.json")}
+                {
+                    "keyword_asin_analysis": load_fixture(
+                        "xiyou_keyword_forward_empty.json"
+                    )["data"]
+                }
             ),
             environment={"TEST_XIYOU_CREDENTIAL": TEST_CREDENTIAL},
         )
@@ -449,8 +453,10 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
     def test_forward_and_reverse_relationship_capabilities_select_distinct_operations(self) -> None:
         transport = StubTransport(
             {
-                "keyword_asin_analysis": load_fixture("xiyou_keyword_forward_populated.json"),
-                "asin_keywords": load_fixture("xiyou_asin_keywords_reverse.json"),
+                "keyword_asin_analysis": load_fixture(
+                    "xiyou_keyword_forward_populated.json"
+                )["data"],
+                "asin_keywords": load_fixture("xiyou_asin_keywords_reverse.json")["data"],
             }
         )
         provider = XiYouProvider(

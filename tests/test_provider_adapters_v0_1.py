@@ -218,10 +218,10 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertTrue(isinstance(XiYouAdapterV0_1(), ProviderAdapter))
         self.assertTrue(isinstance(SorftimeAdapterV0_1(), ProviderAdapter))
 
-    def test_v0_1_3_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
+    def test_v0_1_4_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
         self.assertEqual(len(adapters.__all__), 14)
-        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.3")
-        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.3")
+        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.4")
+        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.4")
         self.assertEqual(SorftimeAdapterV0_1.adapter_version, "0.1.1")
 
         xiyou_specs = XiYouAdapterV0_1.mapping_specifications
@@ -236,6 +236,18 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
             "xiyou_variations_mapping_v1_1",
         )
         self.assertEqual(xiyou_specs["asin_info"].version, "0.1")
+        self.assertEqual(
+            xiyou_specs["keyword_info_http_v2"].mapping_version,
+            "xiyou_keyword_info_http_v2_mapping_v1",
+        )
+        self.assertEqual(
+            xiyou_specs["keyword_asin_analysis_http_v2"].mapping_version,
+            "xiyou_keyword_to_asin_http_v2_mapping_v1",
+        )
+        self.assertEqual(
+            xiyou_specs["asin_keywords_http_v2"].mapping_version,
+            "xiyou_asin_to_keyword_http_v2_mapping_v1",
+        )
         self.assertEqual(xiyou_specs["keyword_asin_analysis"].version, "0.1.1")
         self.assertEqual(
             xiyou_specs["keyword_asin_analysis"].mapping_version,
@@ -585,6 +597,79 @@ class PresenceAndPrimitiveTests(unittest.TestCase):
 
 
 class XiYouMappingTests(unittest.TestCase):
+    def test_http_v2_keyword_metrics_use_root_list_with_truthful_source_fields(self) -> None:
+        legacy = load_fixture("xiyou_keyword_info.json")
+        result = XiYouAdapterV0_1().adapt(
+            legacy["data"],
+            context(
+                "xiyou",
+                "keyword_info_http_v2",
+                source_tool="get_keyword_info",
+            ),
+        )
+        self.assertTrue(result.succeeded)
+        volume = metric_observations(result, "search_volume")[0]
+        self.assertEqual(
+            volume.provenance.source_field,
+            "list[0].abaReport.weeklySearchVolume",
+        )
+        self.assertEqual(
+            volume.provenance.transformation.mapping_version,
+            "xiyou_keyword_info_http_v2_mapping_v1",
+        )
+        self.assertEqual(set(result.raw_snapshot), {"list", "total"})
+
+    def test_http_v2_directional_relationships_use_root_list(self) -> None:
+        forward_fixture = load_fixture("xiyou_keyword_forward_populated.json")
+        forward = XiYouAdapterV0_1().adapt(
+            forward_fixture["data"],
+            context(
+                "xiyou",
+                "keyword_asin_analysis_http_v2",
+                source_tool="get_keyword_asin_analysis",
+                request={"keyword": "plastic spoons", "page": 1, "pageSize": 20},
+            ),
+        )
+        reverse_fixture = load_fixture("xiyou_asin_keywords_reverse.json")
+        reverse = XiYouAdapterV0_1().adapt(
+            reverse_fixture["data"],
+            context(
+                "xiyou",
+                "asin_keywords_http_v2",
+                source_tool="get_asin_keywords",
+                request={"asin": "B0G2VV4RBW"},
+            ),
+        )
+        self.assertTrue(forward.succeeded)
+        self.assertTrue(reverse.succeeded)
+        self.assertEqual(
+            forward.bundle.query_execution_records[0].provenance.source_field,
+            "list",
+        )
+        self.assertEqual(
+            reverse.bundle.query_execution_records[0].provenance.source_field,
+            "list",
+        )
+        self.assertEqual(
+            forward.mapping_specification.mapping_version,
+            "xiyou_keyword_to_asin_http_v2_mapping_v1",
+        )
+        self.assertEqual(
+            reverse.mapping_specification.mapping_version,
+            "xiyou_asin_to_keyword_http_v2_mapping_v1",
+        )
+        self.assertEqual(forward.raw_evidence.response_status, "PARTIAL")
+        self.assertEqual(
+            forward.raw_evidence.pagination,
+            {
+                "request_page": 1,
+                "request_page_size": 20,
+                "returned_count": 1,
+                "provider_total": 647,
+                "collection_status": "PARTIAL_PAGE",
+            },
+        )
+
     def test_product_info_maps_only_audited_observed_evidence(self) -> None:
         result = adapt_fixture("xiyou", "asin_info")
         self.assertEqual(len(fact_observations(result, "title")), 1)

@@ -10,10 +10,13 @@ from types import MappingProxyType
 from typing import Any
 
 from amazon_product_intelligence.contracts import (
+    Channel,
     DataQualityIssue,
     NormalizationStatus,
     PresenceStatus,
     Provenance,
+    RelationshipDirection,
+    RelationshipType,
     SemanticStatus,
     SubjectRef,
     Unit,
@@ -82,12 +85,37 @@ class CleanFieldResult:
     issues: tuple[DataQualityIssue, ...]
     application: NormalizationRuleApplication | None
     provenance: Provenance | None
+    relationship_product_id: str | None = None
+    relationship_keyword_id: str | None = None
+    relationship_direction: RelationshipDirection | None = None
+    relationship_type: RelationshipType | None = None
+    relationship_channel: Channel | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "issues", tuple(self.issues))
+        relationship_values = (
+            self.relationship_product_id,
+            self.relationship_keyword_id,
+            self.relationship_direction,
+            self.relationship_type,
+            self.relationship_channel,
+        )
+        if any(value is not None for value in relationship_values):
+            if any(value is None for value in relationship_values):
+                raise ValueError("relationship context must be complete or absent")
+            if not isinstance(self.relationship_product_id, str) or not self.relationship_product_id:
+                raise ValueError("relationship_product_id must be canonical non-empty text")
+            if not isinstance(self.relationship_keyword_id, str) or not self.relationship_keyword_id:
+                raise ValueError("relationship_keyword_id must be canonical non-empty text")
+            if not isinstance(self.relationship_direction, RelationshipDirection):
+                raise ValueError("relationship_direction must be RelationshipDirection")
+            if not isinstance(self.relationship_type, RelationshipType):
+                raise ValueError("relationship_type must be RelationshipType")
+            if not isinstance(self.relationship_channel, Channel):
+                raise ValueError("relationship_channel must be Channel")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "canonical_field": self.canonical_field,
             "subject": None if self.subject is None else self.subject.to_dict(),
             "provider": self.provider,
@@ -107,6 +135,15 @@ class CleanFieldResult:
             "application": None if self.application is None else self.application.to_dict(),
             "provenance": None if self.provenance is None else self.provenance.to_dict(),
         }
+        if self.relationship_product_id is not None:
+            result["relationship_context"] = {
+                "product_id": self.relationship_product_id,
+                "keyword_id": self.relationship_keyword_id,
+                "direction": self.relationship_direction.value,
+                "relationship_type": self.relationship_type.value,
+                "channel": self.relationship_channel.value,
+            }
+        return result
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

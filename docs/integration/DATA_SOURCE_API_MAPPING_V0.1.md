@@ -1,8 +1,8 @@
 # Data Source API Mapping V0.1
 
-Status: TASK-SP-018A design baseline
-Analysis date: 2026-08-18
-Scope: XiYou OpenAPI and Sorftime Open API capability analysis only; no connector, credential, or business API call was created.
+Status: TASK-SP-021A XiYou keyword/demand contract live-verified; Sorftime remains the SP-018A design baseline
+Analysis date: 2026-08-19
+Scope: XiYou OpenAPI and Sorftime Open API capability analysis, plus a bounded XiYou keyword/demand live validation. No credential or full live payload is stored.
 
 ## 0. Analysis boundary and evidence
 
@@ -83,6 +83,41 @@ Recommended business role:
 | ASIN-keyword trends | documented daily traffic and daily/hourly rank trend endpoints | date/time, rank, traffic, position code | Fine-grained relationship trend evidence. |
 | Traffic trends | `/v1/asins/trafficScore/trend/daily`, `/weekly`, `/monthly` | `summaryTrafficScore.organic/advertising`, `positionTrafficScore.*`, date/week/month | Organic/sponsored traffic evidence and trend inputs; score method must remain provider-defined. |
 | Advertising change | `/v1/asins/advertisingChange/trends/daily` | dated advertising-change records | Advertising-change context; not an opportunity guarantee. |
+
+#### 2.1.1 Live-verified keyword contracts (2026-08-19)
+
+The current XiYou V2 contract was checked against the official documentation and then
+validated through the repository's explicit `--live` boundary. Credential state was
+`CONFIGURED`; the value was never printed or persisted. The live run made exactly two
+HTTP requests and consumed two credits in total:
+
+| Operation | Request boundary | Verified response root | Billing/request constraint | Executable mapping |
+|---|---|---|---|---|
+| `POST /v1/searchTerms/info` | `country`, 1--100 `searchTerms[]`, optional sort; three public US keywords used | root `list[]` plus integer `total`; not legacy `status/data` | one credit per ten requested keywords, rounded up | `xiyou_keyword_info_http_v2_mapping_v1` |
+| `POST /v1/searchTerms/analysis/list/period` | one keyword, country, period, sort, `page`, `pageSize`; page size 10 used | root `list[]` plus integer `total` | one credit per twenty returned ASINs, rounded up; maximum 10,000 | `xiyou_keyword_to_asin_http_v2_mapping_v1` |
+| `POST /v1/asins/research/list/period` | one ASIN, country, period, sort, `page`, `pageSize` | official root `list[]` plus integer `total`; implementation verified offline against that current contract | one credit per twenty returned keywords, rounded up; maximum 10,000 | `xiyou_asin_to_keyword_http_v2_mapping_v1` |
+
+For the three live keyword rows, `searchTerm` was text,
+`competitiveDifficulty` was integer, `abaReport` and `costPerClick` were objects,
+`weeklySearchVolume` and `searchFrequencyRank` were integers, and CPC `value` was a
+numeric string. The report window was explicit and identical across the three rows. No
+null, missing, duplicate keyword, malformed row, or unexpected top-level/row field was
+observed. These sample observations do not change the general rule that explicit null,
+missing, empty, and zero are distinct.
+
+The bounded forward query returned 10 unique ASIN rows while provider `total` was 1005.
+Raw Evidence now records requested page/page size, returned count, provider total, and
+`PARTIAL_PAGE`; provider `total` is not reinterpreted as a market-size metric. Rows had
+`asin`, `country`, `ranks[]`, `trafficSummary`, and embedded `asinInfo`. Actual position
+codes were `or`, `sb`, `sbv`, `sor`, and `sp`. The official contract shows several codes
+but does not define all of their business semantics; only previously audited `or` and
+`sb` remain executable. `sbv`, `sor`, and `sp` remain raw diagnostic evidence rather
+than guessed channels.
+
+Production Connector operations now select the HTTP V2 root mappings. The legacy
+`status/data` payload kinds remain only for sanitized regression compatibility. Canonical
+relationship identity preserves product, keyword, direction, relationship type, and
+typed channel through Cleaning.
 
 ### 2.2 Sorftime modules
 

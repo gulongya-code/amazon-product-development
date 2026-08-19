@@ -23,8 +23,8 @@ PYTHONPATH: src
 ```text
 filename: amazon_product_analysis.xlsx
 size: 52,260 bytes
-SHA-256: 302259b95976cefc8b6467e60856983a4b49a4597ab96d3bbd0eda1e6ac2191b
-delivery snapshot: xlsx-delivery-snapshot:2d6b3c4d49768f6036ebf6054626a4c554ab6df3cec0093b4ae8c3ebb9540292
+SHA-256: eaf38a07779e524b9df8caa005b94cdcb3d6a5cf60e010dd966b612439ab2508
+delivery snapshot: xlsx-delivery-snapshot:c7404d4c2a70d3e1b8fdad629509c0e708d5cb0b9034be2691751148a13c5d15
 operator export snapshot: operator-export-snapshot:8b0dbaa1e8b09240c5a3bacd4c1e05a46c59eb841fe5433765b9cb3e9ddec7ba
 operator output snapshot: operator-output-snapshot:c1b2618855d5f26478b289882a5e46612d25adeb4b9306d52c6d1fc48bfa013b
 ```
@@ -220,7 +220,7 @@ Canonical lineage
 使用相同输入在独立 Python 进程中重新构建，结果与交付文件逐字节一致：
 
 ```text
-SHA-256: 302259b95976cefc8b6467e60856983a4b49a4597ab96d3bbd0eda1e6ac2191b
+SHA-256: eaf38a07779e524b9df8caa005b94cdcb3d6a5cf60e010dd966b612439ab2508
 sheet order: identical
 data order: identical
 cell differences: 0

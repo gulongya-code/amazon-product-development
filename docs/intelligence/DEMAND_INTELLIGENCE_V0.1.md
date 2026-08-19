@@ -236,7 +236,7 @@ content.
 
 ## 12. Audited fixture discovery
 
-The following inventory records the actual Adapter V0.1.3 canonical output used by
+The following inventory records the actual Adapter V0.1.4 canonical output used by
 the Demand integration tests.
 
 ### `xiyou_keyword_info.json`

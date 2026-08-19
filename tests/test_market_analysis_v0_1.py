@@ -211,7 +211,7 @@ class DemandStructureAndBoundaryTests(unittest.TestCase):
     def test_available_keyword_metrics_are_aggregated_but_difficulty_stays_blocked(self) -> None:
         body = json.loads(
             (PROVIDER_FIXTURES / "xiyou_keyword_info.json").read_text(encoding="utf-8")
-        )
+        )["data"]
         clean = service_for("xiyou", "keyword_info", body).clean(
             cleaning_request("xiyou", "keyword_info", {})
         )
@@ -231,6 +231,72 @@ class DemandStructureAndBoundaryTests(unittest.TestCase):
             blocked["market_analysis.keyword_difficulty_summary"],
             "PROVIDER_SCALE_UNCONFIRMED",
         )
+
+    def test_exact_forward_relationship_scope_reuses_related_product_count_rule(self) -> None:
+        body = {
+            "list": [
+                {"asin": "B000000001", "country": "US", "ranks": []},
+                {"asin": "B000000002", "country": "US", "ranks": []},
+                {"asin": "B000000002", "country": "US", "ranks": []},
+            ],
+            "total": 3,
+        }
+        clean = service_for("xiyou", "keyword_asin_analysis", body).clean(
+            cleaning_request(
+                "xiyou",
+                "keyword_asin_analysis",
+                {"keyword": "schema focused keyword"},
+            )
+        )
+        result = analyze(clean)
+        related = result.count_metric("workbook.keyword_demand.related_product_count")
+        self.assertEqual(related.status, CalculationStatus.CALCULATED)
+        self.assertEqual(related.value, 2)
+        self.assertEqual(related.calculation_rule_id, "calculation.related_product_count")
+        self.assertEqual(len(related.provenance.input_lineage), 1)
+        self.assertEqual(result.quality.product_subject_count, 2)
+        self.assertEqual(result.quality.keyword_subject_count, 1)
+        membership = next(
+            field
+            for field in clean.fields
+            if field.canonical_field == "relationship.keyword_to_product"
+        )
+        self.assertEqual(membership.relationship_product_id, "product:US:B000000001")
+        self.assertIsNotNone(membership.relationship_keyword_id)
+        self.assertIn("relationship_context", membership.to_dict())
+
+    def test_relationship_channel_normalizes_typed_context_not_rank_payload(self) -> None:
+        body = {
+            "list": [
+                {
+                    "asin": "B000000001",
+                    "country": "US",
+                    "ranks": [
+                        {
+                            "position": "or",
+                            "totalRank": 3,
+                            "page": 1,
+                            "pageRank": 3,
+                            "rankTime": "2026-08-19T00:00:00Z",
+                        }
+                    ],
+                }
+            ],
+            "total": 1,
+        }
+        clean = service_for("xiyou", "keyword_asin_analysis", body).clean(
+            cleaning_request(
+                "xiyou",
+                "keyword_asin_analysis",
+                {"keyword": "schema focused keyword", "page": 1, "pageSize": 10},
+            )
+        )
+        channel = next(field for field in clean.fields if field.canonical_field == "keyword.channel")
+        self.assertEqual(channel.raw_value, "ORGANIC")
+        self.assertEqual(channel.normalized_value, "ORGANIC")
+        self.assertEqual(channel.relationship_channel.value, "ORGANIC")
+        self.assertEqual(channel.to_dict()["relationship_context"]["channel"], "ORGANIC")
+        self.assertNotIn("UNSUPPORTED_FIELD", {issue.code for issue in channel.issues})
 
     def test_comparable_group_trend_and_variation_metrics_remain_blocked(self) -> None:
         result = analyze(clean_products(product("B000000001")))

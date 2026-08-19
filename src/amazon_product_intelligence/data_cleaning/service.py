@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Iterable
 
 from amazon_product_intelligence.connectors import (
@@ -16,6 +17,7 @@ from amazon_product_intelligence.contracts import (
     DataQualityIssue,
     NormalizationStatus,
     PresenceStatus,
+    ProductKeywordRelationshipObservation,
     SemanticStatus,
 )
 from amazon_product_intelligence.normalization import (
@@ -127,12 +129,29 @@ class DataCleaningService:
                 )
                 continue
             for observation in matches:
+                relationship = (
+                    observation
+                    if isinstance(observation, ProductKeywordRelationshipObservation)
+                    else None
+                )
+                normalization_input = NormalizationInput.from_observation(
+                    observation,
+                    canonical_field=capability.canonical_field,
+                    capability_status=capability.capability_status,
+                )
+                # Relationship rank/traffic observations carry the evidence value
+                # in observation.value, while keyword.channel denotes the typed
+                # relationship context. Normalize that context explicitly instead
+                # of mislabelling rank/traffic values as a channel.
+                if relationship is not None and capability.canonical_field == "keyword.channel":
+                    normalization_input = replace(
+                        normalization_input,
+                        raw_value=relationship.channel.value,
+                        mapped_value=relationship.channel.value,
+                        unit=None,
+                    )
                 normalized = self._normalization.normalize(
-                    NormalizationInput.from_observation(
-                        observation,
-                        canonical_field=capability.canonical_field,
-                        capability_status=capability.capability_status,
-                    ),
+                    normalization_input,
                     normalization_context,
                 )
                 fields.append(
@@ -155,6 +174,27 @@ class DataCleaningService:
                         issues=normalized.issues,
                         application=normalized.application,
                         provenance=normalized.provenance,
+                        relationship_product_id=(
+                            relationship.product.product_id
+                            if relationship is not None
+                            else None
+                        ),
+                        relationship_keyword_id=(
+                            relationship.keyword.keyword_id
+                            if relationship is not None
+                            else None
+                        ),
+                        relationship_direction=(
+                            relationship.direction if relationship is not None else None
+                        ),
+                        relationship_type=(
+                            relationship.relationship_type
+                            if relationship is not None
+                            else None
+                        ),
+                        relationship_channel=(
+                            relationship.channel if relationship is not None else None
+                        ),
                     )
                 )
 

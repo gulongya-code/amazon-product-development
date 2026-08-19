@@ -1,8 +1,8 @@
 # API Field Coverage Matrix V0.1
 
-Status: TASK-SP-018A design baseline
+Status: TASK-SP-021A XiYou keyword/demand live-verified; 157-field Workbook contract unchanged
 Workbook contract: Operator Workbook V0.2, fixed 9 sheets / 157 fields
-Analysis date: 2026-08-18
+Analysis date: 2026-08-19
 
 ## 1. Method
 
@@ -102,19 +102,19 @@ Coverage status is restricted to:
 | Keyword | `KeywordIdentity.normalized_text` | XiYou | `searchTerm` and request keyword | AVAILABLE | Raw and normalized text remain distinct. |
 | Marketplace | `KeywordIdentity.marketplace` | XiYou request/response scope | `country` | PARTIAL | Some responses depend on request context. |
 | Locale | `KeywordIdentity.locale` | Neither confirmed | No confirmed field | UNAVAILABLE | Country-to-locale guessing is unsafe. |
-| Search Volume | `KeywordMetric(search_volume)` | XiYou | `abaReport.weeklySearchVolume` | AVAILABLE | Provider estimate with report window. |
+| Search Volume | `KeywordMetric(search_volume)` | XiYou | `list[].abaReport.weeklySearchVolume` | AVAILABLE | Live-confirmed integer provider estimate with report window; derivation method remains unconfirmed, so Market Analysis aggregation stays blocked. |
 | Search Volume State | Keyword metric presence state | System | Search-volume presence/null/missing | CALCULATED | Null does not become zero. |
 | Search Volume Unit | Keyword metric unit/period | XiYou | Weekly ABA report context | AVAILABLE | Preserve `searches_per_week` and report dates. |
-| CPC | `KeywordMetric(cpc)` | XiYou | `costPerClick.value` | AVAILABLE | Preserve min/max suggested bids as evidence. |
+| CPC | `KeywordMetric(cpc)` | XiYou | `list[].costPerClick.value` | AVAILABLE | Live-confirmed numeric string; preserve min/max suggested bids as evidence. |
 | CPC Currency | CPC unit | XiYou marketplace context | Country/marketplace currency mapping | PARTIAL | Currency is not consistently echoed beside CPC. |
 | CPC State | Keyword metric presence state | System | CPC presence/null/missing | CALCULATED | Explicit null remains explicit. |
-| ABA Rank | `KeywordMetric(aba_search_frequency_rank)` | XiYou | `abaReport.searchFrequencyRank` | AVAILABLE | Reported rank with period. |
+| ABA Rank | `KeywordMetric(aba_search_frequency_rank)` | XiYou | `list[].abaReport.searchFrequencyRank` | AVAILABLE | Live-confirmed integer reported rank with explicit period. |
 | ABA Rank State | Keyword metric presence state | System | ABA rank evidence | CALCULATED | State is system-owned. |
-| Difficulty | `KeywordMetric(competition_difficulty)` | XiYou | `competitiveDifficulty` | AVAILABLE | Provider scale/method must remain documented or unknown. |
+| Difficulty | `KeywordMetric(competition_difficulty)` | XiYou | `list[].competitiveDifficulty` | AVAILABLE | Live-confirmed integer value; Provider scale/method remain unconfirmed and unusable as a derived difficulty conclusion. |
 | Difficulty State | Keyword metric presence state | System | Difficulty evidence | CALCULATED | State is not the score itself. |
-| Related Product Count | Relationship aggregation | System | Count valid forward/top-ASIN relationships | CALCULATED | Empty query remains scoped evidence. |
-| Related Product ASINs | Product-keyword relationship endpoints | XiYou | `topAsins[].asin`, analysis `list[].asin` | AVAILABLE | Completeness depends on pagination and period. |
-| Channel | `RelationshipChannel` | XiYou | `ranks[].position` | PARTIAL | Organic/sponsored mappings are explicit; unknown codes stay unknown. |
+| Related Product Count | Relationship aggregation | System | Count distinct valid forward relationship product identities in one exact keyword/direction scope | CALCULATED | Live-verified through the existing calculation rule; bounded pagination means 10 is the observed page count, not the provider total or market size. |
+| Related Product ASINs | Product-keyword relationship endpoints | XiYou | `list[].asin` and keyword-info `topAsins[].asin` | AVAILABLE | Forward live response was 10/1005 and is explicitly `PARTIAL_PAGE`; completeness depends on pagination and period. |
+| Channel | `RelationshipChannel` | XiYou | `list[].ranks[].position` | PARTIAL | Live observed `or`, `sb`, `sbv`, `sor`, and `sp`; only audited mappings execute and other codes stay unknown. |
 | Query Direction | `QueryDirection` | System | Endpoint semantic | CALCULATED | Forward and reverse endpoints remain separate. |
 | Query Status | `QueryExecutionRecord.result_status` | System | HTTP/result envelope plus list/total | CALCULATED | Empty, failed and populated outcomes differ. |
 | Provider | Provenance provider | System | Connector identity | CALCULATED | Not a business payload field. |

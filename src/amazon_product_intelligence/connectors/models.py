@@ -110,6 +110,9 @@ class CanonicalSelector:
             canonical_name = getattr(observation, "dimension", None)
         elif observation.observation_kind in {ObservationKind.METRIC, ObservationKind.KEYWORD_METRIC}:
             canonical_name = getattr(observation, "metric", None)
+        elif observation.observation_kind is ObservationKind.PRODUCT_KEYWORD_RELATIONSHIP:
+            relationship_type = getattr(observation, "relationship_type", None)
+            canonical_name = getattr(relationship_type, "value", None)
         else:
             canonical_name = None
         return canonical_name in self.canonical_names

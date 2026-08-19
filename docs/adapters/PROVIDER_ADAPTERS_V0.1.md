@@ -1,7 +1,7 @@
-# Provider Adapters V0.1.3
+# Provider Adapters V0.1.4
 
-Status: Level 3 implementation note with audited V0.1.3 XiYou absence semantics
-Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`, `TASK-SP-007B`
+Status: Level 3 implementation note with audited V0.1.4 XiYou HTTP V2 keyword contracts
+Tasks: `TASK-SP-005`, `TASK-SP-005B`, `TASK-SP-005C`, `TASK-SP-007B`, `TASK-SP-021A`
 
 ## 1. Scope
 
@@ -15,6 +15,16 @@ audited provider payload
 ```
 
 The implementation covers provider-neutral invocation, XiYou audited product/variation/order/BSR/keyword/directional slices, Sorftime audited product/variation/review slices, deterministic identity, structured failures, and strict bundle validation.
+
+### V0.1.4 XiYou HTTP V2 keyword roots and relationship paging
+
+Real keyword validation established that the three current keyword/directional operations
+return root `list`/`total` payloads. Production payload kinds now use dedicated HTTP V2
+mappings with root-accurate source locators; legacy `status/data` mappings remain for the
+existing sanitized fixtures. Directional mappings retain requested page/page size,
+returned count, provider total, and collection completeness in Raw Evidence. Cleaning
+also preserves and normalizes typed relationship channel context instead of treating a
+rank or traffic value as the channel itself.
 
 ### V0.1.3 XiYou HTTP V2 absence correction
 
@@ -45,11 +55,11 @@ Variation safety diagnostics are `MISSING_VARIATION_PARENT_UNCONFIRMED`, `NULL_V
 
 ## 2. Non-goals
 
-V0.1.3 adapters do not call a live provider, implement an MCP client, authenticate, retry, paginate, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint.
+Adapters do not call a live provider, implement an MCP client, authenticate, retry, persist, schedule, cache, resolve cross-provider conflicts, select a preferred source, average values, convert units, calculate provider weights, or expose a UI, CLI, or service endpoint. V0.1.4 only records pagination supplied by the Connector context and response.
 
 ## 3. Architecture
 
-`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable. XiYou's `adapter_version` is `0.1.3`; Sorftime remains `0.1.1` because no Sorftime source or mapping changed. Each owns its audited field mappings; no provider field appears in the common boundary.
+`ProviderAdapter` is the provider-neutral protocol. The public class names `XiYouAdapterV0_1` and `SorftimeAdapterV0_1` remain stable. XiYou's `adapter_version` is `0.1.4`; Sorftime remains `0.1.1` because no Sorftime source or mapping changed. Each owns its audited field mappings; no provider field appears in the common boundary.
 
 One adaptation uses one `MappingSpecification`, one explicit `AdaptationContext`, and one immutable raw snapshot. A valid mapping execution creates one `TransformationRunRecord`. Emitted observations and directional query records carry matching `TransformationProvenance`; `CanonicalEvidenceBundle.validate()` checks run, raw, output, and issue references. Collection-level failures create no transformation run or output.
 
@@ -127,7 +137,7 @@ Raw identity uses provider, source tool, sanitized-request fingerprint, explicit
 
 Sorted canonical JSON makes mapping insertion order irrelevant. No random value, process hash, object representation, locale, filesystem path, current time, or test order participates in output.
 
-`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.3`. The XiYou HTTP V2 product-info mapping and XiYou adapter version changed with the corrected explicit-null price output. The global default transformation code version therefore changes transformation-run identities and embedded provenance deterministically. Raw-evidence identities remain content-derived, and observation semantic/revision identities continue to follow their contract identity material.
+`ADAPTER_RULESET_VERSION` is `provider-adapters-v0.1.4`. The XiYou HTTP V2 keyword mappings and XiYou adapter version changed with the root-envelope, pagination, and relationship-cleaning corrections. The global default transformation code version therefore changes transformation-run identities and embedded provenance deterministically. Raw-evidence identities remain content-derived, and observation semantic/revision identities continue to follow their contract identity material.
 
 ## 9. Error and issue model
 
@@ -147,8 +157,11 @@ Mapping dispositions are `APPROVED_EXECUTABLE`, `APPROVED_WITH_EXPLICIT_UNKNOWN`
 | `asin_orders_last_30_days` | `get_asin_orders_last_30_days` | `xiyou_orders_30d_mapping_v1` |
 | `asin_bsr_trends` | `get_asin_bsr_trends` | `xiyou_bsr_trends_mapping_v1` |
 | `keyword_info` | `get_keyword_info` | `xiyou_keyword_info_mapping_v1` |
+| `keyword_info_http_v2` | `get_keyword_info` | `xiyou_keyword_info_http_v2_mapping_v1` |
 | `keyword_asin_analysis` | `get_keyword_asin_analysis` | `xiyou_keyword_to_asin_mapping_v1_1` |
+| `keyword_asin_analysis_http_v2` | `get_keyword_asin_analysis` | `xiyou_keyword_to_asin_http_v2_mapping_v1` |
 | `asin_keywords` | `get_asin_keywords` | `xiyou_asin_to_keyword_mapping_v1_1` |
+| `asin_keywords_http_v2` | `get_asin_keywords` | `xiyou_asin_to_keyword_http_v2_mapping_v1` |
 
 ## 11. XiYou mapping coverage
 

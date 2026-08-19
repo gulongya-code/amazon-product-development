@@ -1,6 +1,6 @@
 # Data Cleaning End-to-End V0.1
 
-Status: implementation complete; XiYou single- and multi-product live validation complete
+Status: implementation complete; XiYou product and keyword/demand live validation complete
 
 ## 1. Definition and boundary
 
@@ -38,14 +38,19 @@ The V0.1 additions are deliberately narrow:
   through declared selectors, normalizes each field independently, and returns a clean run.
 - `CleanCanonicalResult`, `CleanFieldResult`, and `CleaningQualitySummary` are deterministic
   inspection contracts. They do not contain the full raw response.
+- Relationship clean fields preserve typed product, keyword, direction, relationship type,
+  and channel context so downstream Provider-neutral counts do not parse XiYou payloads.
 - `python -m amazon_product_intelligence.data_cleaning` is the explicit operator entry point.
 
 ## 3. Production transport and authentication
 
 ### XiYou
 
-The verified service origin is `https://openapi.xydc.com`. The minimal V1 live operation is
-`POST /v1/asins/info`. Authentication is injected only as the `X-Api-Key` header from the
+The verified service origin is `https://openapi.xydc.com`. Live-verified V1 operations are
+`POST /v1/asins/info`, `POST /v1/searchTerms/info`, and
+`POST /v1/searchTerms/analysis/list/period`; the documented reverse
+`POST /v1/asins/research/list/period` contract is covered offline. Authentication is
+injected only as the `X-Api-Key` header from the
 `XIYOU_API_KEY` environment-variable reference; `X-Auth-Version: 2.0` is a public header.
 The credential value is excluded from repr, safe request summaries, errors, clean results,
 fixtures, and documentation.
@@ -58,6 +63,13 @@ rewriting raw evidence and retains the legacy envelope only as an offline migrat
 with truthful source locators. It also preserves a real `price: null` entity value as
 product-scoped `EXPLICIT_NULL` rather than silently converting it to field absence. This
 avoids treating a Transport rewrite or an explicit Provider null as different evidence.
+
+Keyword/directional production operations likewise use dedicated HTTP V2 mappings for
+the current root `list`/`total` contract. Directional Raw Evidence retains request page,
+page size, returned count, provider total, and a partial-page marker. Cleaning normalizes
+typed relationship channel context independently from rank/traffic values. Search volume
+and difficulty values remain present but semantically blocked while their Provider method
+or scale is unconfirmed.
 
 References: [XiYou OpenAPI](https://openapi-doc.xydc.com/) and
 [XiYou ASIN information operation](https://openapi-doc.xydc.com/335282030e0).
@@ -256,12 +268,13 @@ socket.
 
 ## 12. Known V0.1 limitations
 
-- Live validation is not complete until an operator configures a legitimate credential and
-  explicitly performs one minimal safe XiYou smoke run.
+- Live validation covers bounded XiYou current-product, keyword-info, and forward
+  keyword/product relationship samples; it is not a bulk completeness claim.
 - Sorftime has no implemented live HTTP path because no audited endpoint/authentication
   placement has been approved.
-- V0.1 handles one controlled request or a provider's small response; it has no pagination,
-  scheduler, queue, cache, persistence, or bulk-harvest platform.
+- V0.1 handles one controlled request or a Provider's small bounded page and records
+  directional pagination evidence; it has no automatic page traversal, scheduler, queue,
+  cache, persistence, or bulk-harvest platform.
 - Unknown Provider fields remain raw evidence/diagnostics until a separate Canonical mapping
   review approves them.
 - Conflict resolution remains downstream. Cleaning preserves candidates and lineage; it

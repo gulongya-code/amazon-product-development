@@ -369,6 +369,7 @@ def build_default_registry() -> NormalizerRegistry:
                 "product.category",
                 "product.fulfillment",
                 "product.seller",
+                "keyword.channel",
             ),
             normalize=normalize_text,
         ),
@@ -431,7 +432,11 @@ def build_default_registry() -> NormalizerRegistry:
         NormalizationRule(
             rule_id="canonical.boolean",
             rule_version=RULE_VERSION,
-            canonical_fields=("product.a_plus",),
+            canonical_fields=(
+                "product.a_plus",
+                "relationship.keyword_to_product",
+                "relationship.product_to_keyword",
+            ),
             normalize=normalize_boolean,
         ),
         NormalizationRule(
