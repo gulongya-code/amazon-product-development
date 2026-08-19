@@ -265,14 +265,14 @@ This order is the deterministic registry topological order. It is not a priority
 | 4 | `workbook.keyword_demand.related_product_count` | Keyword | integer/count | Count distinct products in valid relationships for the exact direction/scope. | `canonical.directional_product_keyword_relationships` | `IMPLEMENTED`; direction and scope are explicit. |
 | 5 | `workbook.market_overview.observed_product_count` | Market | integer/count | Count distinct validated ProductIdentity values in the explicit snapshot. | `canonical.snapshot_product_identities` | `IMPLEMENTED`; bounded observed set, never total market. |
 | 6 | `workbook.product_database.child_count` | Base | integer/count | Count distinct valid explicit child edges for exact parent/marketplace. | `canonical.explicit_child_relationships` | `IMPLEMENTED`; explicit valid edge IDs only. |
-| 7 | `workbook.product_structure.maximum_comparable_price` | Market | decimal/explicit currency | Maximum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | `DEFERRED`; no D2A evaluator. |
+| 7 | `workbook.product_structure.maximum_comparable_price` | Market | decimal/explicit currency | Maximum compatible resolved member price. | Governed Comparable Product Set `COMPARABLE` members, then resolved member prices with compatible marketplace, currency, scope, period, measurement semantics, and quality | `BLOCKED_BY_MEMBERSHIP_SOURCE`; no evaluator. |
 | 8 | `workbook.product_structure.member_product_ids` | Market | array[string]/n.a. | Project the already unique, deterministically ordered, full Canonical ProductIdentity members in the exact group. | `canonical.group_product_identities` | `IMPLEMENTED` in D2C; rejects non-Canonical, duplicate, empty-member, or out-of-order collections. |
-| 9 | `workbook.product_structure.minimum_comparable_price` | Market | decimal/explicit currency | Minimum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | `DEFERRED`; no D2A evaluator. |
+| 9 | `workbook.product_structure.minimum_comparable_price` | Market | decimal/explicit currency | Minimum compatible resolved member price. | Governed Comparable Product Set `COMPARABLE` members, then resolved member prices with compatible marketplace, currency, scope, period, measurement semantics, and quality | `BLOCKED_BY_MEMBERSHIP_SOURCE`; no evaluator. |
 | 10 | `workbook.product_structure.product_count` | Market | integer/count | Count distinct validated IDs in exact product-type group. | `canonical.group_product_identities` | `IMPLEMENTED`; exact group, never market size. |
 | 11 | `workbook.product_structure.observed_share` | Market | decimal/ratio | Product Count divided by same-scope Observed Product Count. | Calculated fields at orders 10 and 5; their authoritative group/snapshot ProductIdentity collections for scope validation | `IMPLEMENTED` in D2C; Decimal ratio at fixed 28-significant-digit, half-even context, zero-denominator block, marketplace match, snapshot-subset, count-coherence, and subset-count invariants. |
 | 12 | `workbook.product_structure.provider_count` | Market | integer/count | Count distinct providers retained in group Canonical provenance. | `canonical.group_evidence_provenance` | `IMPLEMENTED`; lineage count, never confidence. |
 
-All 12 retain `DEFINED` formula status. D2A independently accepted seven strict count formulas and kept one count blocked instead of equating variation edges with evidence records. D2C implements the two subsequently confirmed READY fields. The two comparable-price fields remain deferred, and no deferred or blocked field has an evaluator.
+All 12 retain `DEFINED` formula status. D2A independently accepted seven strict count formulas and kept one count blocked instead of equating variation edges with evidence records. D2C implements the two subsequently confirmed READY fields. The two comparable-price formulas remain unregistered and blocked by the absence of an authoritative membership assertion source; no deferred or blocked field has an evaluator.
 
 ## 8. Explicit non-candidates
 
@@ -287,3 +287,26 @@ All 12 retain `DEFINED` formula status. D2A independently accepted seven strict 
 Production fields implemented through SP-018D2C: **9** — seven counts, one membership projection, and one observed-set ratio.
 
 The seven count fields share one provider-neutral evaluator over an already-normalized, authoritative tuple of Canonical or governed record identity strings. `Member Product IDs` uses the same collection boundary but additionally validates the exact `product:<MARKETPLACE>:<ASIN>` Canonical identity form and returns the tuple unchanged. `Observed Share` divides the two governed count results with Decimal arithmetic and a `RATIO` unit; their authoritative identity collections must agree with the counts, use one matching marketplace, and prove the group is contained in the explicit snapshot. Zero denominator blocks, and a group count above the same-scope observed-set count fails safely. Missing, unknown, invalid, unresolved, and failed-normalization states are blocked by the existing engine before evaluation. Price, scoring, AI, decision, variation-count, and trend formulas remain unchanged and unregistered.
+
+## 10. Comparable Product Set dependency
+
+The normative membership boundary is
+[`COMPARABLE_PRODUCT_SET_CONTRACT_V0.1.md`](COMPARABLE_PRODUCT_SET_CONTRACT_V0.1.md).
+It defines structural eligibility, target exclusion, Provider neutrality,
+membership assertion lineage, and the distinction between missing, empty,
+`NOT_COMPARABLE`, and `UNRESOLVED`.
+
+The only permitted dependency direction is:
+
+```text
+governed Comparable Product Set
+  -> COMPARABLE members only
+  -> resolved compatible member prices
+  -> minimum_comparable_price / maximum_comparable_price
+```
+
+Price, ordinary candidate inventory, keyword co-occurrence, variation family, and
+Provider result membership cannot define the set. The repository has no approved
+source of governed `COMPARABLE` assertions. Therefore both fields are
+`NO — BLOCKED BY MEMBERSHIP SOURCE`; defining this contract does not make either
+field ready for production implementation.
