@@ -1,6 +1,6 @@
 # Calculated Field Specification V0.1
 
-Status: TASK-SP-018D1 audited baseline
+Status: TASK-SP-018D1 audited baseline with TASK-SP-018D2A count-formula disposition
 
 Source matrix: `docs/integration/API_FIELD_COVERAGE_MATRIX_V0.1.md`
 
@@ -22,6 +22,7 @@ Machine-readable authority: `amazon_product_intelligence.calculations.audit_v0_1
 | Business-decision-required | 0 |
 | Blocked-by-source-field | 0 |
 | Classification-review-required | 86 |
+| Production count fields implemented | 7 |
 
 `CALCULATED` in the API coverage matrix means “system-produced”; it does not mean “must be implemented by the generic Calculation Engine.” This audit retains existing layer ownership and marks uncertain classifications instead of duplicating business logic.
 
@@ -46,10 +47,10 @@ The Python companion is the complete per-field matrix. This Markdown document is
 
 | Tier/category | Count | Interpretation |
 |---|---:|---|
-| Base deterministic | 16 | Product/rank presentation fields plus recommendation evidence count. Only two fields are D2-ready; the remainder stay in existing owners. |
-| Market | 16 | Market overview and exact product-structure aggregation. Seven are D2-ready. |
-| Competition | 10 | Relationship evidence presentation. Two are D2-ready. |
-| Keyword | 11 | Demand/query presentation. One is D2-ready. |
+| Base deterministic | 16 | Product/rank presentation fields plus recommendation evidence count. Both defined count fields are implemented; the remainder stay in existing owners. |
+| Market | 16 | Market overview and exact product-structure aggregation. Three count fields are implemented and four formulas remain explicitly deferred. |
+| Competition | 10 | Relationship evidence presentation. Relationship evidence count is implemented; variation evidence count is semantically blocked. |
+| Keyword | 11 | Demand/query presentation. Its one defined count field is implemented. |
 | Profit/cost | 0 | No existing CALCULATED Workbook field belongs here. |
 | Composite score | 14 | Existing Opportunity and Scoring outputs; not reimplemented. |
 | AI/decision | 12 | Existing Recommendation outputs; classification review prevents placement in the deterministic engine. |
@@ -60,7 +61,7 @@ The Python companion is the complete per-field matrix. This Markdown document is
 
 | Code | Formula status | Count | Output/type/unit rule | Dependency rule | Missing/zero/invalid/partial rule | Version/provenance/quality | Implementation |
 |---|---|---:|---|---|---|---|---|
-| `D` | `DEFINED` | 12 | Exact type/unit is listed in the D2 table; currency is always explicit input currency. | Explicit Canonical/System dependency; `Observed Share` has two calculated dependencies. | `REQUIRE_ALL`; known present empty collections may count as zero; zero/False remain data; unsafe inputs block; no partial result. | Rule IDs are stable; specification version `v0.1-specification`; all Canonical values/evidence/provenance/quality/fingerprints required; confidence `CONFIRMED`. | `READY_FOR_IMPLEMENTATION`; no D1 production evaluator. |
+| `D` | `DEFINED` | 12 | Exact type/unit is listed in the D2 table; currency is always explicit input currency. | Explicit Canonical/System dependency; `Observed Share` has two calculated dependencies. | `REQUIRE_ALL`; known present empty collections may count as zero; zero/False remain data; unsafe inputs block; no partial result. | Rule IDs are stable; seven production count formulas use `v0.1-count-formula`; the other five retain `v0.1-specification`; all Canonical values/evidence/provenance/quality/fingerprints required; confidence `CONFIRMED`. | `IMPLEMENTED` 7; `BLOCKED_BY_SEMANTIC_AMBIGUITY` 1; `READY_FOR_IMPLEMENTATION` but explicitly deferred 4. |
 | `U` | `FORMULA_UNSPECIFIED` | 1 | String/no physical unit. | Dated Canonical trend observations. | Never generate text on missing/unknown/invalid input; zero does not imply a trend. | No rule ID; specification version only; confidence `UNSPECIFIED`. | `FORMULA_MISSING`. |
 | `R` | `CLASSIFICATION_REVIEW_REQUIRED` | 86 | Existing Workbook schema type; no new unit semantics. | Existing owning-layer record or metadata, typed in the companion spec. | No generic execution is authorized; existing owner keeps its rules and lineage. | No generic rule ID; formula confidence `NOT_APPLICABLE`. | `CLASSIFICATION_REVIEW`; do not duplicate existing logic. |
 
@@ -224,7 +225,9 @@ All 20 are identity, presentation-location, export, or lineage metadata. They re
 
 | Dependency/implementation state | Count |
 |---|---:|
-| `READY_FOR_IMPLEMENTATION` | 12 |
+| `IMPLEMENTED` | 7 |
+| `BLOCKED_BY_SEMANTIC_AMBIGUITY` | 1 |
+| `READY_FOR_IMPLEMENTATION` (explicitly deferred) | 4 |
 | `FORMULA_MISSING` | 1 |
 | `CLASSIFICATION_REVIEW` | 86 |
 | `BLOCKED_BY_DEPENDENCY` | 0 |
@@ -249,26 +252,26 @@ Default existing-owner dependencies are explicit and typed:
 
 These dependencies document ownership; they are not executable generic formulas.
 
-## 7. SP-018D2 READY CANDIDATES
+## 7. SP-018D2 defined candidates and D2A disposition
 
 This order is the deterministic registry topological order. It is not a priority or business ranking.
 
-| Order | Field | Tier | Output/unit | Formula | Dependencies | Why ready |
+| Order | Field | Tier | Output/unit | Formula | Dependencies | D2A disposition |
 |---:|---|---|---|---|---|---|
-| 1 | `workbook.action_recommendations.evidence_count` | Base | integer/count | Count distinct evidence references on the exact recommendation record. | `recommendation.evidence_references` | Exact collection/count identity; no weight or interpretation. |
-| 2 | `workbook.competition_evidence.evidence_count` | Competition | integer/count | Count validated relationship-evidence records in the exact group. | `canonical.grouped_relationship_evidence` | Exact evidence scope; count is explicitly not competition strength. |
-| 3 | `workbook.competition_evidence.variation_evidence_count` | Competition | integer/count | Count validated explicit variation edges in the exact group. | `canonical.grouped_variation_relationships` | Only explicit edges; no relationship inference. |
-| 4 | `workbook.keyword_demand.related_product_count` | Keyword | integer/count | Count distinct products in valid relationships for the exact direction/scope. | `canonical.directional_product_keyword_relationships` | Direction and scope are explicit; empty query is not demand zero. |
-| 5 | `workbook.market_overview.observed_product_count` | Market | integer/count | Count distinct validated ProductIdentity values in the explicit snapshot. | `canonical.snapshot_product_identities` | Bounded observed set; no total-market claim. |
-| 6 | `workbook.product_database.child_count` | Base | integer/count | Count distinct valid explicit child edges for exact parent/marketplace. | `canonical.explicit_child_relationships` | Explicit relationships only; self-parent ambiguity excluded. |
-| 7 | `workbook.product_structure.maximum_comparable_price` | Market | decimal/explicit currency | Maximum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | Mathematical maximum with strict comparability/currency gate. |
-| 8 | `workbook.product_structure.member_product_ids` | Market | array[string]/n.a. | Sorted distinct validated IDs in exact product-type group. | `canonical.group_product_identities` | Exact grouping and deterministic ordering; no clustering. |
-| 9 | `workbook.product_structure.minimum_comparable_price` | Market | decimal/explicit currency | Minimum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | Mathematical minimum with strict comparability/currency gate. |
-| 10 | `workbook.product_structure.product_count` | Market | integer/count | Count distinct validated IDs in exact product-type group. | `canonical.group_product_identities` | Exact group aggregation; no market-size inference. |
-| 11 | `workbook.product_structure.observed_share` | Market | decimal/ratio | Product Count divided by Observed Product Count. | Calculated fields at orders 10 and 5 | Mathematical identity; explicit “observed set, not market share” boundary; zero denominator must not return zero. |
-| 12 | `workbook.product_structure.provider_count` | Market | integer/count | Count distinct providers retained in group Canonical provenance. | `canonical.group_evidence_provenance` | Exact lineage aggregation; explicitly not confidence. |
+| 1 | `workbook.action_recommendations.evidence_count` | Base | integer/count | Count distinct evidence references on the exact recommendation record. | `recommendation.evidence_references` | `IMPLEMENTED`; exact governed record collection. |
+| 2 | `workbook.competition_evidence.evidence_count` | Competition | integer/count | Count validated relationship-evidence records in the exact group. | `canonical.grouped_relationship_evidence` | `IMPLEMENTED`; count is explicitly not competition strength. |
+| 3 | `workbook.competition_evidence.variation_evidence_count` | Competition | integer/count | Count validated explicit variation edges in the exact group. | `canonical.grouped_variation_relationships` | `BLOCKED_BY_SEMANTIC_AMBIGUITY`; current Workbook group exposes evidence records, not one accepted edge-identity collection. |
+| 4 | `workbook.keyword_demand.related_product_count` | Keyword | integer/count | Count distinct products in valid relationships for the exact direction/scope. | `canonical.directional_product_keyword_relationships` | `IMPLEMENTED`; direction and scope are explicit. |
+| 5 | `workbook.market_overview.observed_product_count` | Market | integer/count | Count distinct validated ProductIdentity values in the explicit snapshot. | `canonical.snapshot_product_identities` | `IMPLEMENTED`; bounded observed set, never total market. |
+| 6 | `workbook.product_database.child_count` | Base | integer/count | Count distinct valid explicit child edges for exact parent/marketplace. | `canonical.explicit_child_relationships` | `IMPLEMENTED`; explicit valid edge IDs only. |
+| 7 | `workbook.product_structure.maximum_comparable_price` | Market | decimal/explicit currency | Maximum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | `DEFERRED`; no D2A evaluator. |
+| 8 | `workbook.product_structure.member_product_ids` | Market | array[string]/n.a. | Sorted distinct validated IDs in exact product-type group. | `canonical.group_product_identities` | `DEFERRED`; no D2A evaluator. |
+| 9 | `workbook.product_structure.minimum_comparable_price` | Market | decimal/explicit currency | Minimum resolved price with identical currency, scope, and period semantics. | `canonical.comparable_price_observations` | `DEFERRED`; no D2A evaluator. |
+| 10 | `workbook.product_structure.product_count` | Market | integer/count | Count distinct validated IDs in exact product-type group. | `canonical.group_product_identities` | `IMPLEMENTED`; exact group, never market size. |
+| 11 | `workbook.product_structure.observed_share` | Market | decimal/ratio | Product Count divided by Observed Product Count. | Calculated fields at orders 10 and 5 | `DEFERRED`; no D2A ratio evaluator. |
+| 12 | `workbook.product_structure.provider_count` | Market | integer/count | Count distinct providers retained in group Canonical provenance. | `canonical.group_evidence_provenance` | `IMPLEMENTED`; lineage count, never confidence. |
 
-All candidates meet: defined formula, defined dependencies, deterministic behavior, no subjective weights, no AI, known unit semantics, explicit missing policy, and complete provenance requirement. They remain specifications only until D2 independently accepts and implements evaluators.
+All 12 retain `DEFINED` formula status. D2A independently accepted seven strict count formulas, kept one count blocked instead of equating variation edges with evidence records, and explicitly deferred the four non-count/aggregation candidates. No deferred or blocked field has an evaluator.
 
 ## 8. Explicit non-candidates
 
@@ -280,6 +283,6 @@ All candidates meet: defined formula, defined dependencies, deterministic behavi
 
 ## 9. Formula implementation result
 
-Production formulas implemented in SP-018D1: **0**.
+Production count fields implemented through SP-018D2A: **7**.
 
-The package contains formula-neutral Decimal, ratio, unit, and currency guards. Test-only fake formulas verify the engine contract, dependency execution, missing propagation, failure isolation, provenance, versioning, determinism, provider neutrality, and extension without changing core code. This is deliberate: specification readiness is not production implementation authorization.
+The seven fields share one provider-neutral evaluator over an already-normalized, authoritative tuple of Canonical or governed record identity strings. It returns the tuple length, including zero for a present empty tuple. It rejects duplicate, malformed, or non-deterministically ordered collections instead of silently establishing a second dedupe authority. Missing, unknown, invalid, and failed-normalization states are blocked by the existing engine before evaluation. Decimal, price, ratio, scoring, AI, and decision formulas remain unchanged and unregistered.

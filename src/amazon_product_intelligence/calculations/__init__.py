@@ -5,12 +5,17 @@ from . import models as _models
 from .audit_v0_1 import (
     AUDITED_CALCULATED_FIELDS,
     CALCULATED_FIELD_SPECS,
+    D2A_DEFERRED_FIELD_IDS,
+    D2A_IMPLEMENTED_FIELD_IDS,
+    D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS,
     D2_READY_FIELD_IDS,
     build_audited_registry,
 )
 from .engine import CalculationEngine
 from .errors import *  # noqa: F403
 from .functions import (
+    COUNT_UNIT,
+    count_unique_canonical_identifiers,
     decimal_value,
     require_compatible_currencies,
     require_compatible_units,
@@ -23,11 +28,16 @@ from .registry import CalculatedFieldRegistry, CalculationFunction
 __all__ = (
     "AUDITED_CALCULATED_FIELDS",
     "CALCULATED_FIELD_SPECS",
+    "COUNT_UNIT",
+    "D2A_DEFERRED_FIELD_IDS",
+    "D2A_IMPLEMENTED_FIELD_IDS",
+    "D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS",
     "D2_READY_FIELD_IDS",
     "CalculatedFieldRegistry",
     "CalculationEngine",
     "CalculationFunction",
     "build_audited_registry",
+    "count_unique_canonical_identifiers",
     "decimal_value",
     "require_compatible_currencies",
     "require_compatible_units",

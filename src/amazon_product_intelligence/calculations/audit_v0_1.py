@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from .functions import count_unique_canonical_identifiers
 from .models import (
     CalculatedFieldSpec,
     CalculationDependency,
@@ -259,6 +260,28 @@ _DEFINED: dict[str, dict[str, object]] = {
 }
 
 
+D2A_IMPLEMENTED_FIELD_IDS = (
+    "workbook.action_recommendations.evidence_count",
+    "workbook.competition_evidence.evidence_count",
+    "workbook.keyword_demand.related_product_count",
+    "workbook.market_overview.observed_product_count",
+    "workbook.product_database.child_count",
+    "workbook.product_structure.product_count",
+    "workbook.product_structure.provider_count",
+)
+
+D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS = (
+    "workbook.competition_evidence.variation_evidence_count",
+)
+
+D2A_DEFERRED_FIELD_IDS = (
+    "workbook.product_structure.maximum_comparable_price",
+    "workbook.product_structure.member_product_ids",
+    "workbook.product_structure.minimum_comparable_price",
+    "workbook.product_structure.observed_share",
+)
+
+
 _DEFAULT_DEPENDENCY = {
     "01_市场概览": ("intelligence.opportunity_snapshot", DependencyType.SYSTEM_RECORD),
     "02_产品数据库": ("intelligence.product_snapshot", DependencyType.SYSTEM_RECORD),
@@ -304,6 +327,39 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
     output_type, unit = _output_contract(display_name)
     defined = _DEFINED.get(field_id)
     if defined is not None:
+        if field_id in D2A_IMPLEMENTED_FIELD_IDS:
+            implementation_status = ImplementationStatus.IMPLEMENTED
+            calculation_version = "v0.1-count-formula"
+            quality_implication = (
+                "Deterministic count of an authoritative unique identity collection; "
+                "count is not confidence, demand, competition strength, or market size."
+            )
+            notes = (
+                "Production evaluator verifies the upstream collection contract, rejects "
+                "duplicates or malformed identifiers, and does not establish a second dedupe authority."
+            )
+        elif field_id in D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS:
+            implementation_status = ImplementationStatus.BLOCKED_BY_SEMANTIC_AMBIGUITY
+            calculation_version = "v0.1-specification"
+            quality_implication = (
+                "Blocked because counting explicit variation edges is not interchangeable "
+                "with counting competition variation-evidence records."
+            )
+            notes = (
+                "Canonical variation-edge identity and the current exact Workbook evidence-group "
+                "record identity do not yet define one shared counting boundary."
+            )
+        else:
+            implementation_status = ImplementationStatus.READY_FOR_IMPLEMENTATION
+            calculation_version = "v0.1-specification"
+            quality_implication = (
+                "Eligible for a later deterministic implementation after its separately deferred "
+                "compatibility and business semantics are accepted."
+            )
+            notes = (
+                "Definition source: API Field Coverage Matrix V0.1 plus the approved formula; "
+                "no production evaluator is registered in this batch."
+            )
         dependencies = tuple(
             CalculationDependency(field_id=dependency, dependency_type=dependency_type)
             for dependency, dependency_type in defined["dependencies"]
@@ -324,13 +380,13 @@ def _make_spec(sheet: str, display_name: str, canonical_field: str) -> Calculate
             zero_semantics="Zero and False are present data; an explicitly present empty collection has count zero.",
             invalid_input_policy="Block this field on unresolved, ambiguous, semantically unconfirmed, invalid, or blocking-quality inputs.",
             partial_input_policy="No partial execution; every declared dependency must be usable.",
-            calculation_version="v0.1-specification",
+            calculation_version=calculation_version,
             calculation_rule_id=str(defined["rule"]),
             provenance_requirement="Retain all resolved Canonical input values, evidence references, Provenance records, quality issue IDs, and fingerprints.",
             formula_confidence=FormulaConfidence.CONFIRMED,
-            quality_implication="Eligible for deterministic D2 implementation after independent acceptance; count is not confidence and share is not market share.",
-            implementation_status=ImplementationStatus.READY_FOR_IMPLEMENTATION,
-            notes="Definition source: API Field Coverage Matrix V0.1 plus mathematical count/min/max/ratio identity; no production evaluator is registered in D1.",
+            quality_implication=quality_implication,
+            implementation_status=implementation_status,
+            notes=notes,
         )
 
     dependency_id, dependency_type = _DEFAULT_DEPENDENCY[sheet]
@@ -394,19 +450,20 @@ AUDITED_CALCULATED_FIELDS = tuple(
     (spec.workbook_sheet, spec.display_name) for spec in CALCULATED_FIELD_SPECS
 )
 
-D2_READY_FIELD_IDS = tuple(
-    spec.field_id
-    for spec in CALCULATED_FIELD_SPECS
-    if spec.implementation_status is ImplementationStatus.READY_FOR_IMPLEMENTATION
-)
+D2_READY_FIELD_IDS = tuple(spec.field_id for spec in CALCULATED_FIELD_SPECS if spec.field_id in _DEFINED)
 
 
 def build_audited_registry() -> CalculatedFieldRegistry:
-    """Return the complete 99-field specification registry without formulas."""
+    """Return all 99 specs and the accepted D2A production count evaluators."""
 
     registry = CalculatedFieldRegistry()
     for specification in CALCULATED_FIELD_SPECS:
-        registry.register(specification)
+        function = (
+            count_unique_canonical_identifiers
+            if specification.field_id in D2A_IMPLEMENTED_FIELD_IDS
+            else None
+        )
+        registry.register(specification, function)
     registry.validate()
     return registry
 
@@ -417,11 +474,22 @@ if len({spec.field_id for spec in CALCULATED_FIELD_SPECS}) != 99:
     raise RuntimeError("Workbook V0.2 calculated-field audit contains duplicate field IDs")
 if set(D2_READY_FIELD_IDS) != set(_DEFINED):
     raise RuntimeError("D2-ready field set must exactly match approved definitions")
+if set(D2A_IMPLEMENTED_FIELD_IDS) & set(D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS):
+    raise RuntimeError("D2A implemented and ambiguous field sets must not overlap")
+if (
+    set(D2A_IMPLEMENTED_FIELD_IDS)
+    | set(D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS)
+    | set(D2A_DEFERRED_FIELD_IDS)
+) != set(_DEFINED):
+    raise RuntimeError("D2A disposition must cover every D1-defined candidate exactly once")
 
 
 __all__ = (
     "AUDITED_CALCULATED_FIELDS",
     "CALCULATED_FIELD_SPECS",
+    "D2A_DEFERRED_FIELD_IDS",
+    "D2A_IMPLEMENTED_FIELD_IDS",
+    "D2A_SEMANTICALLY_AMBIGUOUS_FIELD_IDS",
     "D2_READY_FIELD_IDS",
     "build_audited_registry",
 )

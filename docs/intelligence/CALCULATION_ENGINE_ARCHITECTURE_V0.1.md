@@ -1,6 +1,6 @@
 # Calculation Engine Architecture V0.1
 
-Status: TASK-SP-018D1 foundation
+Status: TASK-SP-018D1 foundation with TASK-SP-018D2A count-formula registration
 
 Engine version: `calculation-engine-foundation-v0.1`
 
@@ -42,8 +42,8 @@ The engine does not:
 | `CalculationEngine` | Input validation, policy propagation, partial execution, evaluator isolation, and result assembly. |
 | `CalculationResult` | Value or explicit non-success status, input fields, issues, rule/version, and calculated provenance. |
 | `CalculationProvenance` | Run/configuration versions, normalized input lineage, calculated dependency result IDs, and stable input/output fingerprints. |
-| `functions.py` | Formula-neutral Decimal, ratio, unit, and currency safety helpers. It contains no Workbook business formula. |
-| `audit_v0_1.py` | Machine-readable 99/99 Workbook V0.2 calculated-field audit and D2-ready specification set. |
+| `functions.py` | Provider-neutral production count evaluator plus Decimal, ratio, unit, and currency safety helpers. |
+| `audit_v0_1.py` | Machine-readable 99/99 Workbook V0.2 calculated-field audit, D2A disposition, and accepted evaluator registration. |
 
 ## 3. Dependency graph
 
@@ -80,7 +80,7 @@ workbook.market_overview.observed_product_count ─┘
 
 `calculate(requested_fields, inputs, context)` executes that same closure. An unrelated registered field is not executed. A failed dependency blocks descendants with `DEPENDENCY_BLOCKED`; independent requested fields continue.
 
-The D1 audited registry contains specifications only. It registers no production evaluator, so even the 12 D2-ready fields report `EVALUATOR_NOT_REGISTERED`. Tests use fake formulas to prove extensibility without placing invented rules in production code.
+The audited registry now registers one governed strict-count evaluator for seven accepted D2A fields. The four explicitly deferred formulas and `Variation Evidence Count` remain unregistered. Planning therefore exposes only those five as `EVALUATOR_NOT_REGISTERED`; the other 87 specifications remain non-executable according to their existing formula status and ownership.
 
 ## 5. Canonical input gate
 
@@ -113,6 +113,8 @@ Raw provider candidates are outside this boundary. An unresolved input is `DEPEN
 
 Each specification declares a `MissingPolicy`; there is no global coercion. `REQUIRE_ALL` blocks on any unusable dependency. `ALLOW_PARTIAL` and `IGNORE_MISSING` may execute when at least one declared value remains, and the result is marked `PARTIAL`. Other policy values remain explicit specification vocabulary and default to safe propagation until an approved formula defines their behavior. No missing, unknown, or invalid value silently becomes zero.
 
+The D2A count evaluator receives exactly one already-normalized tuple of authoritative Canonical or governed system-record identity strings. An explicitly present empty tuple calculates to integer `0`. Members must be non-empty, unique, and in the deterministic order established by the owning contract. Duplicate, malformed, or out-of-order collections fail safely; the Calculation layer never silently creates a second deduplication or ordering authority.
+
 ## 7. Numeric, unit, and currency safety
 
 - Decimal helpers preserve `Decimal` and convert explicit finite integers, floats, or numeric strings without using binary-float arithmetic internally.
@@ -121,7 +123,7 @@ Each specification declares a `MissingPolicy`; there is no global coercion. `REQ
 - Monetary inputs require explicit ISO currency units. Missing or mixed currencies become `CURRENCY_MISMATCH`.
 - No FX lookup or implicit conversion exists.
 
-These helpers are formula-neutral. D1 has zero production formula implementations.
+The numeric helpers remain formula-neutral. D2A adds only the strict integer/count evaluator and makes no price, ratio, score, or decision formula executable.
 
 ## 8. Failure and error model
 
@@ -181,7 +183,7 @@ Adding a calculation requires:
 
 No Calculation Engine core change is required. Formula confidence must be `CONFIRMED` or `DOCUMENTED`; inferred or unspecified formulas remain non-executable.
 
-## 12. D1 scope result
+## 12. Current scope result
 
 | Item | Result |
 |---|---:|
@@ -190,7 +192,9 @@ No Calculation Engine core change is required. Formula confidence must be `CONFI
 | Formula-defined D2 candidates | 12 |
 | Formula unspecified | 1 |
 | Classification review required | 86 |
-| Production evaluators implemented | 0 |
+| Production count fields implemented | 7 |
+| Blocked by semantic ambiguity | 1 |
+| Explicitly deferred D2 formulas | 4 |
 | Audited graph unknown calculated dependencies | 0 |
 | Audited graph cycles | 0 |
 

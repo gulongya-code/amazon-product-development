@@ -1,4 +1,4 @@
-"""Formula-neutral Decimal and unit safety helpers."""
+"""Provider-neutral production formulas and numeric safety helpers."""
 
 from __future__ import annotations
 
@@ -13,6 +13,47 @@ from .errors import (
     CalculationEvaluationError,
     CalculationUnitMismatchError,
 )
+from .models import CalculationEvaluationContext, CalculationOutcome
+
+
+COUNT_UNIT = Unit(dimension="COUNT", unit_code="COUNT", unit_system=None)
+
+
+def count_unique_canonical_identifiers(
+    context: CalculationEvaluationContext,
+) -> CalculationOutcome:
+    """Count one authoritative Canonical identity collection without re-deduping it.
+
+    The owning Canonical or governed system-record contract defines member identity,
+    scope, validation, ordering, and uniqueness.  This boundary only verifies that
+    the resolved dependency is that already-normalized collection.  Rejecting
+    duplicates is intentional: silently deduplicating here would create a second
+    identity authority in the Calculation layer.
+    """
+
+    dependency_ids = tuple(item.field_id for item in context.spec.dependencies)
+    if len(dependency_ids) != 1 or tuple(context.values) != dependency_ids:
+        raise CalculationEvaluationError(
+            "count formula requires exactly its one declared resolved dependency"
+        )
+    members = context.values[dependency_ids[0]]
+    if not isinstance(members, tuple):
+        raise CalculationEvaluationError(
+            "count formula dependency must be an authoritative Canonical identity collection"
+        )
+    if any(type(member) is not str or not member.strip() for member in members):
+        raise CalculationEvaluationError(
+            "count formula collection must contain only non-empty canonical identifiers"
+        )
+    if len(members) != len(set(members)):
+        raise CalculationEvaluationError(
+            "count formula collection violates upstream canonical uniqueness"
+        )
+    if members != tuple(sorted(members)):
+        raise CalculationEvaluationError(
+            "count formula collection violates upstream canonical ordering"
+        )
+    return CalculationOutcome(value=len(members), unit=COUNT_UNIT)
 
 
 def decimal_value(value: Any) -> Decimal:
@@ -75,6 +116,8 @@ def require_compatible_currencies(units: Iterable[Unit | None]) -> Unit:
 
 
 __all__ = (
+    "COUNT_UNIT",
+    "count_unique_canonical_identifiers",
     "decimal_value",
     "require_compatible_currencies",
     "require_compatible_units",
