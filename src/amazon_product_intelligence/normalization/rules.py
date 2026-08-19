@@ -382,7 +382,7 @@ def build_default_registry() -> NormalizerRegistry:
         NormalizationRule(
             rule_id="canonical.asin",
             rule_version=RULE_VERSION,
-            canonical_fields=("product.asin", "product.parent_asin"),
+            canonical_fields=("product.asin", "product.parent_asin", "product.variation"),
             normalize=normalize_asin,
         ),
         NormalizationRule(

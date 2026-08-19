@@ -15,10 +15,13 @@ from amazon_product_intelligence.connectors import (
 )
 from amazon_product_intelligence.contracts import (
     DataQualityIssue,
+    MetricObservation,
     NormalizationStatus,
     PresenceStatus,
     ProductKeywordRelationshipObservation,
+    ProductFactObservation,
     SemanticStatus,
+    product_id,
 )
 from amazon_product_intelligence.normalization import (
     CanonicalNormalizationPipeline,
@@ -134,6 +137,25 @@ class DataCleaningService:
                     if isinstance(observation, ProductKeywordRelationshipObservation)
                     else None
                 )
+                metric = observation if isinstance(observation, MetricObservation) else None
+                variation_parent_product_id: str | None = None
+                variation_child_product_id: str | None = None
+                if (
+                    isinstance(observation, ProductFactObservation)
+                    and observation.dimension
+                    in {"child_product_relationship", "parent_product_relationship"}
+                    and isinstance(observation.value.normalized_value, str)
+                ):
+                    related_product_id = product_id(
+                        observation.subject.marketplace,
+                        observation.value.normalized_value,
+                    )
+                    if observation.dimension == "child_product_relationship":
+                        variation_parent_product_id = observation.subject.subject_id
+                        variation_child_product_id = related_product_id
+                    elif observation.dimension == "parent_product_relationship":
+                        variation_parent_product_id = related_product_id
+                        variation_child_product_id = observation.subject.subject_id
                 normalization_input = NormalizationInput.from_observation(
                     observation,
                     canonical_field=capability.canonical_field,
@@ -195,6 +217,9 @@ class DataCleaningService:
                         relationship_channel=(
                             relationship.channel if relationship is not None else None
                         ),
+                        rank_context=(metric.rank_context if metric is not None else None),
+                        variation_parent_product_id=variation_parent_product_id,
+                        variation_child_product_id=variation_child_product_id,
                     )
                 )
 

@@ -353,14 +353,13 @@ class MissingCollectionsAndCapabilityTests(unittest.TestCase):
         }
         self.assertEqual(len(available_or_partial), 25)
         self.assertEqual(len(p0), 24)
-        self.assertEqual(len(supported), 20)
+        self.assertEqual(len(supported), 21)
         self.assertEqual(
             not_required,
             {
                 "metric.bsr_context",
                 "product.attributes",
                 "product.marketplace",
-                "product.variation",
             },
         )
         self.assertEqual(

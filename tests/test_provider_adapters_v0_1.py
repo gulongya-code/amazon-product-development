@@ -218,10 +218,10 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertTrue(isinstance(XiYouAdapterV0_1(), ProviderAdapter))
         self.assertTrue(isinstance(SorftimeAdapterV0_1(), ProviderAdapter))
 
-    def test_v0_1_4_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
+    def test_v0_1_5_ruleset_and_affected_mapping_versions_are_explicit(self) -> None:
         self.assertEqual(len(adapters.__all__), 14)
-        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.4")
-        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.4")
+        self.assertEqual(adapters.ADAPTER_RULESET_VERSION, "provider-adapters-v0.1.5")
+        self.assertEqual(XiYouAdapterV0_1.adapter_version, "0.1.5")
         self.assertEqual(SorftimeAdapterV0_1.adapter_version, "0.1.1")
 
         xiyou_specs = XiYouAdapterV0_1.mapping_specifications
@@ -234,6 +234,14 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
         self.assertEqual(
             xiyou_specs["asin_variations"].mapping_version,
             "xiyou_variations_mapping_v1_1",
+        )
+        self.assertEqual(
+            xiyou_specs["asin_variations_http_v2"].mapping_version,
+            "xiyou_variations_http_v2_mapping_v1",
+        )
+        self.assertEqual(
+            xiyou_specs["asin_bsr_trends_http_v2"].mapping_version,
+            "xiyou_bsr_http_v2_mapping_v1",
         )
         self.assertEqual(xiyou_specs["asin_info"].version, "0.1")
         self.assertEqual(
@@ -969,6 +977,26 @@ class XiYouMappingTests(unittest.TestCase):
         self.assertEqual(len(ranks), 2)
         self.assertEqual(ranks[0].time.observed_at_status, ObservedAtStatus.UNKNOWN)
         self.assertEqual(ranks[0].rank_context["source_date"], "2026-08-07")
+
+    def test_current_http_variation_and_bsr_roots_keep_truthful_provenance(self) -> None:
+        variation_payload = load_fixture("xiyou_asin_variations.json")["data"]
+        variations = XiYouAdapterV0_1().adapt(
+            variation_payload,
+            context("xiyou", "asin_variations_http_v2", source_tool="get_asin_variations"),
+        )
+        children = fact_observations(variations, "child_product_relationship")
+        self.assertEqual(len(children), 2)
+        self.assertEqual(children[0].provenance.source_field, "childAsins[0]")
+
+        bsr_payload = load_fixture("xiyou_asin_bsr.json")["data"]
+        bsr = XiYouAdapterV0_1().adapt(
+            bsr_payload,
+            context("xiyou", "asin_bsr_trends_http_v2", source_tool="get_asin_bsr_trends"),
+        )
+        ranks = metric_observations(bsr, "bsr")
+        self.assertEqual(len(ranks), 2)
+        self.assertEqual(ranks[0].provenance.source_field, "trends[0].values[0].rank")
+        self.assertEqual(ranks[0].rank_context["category_id"], "1265144011")
 
 
 class SorftimeMappingTests(unittest.TestCase):

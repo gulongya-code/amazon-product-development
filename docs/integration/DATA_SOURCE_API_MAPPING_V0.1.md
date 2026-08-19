@@ -1,6 +1,6 @@
 # Data Source API Mapping V0.1
 
-Status: TASK-SP-021A XiYou keyword/demand contract live-verified; Sorftime remains the SP-018A design baseline
+Status: TASK-SP-021B XiYou competition contracts live-verified; Sorftime remains the SP-018A design baseline
 Analysis date: 2026-08-19
 Scope: XiYou OpenAPI and Sorftime Open API capability analysis, plus a bounded XiYou keyword/demand live validation. No credential or full live payload is stored.
 
@@ -84,7 +84,44 @@ Recommended business role:
 | Traffic trends | `/v1/asins/trafficScore/trend/daily`, `/weekly`, `/monthly` | `summaryTrafficScore.organic/advertising`, `positionTrafficScore.*`, date/week/month | Organic/sponsored traffic evidence and trend inputs; score method must remain provider-defined. |
 | Advertising change | `/v1/asins/advertisingChange/trends/daily` | dated advertising-change records | Advertising-change context; not an opportunity guarantee. |
 
-#### 2.1.1 Live-verified keyword contracts (2026-08-19)
+#### 2.1.1 Live-verified competition contracts (2026-08-19)
+
+The current XiYou V2 product, variation, and BSR contracts were verified through the
+repository's explicit `--live` gate. Credential state was `CONFIGURED`; its value was
+never printed or persisted. Exactly three requests consumed nine credits according to
+the response headers: three for a three-ASIN product-info request, five for one
+variation request, and one for a one-day BSR request. No retry or pagination request was
+made.
+
+| Operation | Verified request | Actual response root/schema | Executable mapping |
+|---|---|---|---|
+| `POST /v1/asins/info` | root `entities[]`, three public US ASINs | direct root `entities[]`; rows contained `country`, `asin`, URL/image fields, `title`, `currency`, `price`, `stars`, `ratings` | `xiyou_product_info_http_v2_mapping_v2` |
+| `POST /v1/asins/variations` | `country`, one public ASIN | direct root `asin`, `country`, `parentAsin`, `childAsins[]`, `lastUpdatedTime`; six child rows were returned | `xiyou_variations_http_v2_mapping_v1` |
+| `POST /v1/asins/bsrInfo/trends/daily` | `country`, `asin`, one-day `startDate`/`endDate` | direct root `asin`, `country`, `categoryTree[]`, `trends[]`; each trend value carried `categoryId` and integer `rank` | `xiyou_bsr_http_v2_mapping_v1` |
+
+The product rows demonstrated real mixed representation: `price` and `stars` were
+numeric strings when present and explicit null otherwise; `ratings` was integer when
+present and explicit null otherwise. One title was empty. Cleaning retained the two
+valid rating/review records and did not convert the null/empty record to zero.
+
+The variation query returned an explicit parent and six unique children. These are
+stored as explicit parent-to-child relationship records. They expand the bounded
+observed identity inventory but do not define Comparable Product membership and do not
+resolve whether a future `variation_evidence_count` counts source rows, unique edges, or
+unique variants. `lastUpdatedTime` had no timezone and therefore remains raw/diagnostic
+evidence rather than an invented instant.
+
+The BSR response returned two contexts for the same product/date: a non-root Ball
+Valves category rank and a root Industrial & Scientific rank. Competition Analysis
+groups by exact marketplace, category ID/name/root flag, source date, precision, and
+rank unit. It never averages these two ranks together. `metric.bsr_context` is
+context-only metadata carried by `metric.bsr`, not a duplicate scalar field.
+
+No seller or offer identity appeared in the verified `/v1/asins/info`, variation, or
+BSR contracts. `product.seller` therefore remains `UNKNOWN`; names or offer text are
+not used as an identity substitute.
+
+#### 2.1.2 Live-verified keyword contracts (2026-08-19)
 
 The current XiYou V2 contract was checked against the official documentation and then
 validated through the repository's explicit `--live` boundary. Credential state was

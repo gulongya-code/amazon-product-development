@@ -1,4 +1,4 @@
-"""Audited offline XiYou mapping slice V0.1.4."""
+"""Audited offline XiYou mapping slice V0.1.5."""
 
 from __future__ import annotations
 
@@ -81,6 +81,11 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
         "xiyou_variations_mapping_v1_1",
         version="0.1.1",
     ),
+    "asin_variations_http_v2": _spec(
+        "asin_variations_http_v2",
+        "get_asin_variations",
+        "xiyou_variations_http_v2_mapping_v1",
+    ),
     "asin_orders_last_30_days": _spec(
         "asin_orders_last_30_days",
         "get_asin_orders_last_30_days",
@@ -88,6 +93,11 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     ),
     "asin_bsr_trends": _spec(
         "asin_bsr_trends", "get_asin_bsr_trends", "xiyou_bsr_trends_mapping_v1"
+    ),
+    "asin_bsr_trends_http_v2": _spec(
+        "asin_bsr_trends_http_v2",
+        "get_asin_bsr_trends",
+        "xiyou_bsr_http_v2_mapping_v1",
     ),
     "keyword_info": _spec("keyword_info", "get_keyword_info", "xiyou_keyword_info_mapping_v1"),
     "keyword_info_http_v2": _spec(
@@ -479,7 +489,13 @@ def _product_info_http_v2(
     return _product_info(session, data)
 
 
-def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _variations(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str = "$.data",
+    source_prefix: str = "data.",
+) -> AdaptationResult:
     asin = normalized_asin(data.get("asin"))
     country = data.get("country")
     if asin is None or country != session.context.marketplace:
@@ -487,7 +503,7 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             session,
             "INVALID_PRODUCT_IDENTITY",
             "Variation payload requires valid asin and matching country.",
-            "$.data",
+            root_locator,
         )
     query_product = product_identity(session.context.marketplace, asin)
     source_identity = f"{session.context.marketplace}:{asin}"
@@ -502,13 +518,13 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
                 dimension="parent_product_relationship",
                 code="INVALID_PARENT_ASIN",
                 message="parentAsin is not a valid ASIN.",
-                locator="$.data.parentAsin",
+                locator=f"{root_locator}.parentAsin",
             )
     elif parent_raw == "":
         session.diagnostic(
             code="EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED",
             message="Empty parentAsin is retained and is not treated as proof of a standalone listing.",
-            source_locator="$.data.parentAsin",
+            source_locator=f"{root_locator}.parentAsin",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
         )
     elif parent_raw is None:
@@ -519,7 +535,7 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
                 else "MISSING_VARIATION_PARENT_UNCONFIRMED"
             ),
             message="No explicit parent ASIN is available, so family members are not converted to directed edges.",
-            source_locator="$.data.parentAsin",
+            source_locator=f"{root_locator}.parentAsin",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
         )
     elif parent_raw is not None:
@@ -529,11 +545,11 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             dimension="parent_product_relationship",
             code="INVALID_PRIMITIVE_TYPE",
             message="parentAsin must be a string.",
-            locator="$.data.parentAsin",
+            locator=f"{root_locator}.parentAsin",
         )
 
     children = data.get("childAsins")
-    confirmed_children: dict[str, str] = {}
+    confirmed_children: dict[str, tuple[str, str]] = {}
     if not isinstance(children, (tuple, list)):
         _record_issue(
             session,
@@ -541,14 +557,14 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
             dimension="child_product_relationship",
             code="INVALID_PRIMITIVE_TYPE",
             message="childAsins must be an array.",
-            locator="$.data.childAsins",
+            locator=f"{root_locator}.childAsins",
         )
     else:
         if not children:
             session.diagnostic(
                 code="EMPTY_VARIATION_RELATIONSHIP_UNCONFIRMED",
                 message="Empty childAsins is retained and is not converted to a zero variation fact.",
-                source_locator="$.data.childAsins",
+                source_locator=f"{root_locator}.childAsins",
                 disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
             )
         for index, child_raw in enumerate(children):
@@ -560,18 +576,21 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
                     dimension="child_product_relationship",
                     code="INVALID_CHILD_ASIN",
                     message="Child relationship omitted because the value is not a valid ASIN.",
-                    locator=f"$.data.childAsins[{index}]",
+                    locator=f"{root_locator}.childAsins[{index}]",
                 )
                 continue
             if child in confirmed_children:
                 session.diagnostic(
                     code="DUPLICATE_VARIATION_MEMBER_NOT_PUBLISHED",
                     message="A duplicate childAsins member remains in raw evidence and is not published twice.",
-                    source_locator=f"$.data.childAsins[{index}]",
+                    source_locator=f"{root_locator}.childAsins[{index}]",
                     disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
                 )
                 continue
-            confirmed_children[child] = f"data.childAsins[{index}]"
+            confirmed_children[child] = (
+                f"{source_prefix}childAsins[{index}]",
+                f"{root_locator}.childAsins[{index}]",
+            )
 
     if parent is not None:
         if asin not in confirmed_children:
@@ -581,16 +600,16 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
                     "The query ASIN is not present in childAsins; parentAsin alone does not authorize "
                     "publishing the query ASIN as a child."
                 ),
-                source_locator="$.data.childAsins",
+                source_locator=f"{root_locator}.childAsins",
                 disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
             )
         parent_product = product_identity(session.context.marketplace, parent)
-        for child, source_field in confirmed_children.items():
+        for child, (source_field, source_locator) in confirmed_children.items():
             if child == parent:
                 session.diagnostic(
                     code="VARIATION_SELF_MEMBER_NOT_PUBLISHED",
                     message="A parent appearing in its own member set remains raw evidence and is not a self-loop.",
-                    source_locator=f"$.{source_field}",
+                    source_locator=source_locator,
                     disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
                 )
                 continue
@@ -609,16 +628,30 @@ def _variations(session: _AdapterSession, data: Mapping[str, Any]) -> Adaptation
         session.diagnostic(
             code="OBSERVATION_TIMEZONE_UNCONFIRMED",
             message="lastUpdatedTime lacks a timezone and is retained only in raw evidence.",
-            source_locator="$.data.lastUpdatedTime",
+            source_locator=f"{root_locator}.lastUpdatedTime",
             disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
         )
     _report_fields(
         session,
         data,
-        locator="$.data",
+        locator=root_locator,
         mapped={"asin", "country", "parentAsin", "childAsins", "lastUpdatedTime"},
     )
     return session.finish()
+
+
+def _variations_http_v2(
+    session: _AdapterSession,
+    payload: Mapping[str, Any],
+) -> AdaptationResult:
+    """Map the current direct-root variation response without rewriting raw evidence."""
+
+    if "asin" in payload or "country" in payload:
+        return _variations(session, payload, root_locator="$", source_prefix="")
+    data = _xiyou_data(session)
+    if isinstance(data, AdaptationResult):
+        return data
+    return _variations(session, data)
 
 
 def _orders(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
@@ -704,10 +737,16 @@ def _orders(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResu
     return session.finish()
 
 
-def _bsr(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
+def _bsr(
+    session: _AdapterSession,
+    data: Mapping[str, Any],
+    *,
+    root_locator: str = "$.data",
+    source_prefix: str = "data.",
+) -> AdaptationResult:
     asin = normalized_asin(data.get("asin"))
     if asin is None or data.get("country") != session.context.marketplace:
-        return _fail(session, "INVALID_PRODUCT_IDENTITY", "BSR payload identity is invalid.", "$.data")
+        return _fail(session, "INVALID_PRODUCT_IDENTITY", "BSR payload identity is invalid.", root_locator)
     product = product_identity(session.context.marketplace, asin)
     categories: dict[str, Mapping[str, Any]] = {}
     category_tree = data.get("categoryTree")
@@ -722,11 +761,16 @@ def _bsr(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
             dimension="bsr",
             code="INVALID_CATEGORY_TREE",
             message="categoryTree must be an array.",
-            locator="$.data.categoryTree",
+            locator=f"{root_locator}.categoryTree",
         )
     trends = data.get("trends")
     if not isinstance(trends, (tuple, list)):
-        return _fail(session, "MALFORMED_PROVIDER_ENVELOPE", "BSR trends must be an array.", "$.data.trends")
+        return _fail(
+            session,
+            "MALFORMED_PROVIDER_ENVELOPE",
+            "BSR trends must be an array.",
+            f"{root_locator}.trends",
+        )
     for row_index, row in enumerate(trends):
         if not isinstance(row, MappingABC):
             continue
@@ -739,11 +783,11 @@ def _bsr(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
                 dimension="bsr",
                 code="INVALID_BSR_ROW",
                 message="BSR row requires a date string and values array.",
-                locator=f"$.data.trends[{row_index}]",
+                locator=f"{root_locator}.trends[{row_index}]",
             )
             continue
         for value_index, item in enumerate(values):
-            locator = f"$.data.trends[{row_index}].values[{value_index}]"
+            locator = f"{root_locator}.trends[{row_index}].values[{value_index}]"
             if not isinstance(item, MappingABC):
                 continue
             category_id = item.get("categoryId")
@@ -771,7 +815,7 @@ def _bsr(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
                     normalization_status=NormalizationStatus.NORMALIZED,
                     semantic_status=SemanticStatus.CONFIRMED,
                 ),
-                source_field=f"data.trends[{row_index}].values[{value_index}].rank",
+                source_field=f"{source_prefix}trends[{row_index}].values[{value_index}].rank",
                 source_record_identity=f"{session.context.marketplace}:{asin}:{source_date}:{category_id}",
                 metric_semantic=f"Provider-reported daily BSR for source date {source_date}",
                 evidence_type=EvidenceType.OBSERVED,
@@ -789,17 +833,31 @@ def _bsr(session: _AdapterSession, data: Mapping[str, Any]) -> AdaptationResult:
         session.diagnostic(
             code="SOURCE_FIELD_INTENTIONALLY_IGNORED",
             message="dateRangeNotice is retained as raw provider documentation metadata.",
-            source_locator="$.data.dateRangeNotice",
+            source_locator=f"{root_locator}.dateRangeNotice",
             disposition=MappingDisposition.DOCUMENTATION_ONLY,
             affects_status=False,
         )
     _report_fields(
         session,
         data,
-        locator="$.data",
+        locator=root_locator,
         mapped={"asin", "country", "categoryTree", "trends", "dateRangeNotice"},
     )
     return session.finish()
+
+
+def _bsr_http_v2(
+    session: _AdapterSession,
+    payload: Mapping[str, Any],
+) -> AdaptationResult:
+    """Map the official direct-root BSR response without transport reshaping."""
+
+    if "asin" in payload or "country" in payload:
+        return _bsr(session, payload, root_locator="$", source_prefix="")
+    data = _xiyou_data(session)
+    if isinstance(data, AdaptationResult):
+        return data
+    return _bsr(session, data)
 
 
 def _null_keyword_metric(
@@ -1653,10 +1711,10 @@ def _asin_to_keyword(
 
 
 class XiYouAdapterV0_1:
-    """Offline audited XiYou adapter with V0.1.4 provenance rules."""
+    """Offline audited XiYou adapter with V0.1.5 provenance rules."""
 
     provider = "xiyou"
-    adapter_version = "0.1.4"
+    adapter_version = "0.1.5"
     supported_payload_kinds = tuple(_MAPPING_SPECIFICATIONS)
     mapping_specifications = _MAPPING_SPECIFICATIONS
 
@@ -1672,6 +1730,8 @@ class XiYouAdapterV0_1:
             return prepared
         http_v2_handlers = {
             "asin_info_http_v2": _product_info_http_v2,
+            "asin_variations_http_v2": _variations_http_v2,
+            "asin_bsr_trends_http_v2": _bsr_http_v2,
             "keyword_info_http_v2": _keyword_info,
             "keyword_asin_analysis_http_v2": _keyword_to_asin,
             "asin_keywords_http_v2": _asin_to_keyword,
@@ -1682,7 +1742,12 @@ class XiYouAdapterV0_1:
                 prepared.payload,
                 **(
                     {}
-                    if context.payload_kind == "asin_info_http_v2"
+                    if context.payload_kind
+                    in {
+                        "asin_info_http_v2",
+                        "asin_variations_http_v2",
+                        "asin_bsr_trends_http_v2",
+                    }
                     else {"root_locator": "$", "source_prefix": ""}
                 ),
             )

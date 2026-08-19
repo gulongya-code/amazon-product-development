@@ -194,6 +194,16 @@ class MarketAnalysisBuilderV0_1:
                 {
                     *self._subject_ids(fields, issues, SubjectType.PRODUCT),
                     *(field.relationship_product_id for field in relationship_fields),
+                    *(
+                        field.variation_parent_product_id
+                        for field in fields
+                        if field.variation_parent_product_id is not None
+                    ),
+                    *(
+                        field.variation_child_product_id
+                        for field in fields
+                        if field.variation_child_product_id is not None
+                    ),
                 }
             )
         )

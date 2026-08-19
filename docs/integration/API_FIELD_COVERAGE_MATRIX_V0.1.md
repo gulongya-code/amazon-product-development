@@ -1,6 +1,6 @@
 # API Field Coverage Matrix V0.1
 
-Status: TASK-SP-021A XiYou keyword/demand live-verified; 157-field Workbook contract unchanged
+Status: TASK-SP-021B XiYou competition contracts live-verified; 157-field Workbook contract unchanged
 Workbook contract: Operator Workbook V0.2, fixed 9 sheets / 157 fields
 Analysis date: 2026-08-19
 
@@ -136,7 +136,7 @@ Coverage status is restricted to:
 | Provider | Provenance provider | System | Connector identity | CALCULATED | Lineage metadata. |
 | Evidence Count | Relationship evidence aggregation | System | Count validated observations | CALCULATED | Count is not competition strength. |
 | Evidence Classification | Evidence semantic class | System | Relationship kind/channel/presence | CALCULATED | No competitor ranking. |
-| Variation Evidence Count | Variation relationship aggregation | System | XiYou child list; Sorftime variation rows | CALCULATED | Counts explicit edges only. |
+| Variation Evidence Count | Variation relationship aggregation | System | XiYou child list; Sorftime variation rows | CALCULATED | Specification remains system-owned, but execution stays blocked because source rows, unique edges, and unique variants have no governed counting grain. |
 | Query Status | Query execution status | System | Result envelope/list/total | CALCULATED | Explicit empty remains query-scoped. |
 | Limitations | Limitation codes | System | Direction, method, rank and completeness diagnostics | CALCULATED | Prevents market-strength inference. |
 | Competition Output Row ID | Operator Output identity | System | Deterministic row content | CALCULATED | Internal identity. |
@@ -150,8 +150,8 @@ Coverage status is restricted to:
 | Product Count | Product identity aggregation | System | Distinct validated identities | CALCULATED | Depends on bounded candidate collection. |
 | Observed Share | Exact-group observed share | System | Group count divided by observed set count | CALCULATED | Not market share. |
 | Sales Evidence Summary | Sales metric projection | System | XiYou orders and Sorftime sales estimates | CALCULATED | Metrics remain separately labeled. |
-| Minimum Comparable Price | Comparable price aggregation | System | Valid price observations | CALCULATED | Only same currency/scope/period semantics may be compared. |
-| Maximum Comparable Price | Comparable price aggregation | System | Valid price observations | CALCULATED | Same comparability boundary as minimum. |
+| Minimum Comparable Price | Comparable price aggregation | System | Valid price observations | CALCULATED | System-owned specification remains; execution is blocked until governed `COMPARABLE` membership exists. |
+| Maximum Comparable Price | Comparable price aggregation | System | Valid price observations | CALCULATED | Same governed-membership execution blocker as minimum comparable price. |
 | Currency | Price unit | XiYou + Sorftime | XiYou `currency`; Sorftime schema/context | PARTIAL | Mixed currencies cannot be silently combined. |
 | Observed Feature Inventory | Product fact inventory | Sorftime | `attributes`, `description`, package facts | PARTIAL | Exact observed features only; no feature generation. |
 | Data State | Evidence state | System | Fact/metric presence and quality | CALCULATED | Derived quality view. |

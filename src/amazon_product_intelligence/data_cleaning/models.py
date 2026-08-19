@@ -90,6 +90,9 @@ class CleanFieldResult:
     relationship_direction: RelationshipDirection | None = None
     relationship_type: RelationshipType | None = None
     relationship_channel: Channel | None = None
+    rank_context: Mapping[str, Any] | None = None
+    variation_parent_product_id: str | None = None
+    variation_child_product_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "issues", tuple(self.issues))
@@ -113,6 +116,24 @@ class CleanFieldResult:
                 raise ValueError("relationship_type must be RelationshipType")
             if not isinstance(self.relationship_channel, Channel):
                 raise ValueError("relationship_channel must be Channel")
+        if self.rank_context is not None:
+            if not isinstance(self.rank_context, Mapping) or any(
+                not isinstance(key, str) for key in self.rank_context
+            ):
+                raise ValueError("rank_context must be a text-keyed mapping")
+            copied_context = json.loads(
+                json.dumps(json_value(self.rank_context), ensure_ascii=False, sort_keys=True)
+            )
+            object.__setattr__(self, "rank_context", MappingProxyType(copied_context))
+        variation_values = (
+            self.variation_parent_product_id,
+            self.variation_child_product_id,
+        )
+        if any(value is not None for value in variation_values):
+            if any(not isinstance(value, str) or not value for value in variation_values):
+                raise ValueError("variation context must contain complete product identities")
+            if self.variation_parent_product_id == self.variation_child_product_id:
+                raise ValueError("variation context cannot be a self relationship")
 
     def to_dict(self) -> dict[str, Any]:
         result = {
@@ -142,6 +163,13 @@ class CleanFieldResult:
                 "direction": self.relationship_direction.value,
                 "relationship_type": self.relationship_type.value,
                 "channel": self.relationship_channel.value,
+            }
+        if self.rank_context is not None:
+            result["rank_context"] = json_value(self.rank_context)
+        if self.variation_parent_product_id is not None:
+            result["variation_context"] = {
+                "parent_product_id": self.variation_parent_product_id,
+                "child_product_id": self.variation_child_product_id,
             }
         return result
 

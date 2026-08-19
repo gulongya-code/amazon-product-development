@@ -89,7 +89,7 @@ Replaying the same evidence produces the same query execution ID. Changing its o
 
 ## 9. XiYou adapter behavior
 
-Provider adapter ruleset `provider-adapters-v0.1.4` and XiYou adapter version `0.1.4` retain the directional execution evidence introduced in V0.1.2 for both audited legacy query mappings and their HTTP V2 root equivalents:
+Provider adapter ruleset `provider-adapters-v0.1.5` and XiYou adapter version `0.1.5` retain the directional execution evidence introduced in V0.1.2 for both audited legacy query mappings and their HTTP V2 root equivalents. V0.1.5 additionally separates the live-verified direct-root variation and BSR mappings from legacy sanitized envelopes:
 
 - `xiyou_keyword_to_asin_mapping_v1_1`;
 - `xiyou_asin_to_keyword_mapping_v1_1`.
@@ -106,7 +106,7 @@ This patch does not implement Product Intelligence aggregation changes, Demand I
 
 ## 11. Known limits
 
-- Only audited XiYou directional query payloads emit this record; this behavior was introduced in V0.1.2 and remains unchanged in V0.1.4.
+- Only audited XiYou directional query payloads emit this record; this behavior was introduced in V0.1.2 and remains unchanged in V0.1.5.
 - The captured fixture set contains a forward explicit-empty query; reverse explicit-empty behavior is supported by the same contract and adapter path but is not asserted as captured provider evidence.
 - Provider traffic methodology, keyword-estimate derivation, ranking codes beyond audited values, and query result completeness remain unknown.
 - Empty query evidence is scoped to its exact query, provider response, retrieval time, marketplace, mapping, and transformation lineage.

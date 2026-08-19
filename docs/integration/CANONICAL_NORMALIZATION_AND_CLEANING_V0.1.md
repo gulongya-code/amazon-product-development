@@ -195,8 +195,8 @@ At the connector Canonical-field level, deduplicating the provider declarations 
 |---|---:|---|
 | connector `AVAILABLE`/`PARTIAL` Canonical fields | 25 | Union of the two connector capability declarations, including the separately gated P1 raw-review operation. |
 | P0 `AVAILABLE`/`PARTIAL` Canonical fields | 24 | Connector field inventory excluding the documented P1 `review.raw` operation. |
-| P0 normalization supported | 20 | ASIN; title; brand; category; fulfillment; price; rating; review count; BSR; orders; estimated sales; keyword search volume/ABA rank/CPC/difficulty; both directional relationship membership fields; and typed relationship `keyword.channel`. |
-| P0 normalization not yet required | 4 | `product.marketplace`, `metric.bsr_context`, `product.attributes`, and `product.variation`; these use typed request scope or structured Canonical evidence rather than scalar normalization. |
+| P0 normalization supported | 21 | ASIN (including explicit variation members); title; brand; category; fulfillment; price; rating; review count; BSR; orders; estimated sales; keyword search volume/ABA rank/CPC/difficulty; both directional relationship membership fields; and typed relationship `keyword.channel`. |
+| P0 normalization not yet required | 3 | `product.marketplace`, `metric.bsr_context`, and `product.attributes`; these use typed request scope or structured Canonical evidence rather than a second scalar normalization. |
 | separately gated P1 | 1 | `review.raw` is a structured `ReviewObservation`; its nested envelopes are already adapter-normalized and must not be treated as one text scalar. |
 | blocked/unknown | 4 | `keyword.locale`, `workflow.manual_review_status`, `product.seller`, `keyword.estimate_method_status`. Their SP-018A conclusions are unchanged. |
 
