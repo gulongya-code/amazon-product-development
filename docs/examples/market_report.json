@@ -1,0 +1,513 @@
+{
+  "buyer_needs": {
+    "intent_ruleset_version": "buyer-need-intent-rules-v0.3",
+    "limitations": [
+      "ASIN coverage is cohort recurrence, not Demand Share.",
+      "Per-cluster confidence is unavailable in the V0.3 validation snapshot."
+    ],
+    "needs": [
+      {
+        "availability": "PARTIAL",
+        "confidence": "UNKNOWN",
+        "evidence_count": 2,
+        "evidence_ids": [
+          "buyer-need:portable-001",
+          "buyer-need:portable-002"
+        ],
+        "limitations": [
+          "ASIN_COVERAGE_IS_COHORT_RECURRENCE_NOT_DEMAND_SHARE",
+          "SOURCE_CLUSTER_CONFIDENCE_UNAVAILABLE"
+        ],
+        "need_id": "semantic-cluster:outdoor-portability",
+        "need_label": "Outdoor Portability",
+        "provenance_reference_ids": [
+          "market-report-provenance:beaa2d7fe873a5c5b5f72a66970117b2564e7fc7bfddfdd93049f5bea6844dc0"
+        ],
+        "share": 0.27,
+        "share_basis": "ASIN_COVERAGE_SHARE",
+        "validation_status": "V0.3_STABLE"
+      },
+      {
+        "availability": "PARTIAL",
+        "confidence": "UNKNOWN",
+        "evidence_count": 2,
+        "evidence_ids": [
+          "buyer-need:leak-001",
+          "buyer-need:leak-002"
+        ],
+        "limitations": [
+          "ASIN_COVERAGE_IS_COHORT_RECURRENCE_NOT_DEMAND_SHARE",
+          "SOURCE_CLUSTER_CONFIDENCE_UNAVAILABLE"
+        ],
+        "need_id": "semantic-cluster:leak-prevention",
+        "need_label": "Leak Prevention",
+        "provenance_reference_ids": [
+          "market-report-provenance:beaa2d7fe873a5c5b5f72a66970117b2564e7fc7bfddfdd93049f5bea6844dc0"
+        ],
+        "share": 0.19,
+        "share_basis": "ASIN_COVERAGE_SHARE",
+        "validation_status": "V0.3_STABLE"
+      }
+    ],
+    "provenance_reference_ids": [
+      "market-report-provenance:beaa2d7fe873a5c5b5f72a66970117b2564e7fc7bfddfdd93049f5bea6844dc0"
+    ],
+    "source_record_id": "buyer-need-analysis:fixture-dog-water-bottle",
+    "taxonomy_version": "buyer-need-taxonomy-v0.2",
+    "validation_status": "V0.3_STABLE"
+  },
+  "category": {
+    "category_id": "market-report-category:58cda9f4365b3ff5e54cf00b3b3a63c19e78f938031de49d86aebf64f75376a5",
+    "category_name": "dog water bottle",
+    "marketplace": "US",
+    "provenance_reference_ids": [
+      "market-report-provenance:615ff6fa8c15ce8ef7e8d096ea987a326f8e36da4db09fd39e222bb75eda5f11"
+    ],
+    "scope": "Amazon US > Pet Supplies > Dog Travel Water Bottles"
+  },
+  "competition": {
+    "asin_count": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "calculation:observed-product-count"
+      ],
+      "limitations": [],
+      "metric_name": "asin_count",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": 100
+    },
+    "brand_count": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "brand-observation:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "brand_count",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": 42
+    },
+    "competition_concentration": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "competition-concentration:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "competition_concentration",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": {
+        "top_5_asin_share": 0.31,
+        "top_5_brand_share": 0.38
+      }
+    },
+    "competition_level": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "competition-level:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "competition_level",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": "MEDIUM"
+    },
+    "limitations": [],
+    "price_distribution": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "price-observation:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "price_distribution",
+      "provenance_reference_ids": [
+        "market-report-provenance:1849f1e929c4c52f4266ddf34dfa36c8b01657fd6ee92638c43328db4a16b844"
+      ],
+      "unit": "USD",
+      "value": {
+        "maximum": "39.99",
+        "mean": "18.72",
+        "median": "16.99",
+        "minimum": "6.99"
+      }
+    },
+    "provenance_reference_ids": [
+      "market-report-provenance:1849f1e929c4c52f4266ddf34dfa36c8b01657fd6ee92638c43328db4a16b844",
+      "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+    ],
+    "rating_distribution": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "rating-observation:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "rating_distribution",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": {
+        "maximum": "5.0",
+        "mean": "4.42",
+        "median": "4.5",
+        "minimum": "3.1"
+      }
+    },
+    "review_distribution": {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "review-count-observation:set-001"
+      ],
+      "limitations": [],
+      "metric_name": "review_distribution",
+      "provenance_reference_ids": [
+        "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e"
+      ],
+      "unit": null,
+      "value": {
+        "maximum": "45000",
+        "mean": "2380",
+        "median": "620",
+        "minimum": "8"
+      }
+    },
+    "source_record_ids": [
+      "competition-analysis:fixture-dog-water-bottle",
+      "market-analysis:fixture-dog-water-bottle"
+    ],
+    "status": "AVAILABLE"
+  },
+  "data_window": {
+    "availability": "AVAILABLE",
+    "end_at": "2026-08-16T23:59:59Z",
+    "limitations": [],
+    "period": "last7days",
+    "provenance_reference_ids": [
+      "market-report-provenance:615ff6fa8c15ce8ef7e8d096ea987a326f8e36da4db09fd39e222bb75eda5f11"
+    ],
+    "start_at": "2026-08-10T00:00:00Z",
+    "window_id": "market-report-data-window:e2c6f2ae0a4b8eae045ee857c533621162e123849ba50bd4008cd00c2d6c829a"
+  },
+  "generated_at": "2026-08-21T08:00:00Z",
+  "limitations": [],
+  "opportunity_score": {
+    "candidate_id": "opportunity-candidate:portable-leak-proof",
+    "confidence": "LOW",
+    "dimensions": [
+      {
+        "contribution": 15.0,
+        "dimension": "COMPETITION_FAVORABILITY",
+        "evidence_ids": [
+          "competition-concentration:set-001"
+        ],
+        "explanation": "Existing competition evaluation reports medium concentration.",
+        "max_contribution": 20.0,
+        "provenance_reference_ids": [
+          "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca"
+        ],
+        "score_value": 75.0,
+        "status": "SCORED"
+      },
+      {
+        "contribution": 25.0,
+        "dimension": "DEMAND_STRENGTH",
+        "evidence_ids": [
+          "buyer-need:portable-001"
+        ],
+        "explanation": "Strong cohort recurrence in the existing Buyer Need output.",
+        "max_contribution": 30.0,
+        "provenance_reference_ids": [
+          "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca"
+        ],
+        "score_value": 83.333333,
+        "status": "SCORED"
+      },
+      {
+        "contribution": 10.0,
+        "dimension": "ECONOMIC_EVIDENCE",
+        "evidence_ids": [
+          "price-observation:set-001"
+        ],
+        "explanation": "Price evidence exists; sales and revenue remain partial.",
+        "max_contribution": 15.0,
+        "provenance_reference_ids": [
+          "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca"
+        ],
+        "score_value": 66.666667,
+        "status": "SCORED"
+      },
+      {
+        "contribution": 10.0,
+        "dimension": "EVIDENCE_CONFIDENCE",
+        "evidence_ids": [
+          "cohort:dog-water-bottle:100"
+        ],
+        "explanation": "The score preserves source confidence independently from score.",
+        "max_contribution": 10.0,
+        "provenance_reference_ids": [
+          "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca"
+        ],
+        "score_value": 100.0,
+        "status": "SCORED"
+      },
+      {
+        "contribution": 22.0,
+        "dimension": "SUPPLY_GAP",
+        "evidence_ids": [
+          "gap-evidence:portable-leak-proof"
+        ],
+        "explanation": "Existing gap evaluation reports a strong supply gap.",
+        "max_contribution": 25.0,
+        "provenance_reference_ids": [
+          "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca"
+        ],
+        "score_value": 88.0,
+        "status": "SCORED"
+      }
+    ],
+    "evidence_ids": [
+      "buyer-need:leak-001",
+      "buyer-need:portable-001",
+      "cohort:dog-water-bottle:100",
+      "competition-concentration:set-001",
+      "gap-evidence:portable-leak-proof",
+      "opportunity-reference:buyer-needs",
+      "opportunity-reference:economic",
+      "price-observation:set-001"
+    ],
+    "limitations": [
+      "Economic evidence is partial."
+    ],
+    "policy_fingerprint": "sha256:fixture-policy-fingerprint",
+    "policy_version": "opportunity-score-policy-v0.1",
+    "provenance_reference_ids": [
+      "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca",
+      "market-report-provenance:47871d6064b1739ea1d3032827c05c0049450c024d5b7f714b608ff571501292",
+      "market-report-provenance:60bf239a928182b758733bcda0d954ce501a1b455ccc94f85ca5ab93089eddd2"
+    ],
+    "risks": [
+      "Sales Evidence Partial"
+    ],
+    "score_id": "evidence-based-opportunity-score:fixture-dog-water-bottle",
+    "score_status": "CALCULATED_PARTIAL",
+    "score_value": 82.0
+  },
+  "pipeline_version": "market-report-pipeline-v0.1",
+  "product_attributes": [
+    {
+      "attribute_coverage": 0.75,
+      "availability": "PARTIAL",
+      "dimension": "CAPACITY",
+      "distribution_id": "attribute-distribution:capacity",
+      "evidence_ids": [
+        "attribute-evidence:capacity-set-001"
+      ],
+      "known_value_count": 75,
+      "limitations": [
+        "ATTRIBUTE_VALUES_PARTIAL"
+      ],
+      "provenance_reference_ids": [
+        "market-report-provenance:52f83849e148c54f578951900145bef742c13e1afa4ee02a8f96b0bed523dc11"
+      ],
+      "total_product_count": 100,
+      "unknown_count": 25,
+      "unknown_rate": 0.25,
+      "values": [
+        {
+          "asin_count": 45,
+          "asin_share": 0.6,
+          "canonical_value": 12,
+          "display_value": "12 oz",
+          "evidence_ids": [
+            "attribute-evidence:capacity-12oz"
+          ],
+          "value_id": "attribute-value:12oz"
+        },
+        {
+          "asin_count": 30,
+          "asin_share": 0.4,
+          "canonical_value": 20,
+          "display_value": "20 oz",
+          "evidence_ids": [
+            "attribute-evidence:capacity-20oz"
+          ],
+          "value_id": "attribute-value:20oz"
+        }
+      ]
+    },
+    {
+      "attribute_coverage": 0.8,
+      "availability": "PARTIAL",
+      "dimension": "MATERIAL",
+      "distribution_id": "attribute-distribution:material",
+      "evidence_ids": [
+        "attribute-evidence:material-set-001"
+      ],
+      "known_value_count": 80,
+      "limitations": [
+        "ATTRIBUTE_VALUES_PARTIAL"
+      ],
+      "provenance_reference_ids": [
+        "market-report-provenance:52f83849e148c54f578951900145bef742c13e1afa4ee02a8f96b0bed523dc11"
+      ],
+      "total_product_count": 100,
+      "unknown_count": 20,
+      "unknown_rate": 0.2,
+      "values": [
+        {
+          "asin_count": 55,
+          "asin_share": 0.6875,
+          "canonical_value": "plastic",
+          "display_value": "Plastic",
+          "evidence_ids": [
+            "attribute-evidence:material-plastic"
+          ],
+          "value_id": "attribute-value:plastic"
+        },
+        {
+          "asin_count": 25,
+          "asin_share": 0.3125,
+          "canonical_value": "stainless_steel",
+          "display_value": "Stainless Steel",
+          "evidence_ids": [
+            "attribute-evidence:material-steel"
+          ],
+          "value_id": "attribute-value:stainless-steel"
+        }
+      ]
+    }
+  ],
+  "provenance": [
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "price-observation:set-001"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:1849f1e929c4c52f4266ddf34dfa36c8b01657fd6ee92638c43328db4a16b844",
+      "source_module": "market_analysis",
+      "source_record_id": "market-analysis:fixture-dog-water-bottle",
+      "source_version": "market-analysis-v0.1"
+    },
+    {
+      "availability": "PARTIAL",
+      "evidence_ids": [
+        "buyer-need:leak-001",
+        "buyer-need:portable-001",
+        "cohort:dog-water-bottle:100",
+        "competition-concentration:set-001",
+        "gap-evidence:portable-leak-proof",
+        "opportunity-reference:buyer-needs",
+        "opportunity-reference:economic",
+        "price-observation:set-001"
+      ],
+      "limitations": [
+        "Economic evidence is partial."
+      ],
+      "reference_id": "market-report-provenance:3b0d3010156b7d77a3728e9e01822000e6f90e904e2127857693e2a94bd286ca",
+      "source_module": "opportunity_scoring",
+      "source_record_id": "evidence-based-opportunity-score:fixture-dog-water-bottle",
+      "source_version": "opportunity-scoring-integration-v0.1"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "opportunity-reference:economic",
+        "price-observation:set-001"
+      ],
+      "limitations": [
+        "SALES_AND_REVENUE_EVIDENCE_PARTIAL"
+      ],
+      "reference_id": "market-report-provenance:47871d6064b1739ea1d3032827c05c0049450c024d5b7f714b608ff571501292",
+      "source_module": "economic_evidence",
+      "source_record_id": "economic-evidence:fixture-dog-water-bottle",
+      "source_version": "opportunity-scoring-integration-v0.1"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "attribute-evidence:capacity-set-001",
+        "attribute-evidence:material-set-001"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:52f83849e148c54f578951900145bef742c13e1afa4ee02a8f96b0bed523dc11",
+      "source_module": "category_product_map",
+      "source_record_id": "category-product-map:fixture-dog-water-bottle",
+      "source_version": "category-product-map-v0.1"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "buyer-need:leak-001",
+        "buyer-need:portable-001",
+        "opportunity-reference:buyer-needs"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:60bf239a928182b758733bcda0d954ce501a1b455ccc94f85ca5ab93089eddd2",
+      "source_module": "buyer_need_map",
+      "source_record_id": "buyer-need-analysis:fixture-dog-water-bottle",
+      "source_version": "opportunity-scoring-integration-v0.1"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "clean-run:dog-water-bottle:100",
+        "cohort:dog-water-bottle:100"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:615ff6fa8c15ce8ef7e8d096ea987a326f8e36da4db09fd39e222bb75eda5f11",
+      "source_module": "market_report_pipeline_input",
+      "source_record_id": "validation-fixture:market-report:dog-water-bottle",
+      "source_version": "market-report-pipeline-v0.1"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "buyer-need:leak-001",
+        "buyer-need:leak-002",
+        "buyer-need:portable-001",
+        "buyer-need:portable-002"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:beaa2d7fe873a5c5b5f72a66970117b2564e7fc7bfddfdd93049f5bea6844dc0",
+      "source_module": "buyer_need_analysis",
+      "source_record_id": "buyer-need-analysis:fixture-dog-water-bottle",
+      "source_version": "buyer-need-intent-rules-v0.3"
+    },
+    {
+      "availability": "AVAILABLE",
+      "evidence_ids": [
+        "rating-observation:set-001",
+        "review-count-observation:set-001"
+      ],
+      "limitations": [],
+      "reference_id": "market-report-provenance:cde7cd975eb03ae8626415c76c3786917ee92be16db78a708f70a96fbc72862e",
+      "source_module": "competition_analysis",
+      "source_record_id": "competition-analysis:fixture-dog-water-bottle",
+      "source_version": "competition-analysis-v0.1"
+    }
+  ],
+  "report_id": "market-report:2e16daae9cffb31c8cd5ec1f49570054f99f10351a9f3320d57d215e3af1f0f2",
+  "report_version": "market-report-v0.1",
+  "sample": {
+    "asin_coverage": 0.25,
+    "availability": "AVAILABLE",
+    "limitations": [],
+    "provenance_reference_ids": [
+      "market-report-provenance:615ff6fa8c15ce8ef7e8d096ea987a326f8e36da4db09fd39e222bb75eda5f11"
+    ],
+    "provider_total": 400,
+    "sample_id": "market-report-sample:5a8391418a94c1fec457b40c550cd13263a55c244f004296189e1fa96ac1753f",
+    "sample_size": 100,
+    "unique_asin_count": 100
+  }
+}

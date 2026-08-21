@@ -116,6 +116,11 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
         "get_keyword_asin_analysis",
         "xiyou_keyword_to_asin_http_v2_mapping_v1",
     ),
+    "keyword_asin_analysis_monthly_http_v2": _spec(
+        "keyword_asin_analysis_monthly_http_v2",
+        "get_keyword_analysis_monthly",
+        "xiyou_keyword_to_asin_monthly_http_v2_mapping_v1",
+    ),
     "asin_keywords": _spec(
         "asin_keywords",
         "get_asin_keywords",
@@ -126,6 +131,11 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
         "asin_keywords_http_v2",
         "get_asin_keywords",
         "xiyou_asin_to_keyword_http_v2_mapping_v1",
+    ),
+    "asin_keywords_monthly_http_v2": _spec(
+        "asin_keywords_monthly_http_v2",
+        "get_asin_keywords_monthly",
+        "xiyou_asin_to_keyword_monthly_http_v2_mapping_v1",
     ),
 }
 
@@ -1734,7 +1744,9 @@ class XiYouAdapterV0_1:
             "asin_bsr_trends_http_v2": _bsr_http_v2,
             "keyword_info_http_v2": _keyword_info,
             "keyword_asin_analysis_http_v2": _keyword_to_asin,
+            "keyword_asin_analysis_monthly_http_v2": _keyword_to_asin,
             "asin_keywords_http_v2": _asin_to_keyword,
+            "asin_keywords_monthly_http_v2": _asin_to_keyword,
         }
         if context.payload_kind in http_v2_handlers:
             return http_v2_handlers[context.payload_kind](

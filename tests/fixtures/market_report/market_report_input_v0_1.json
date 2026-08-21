@@ -1,0 +1,325 @@
+{
+  "category_name": "dog water bottle",
+  "marketplace": "US",
+  "category_scope": "Amazon US > Pet Supplies > Dog Travel Water Bottles",
+  "sample_size": 100,
+  "unique_asin_count": 100,
+  "provider_total": 400,
+  "data_window_period": "last7days",
+  "data_window_start": "2026-08-10T00:00:00Z",
+  "data_window_end": "2026-08-16T23:59:59Z",
+  "generated_at": "2026-08-21T08:00:00Z",
+  "pipeline_version": "market-report-pipeline-v0.1",
+  "source_record_id": "validation-fixture:market-report:dog-water-bottle",
+  "source_evidence_ids": [
+    "cohort:dog-water-bottle:100",
+    "clean-run:dog-water-bottle:100"
+  ],
+  "buyer_need_output": {
+    "analysis_id": "buyer-need-analysis:fixture-dog-water-bottle",
+    "final_decision": {
+      "code": "A",
+      "label": "V0.3_STABLE",
+      "reason": "Frozen validation fixture for report composition tests."
+    },
+    "semantic_clusters": [
+      {
+        "cluster_id": "semantic-cluster:outdoor-portability",
+        "cluster_label": "Outdoor Portability",
+        "need_count": 2,
+        "source_asin_count": 27,
+        "asin_coverage": "0.27",
+        "source_need_ids": [
+          "buyer-need:portable-001",
+          "buyer-need:portable-002"
+        ]
+      },
+      {
+        "cluster_id": "semantic-cluster:leak-prevention",
+        "cluster_label": "Leak Prevention",
+        "need_count": 2,
+        "source_asin_count": 19,
+        "asin_coverage": "0.19",
+        "source_need_ids": [
+          "buyer-need:leak-001",
+          "buyer-need:leak-002"
+        ]
+      }
+    ]
+  },
+  "competition_output": {
+    "analysis_id": "competition-analysis:fixture-dog-water-bottle",
+    "analysis_version": "competition-analysis-v0.1",
+    "observed_product_count": {
+      "result_id": "calculation:observed-product-count",
+      "status": "CALCULATED",
+      "value": 100
+    },
+    "brand_count": {
+      "status": "AVAILABLE",
+      "value": 42,
+      "evidence_ids": [
+        "brand-observation:set-001"
+      ]
+    },
+    "rating_summary": {
+      "metric_id": "market_analysis.product_rating",
+      "status": "CALCULATED",
+      "distribution": {
+        "minimum": "3.1",
+        "maximum": "5.0",
+        "mean": "4.42",
+        "median": "4.5"
+      },
+      "source_observation_ids": [
+        "rating-observation:set-001"
+      ],
+      "limitations": []
+    },
+    "review_count_summary": {
+      "metric_id": "market_analysis.product_review_count",
+      "status": "CALCULATED",
+      "distribution": {
+        "minimum": "8",
+        "maximum": "45000",
+        "mean": "2380",
+        "median": "620"
+      },
+      "source_observation_ids": [
+        "review-count-observation:set-001"
+      ],
+      "limitations": []
+    },
+    "competition_concentration": {
+      "status": "AVAILABLE",
+      "value": {
+        "top_5_asin_share": 0.31,
+        "top_5_brand_share": 0.38
+      },
+      "evidence_ids": [
+        "competition-concentration:set-001"
+      ]
+    },
+    "competition_level": {
+      "status": "AVAILABLE",
+      "value": "MEDIUM",
+      "evidence_ids": [
+        "competition-level:set-001"
+      ]
+    }
+  },
+  "market_analysis_output": {
+    "analysis_id": "market-analysis:fixture-dog-water-bottle",
+    "analysis_version": "market-analysis-v0.1",
+    "numeric_summaries": [
+      {
+        "metric_id": "market_analysis.observed_product_price",
+        "status": "CALCULATED",
+        "distribution": {
+          "minimum": "6.99",
+          "maximum": "39.99",
+          "mean": "18.72",
+          "median": "16.99"
+        },
+        "unit": {
+          "unit_code": "USD"
+        },
+        "source_observation_ids": [
+          "price-observation:set-001"
+        ],
+        "limitations": []
+      }
+    ]
+  },
+  "category_product_map_output": {
+    "map_id": "category-product-map:fixture-dog-water-bottle",
+    "ruleset_version": "category-product-map-v0.1",
+    "attribute_distributions": [
+      {
+        "distribution_id": "attribute-distribution:material",
+        "dimension": "MATERIAL",
+        "total_product_count": 100,
+        "known_value_count": 80,
+        "unknown_count": 20,
+        "attribute_coverage": "0.8",
+        "unknown_rate": "0.2",
+        "evidence_reference_ids": [
+          "attribute-evidence:material-set-001"
+        ],
+        "values": [
+          {
+            "value_metric_id": "attribute-value-distribution:plastic",
+            "canonical_value": {
+              "value_id": "attribute-value:plastic",
+              "display_value": "Plastic",
+              "value": "plastic"
+            },
+            "asin_count": 55,
+            "asin_share": "0.6875",
+            "evidence_reference_ids": [
+              "attribute-evidence:material-plastic"
+            ]
+          },
+          {
+            "value_metric_id": "attribute-value-distribution:stainless-steel",
+            "canonical_value": {
+              "value_id": "attribute-value:stainless-steel",
+              "display_value": "Stainless Steel",
+              "value": "stainless_steel"
+            },
+            "asin_count": 25,
+            "asin_share": "0.3125",
+            "evidence_reference_ids": [
+              "attribute-evidence:material-steel"
+            ]
+          }
+        ]
+      },
+      {
+        "distribution_id": "attribute-distribution:capacity",
+        "dimension": "CAPACITY",
+        "total_product_count": 100,
+        "known_value_count": 75,
+        "unknown_count": 25,
+        "attribute_coverage": "0.75",
+        "unknown_rate": "0.25",
+        "evidence_reference_ids": [
+          "attribute-evidence:capacity-set-001"
+        ],
+        "values": [
+          {
+            "value_metric_id": "attribute-value-distribution:12oz",
+            "canonical_value": {
+              "value_id": "attribute-value:12oz",
+              "display_value": "12 oz",
+              "value": 12
+            },
+            "asin_count": 45,
+            "asin_share": "0.6",
+            "evidence_reference_ids": [
+              "attribute-evidence:capacity-12oz"
+            ]
+          },
+          {
+            "value_metric_id": "attribute-value-distribution:20oz",
+            "canonical_value": {
+              "value_id": "attribute-value:20oz",
+              "display_value": "20 oz",
+              "value": 20
+            },
+            "asin_count": 30,
+            "asin_share": "0.4",
+            "evidence_reference_ids": [
+              "attribute-evidence:capacity-20oz"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "opportunity_score_output": {
+    "score_id": "evidence-based-opportunity-score:fixture-dog-water-bottle",
+    "candidate_id": "opportunity-candidate:portable-leak-proof",
+    "score_status": "CALCULATED_PARTIAL",
+    "score_value": 82,
+    "confidence": "LOW",
+    "policy_version": "opportunity-score-policy-v0.1",
+    "policy_fingerprint": "sha256:fixture-policy-fingerprint",
+    "integration_version": "opportunity-scoring-integration-v0.1",
+    "explanation": {
+      "dimension_breakdown": [
+        {
+          "dimension_score_id": "dimension-score:demand-strength",
+          "dimension": "DEMAND_STRENGTH",
+          "status": "SCORED",
+          "score_value": 83.333333,
+          "contribution": 25,
+          "max_contribution": 30,
+          "source_evidence_ids": [
+            "buyer-need:portable-001"
+          ],
+          "explanation": "Strong cohort recurrence in the existing Buyer Need output."
+        },
+        {
+          "dimension_score_id": "dimension-score:supply-gap",
+          "dimension": "SUPPLY_GAP",
+          "status": "SCORED",
+          "score_value": 88,
+          "contribution": 22,
+          "max_contribution": 25,
+          "source_evidence_ids": [
+            "gap-evidence:portable-leak-proof"
+          ],
+          "explanation": "Existing gap evaluation reports a strong supply gap."
+        },
+        {
+          "dimension_score_id": "dimension-score:competition",
+          "dimension": "COMPETITION_FAVORABILITY",
+          "status": "SCORED",
+          "score_value": 75,
+          "contribution": 15,
+          "max_contribution": 20,
+          "source_evidence_ids": [
+            "competition-concentration:set-001"
+          ],
+          "explanation": "Existing competition evaluation reports medium concentration."
+        },
+        {
+          "dimension_score_id": "dimension-score:economic",
+          "dimension": "ECONOMIC_EVIDENCE",
+          "status": "SCORED",
+          "score_value": 66.666667,
+          "contribution": 10,
+          "max_contribution": 15,
+          "source_evidence_ids": [
+            "price-observation:set-001"
+          ],
+          "explanation": "Price evidence exists; sales and revenue remain partial."
+        },
+        {
+          "dimension_score_id": "dimension-score:evidence-confidence",
+          "dimension": "EVIDENCE_CONFIDENCE",
+          "status": "SCORED",
+          "score_value": 100,
+          "contribution": 10,
+          "max_contribution": 10,
+          "source_evidence_ids": [
+            "cohort:dog-water-bottle:100"
+          ],
+          "explanation": "The score preserves source confidence independently from score."
+        }
+      ],
+      "evidence_references": [
+        {
+          "reference_id": "opportunity-reference:buyer-needs",
+          "source": "buyer_need_map",
+          "source_id": "buyer-need-analysis:fixture-dog-water-bottle",
+          "record_ids": [
+            "buyer-need:portable-001",
+            "buyer-need:leak-001"
+          ],
+          "missing": false,
+          "limitations": []
+        },
+        {
+          "reference_id": "opportunity-reference:economic",
+          "source": "economic_evidence",
+          "source_id": "economic-evidence:fixture-dog-water-bottle",
+          "record_ids": [
+            "price-observation:set-001"
+          ],
+          "missing": false,
+          "limitations": [
+            "SALES_AND_REVENUE_EVIDENCE_PARTIAL"
+          ]
+        }
+      ],
+      "risks": [
+        "Sales Evidence Partial"
+      ],
+      "limitations": [
+        "Economic evidence is partial."
+      ]
+    }
+  }
+}

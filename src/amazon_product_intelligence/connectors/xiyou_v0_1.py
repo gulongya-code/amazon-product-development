@@ -63,10 +63,22 @@ XIYOU_OPERATIONS = (
         "/v1/searchTerms/analysis/list/period",
     ),
     _operation(
+        "keyword_asin_analysis_monthly",
+        "keyword_asin_analysis_monthly_http_v2",
+        "get_keyword_analysis_monthly",
+        "/v1/searchTerms/analysis/list/monthly",
+    ),
+    _operation(
         "asin_keywords",
         "asin_keywords_http_v2",
         "get_asin_keywords",
         "/v1/asins/research/list/period",
+    ),
+    _operation(
+        "asin_keywords_monthly",
+        "asin_keywords_monthly_http_v2",
+        "get_asin_keywords_monthly",
+        "/v1/asins/research/list/monthly",
     ),
 )
 
