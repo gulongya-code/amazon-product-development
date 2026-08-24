@@ -7,9 +7,15 @@ dependencies = [
     "rapidfuzz>=3.14,<4",
 ]
 
+[project.scripts]
+amazon-intel = "amazon_product_intelligence.production_pipeline.cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["amazon_product_intelligence*"]
+
+[tool.setuptools.package-data]
+"amazon_product_intelligence.production_pipeline" = ["fixtures/*.json"]
