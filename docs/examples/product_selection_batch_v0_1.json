@@ -1,0 +1,24 @@
+{
+  "batch_id": "dog-water-bottle-review-001",
+  "candidates": [
+    {
+      "asins": [
+        "B0DWB00001",
+        "B0DWB00002"
+      ],
+      "candidate_id": "integrated-bowl-cohort"
+    },
+    {
+      "asins": [
+        "B0DWB00003"
+      ],
+      "candidate_id": "portable-cohort"
+    }
+  ],
+  "category_name": "dog water bottle",
+  "contract_version": "product-selection-batch-v0.1",
+  "marketplace": "US",
+  "mode": "fixture",
+  "provider_config_reference": "environment",
+  "provider_preference": "xiyou"
+}

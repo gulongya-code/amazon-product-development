@@ -19,3 +19,4 @@ include = ["amazon_product_intelligence*"]
 
 [tool.setuptools.package-data]
 "amazon_product_intelligence.production_pipeline" = ["fixtures/*.json"]
+"amazon_product_intelligence.batch_product_selection" = ["templates/*.mjs"]
