@@ -68,8 +68,9 @@ class RecordingDelivery:
     def __init__(self) -> None:
         self.calls = 0
 
-    def deliver(self, source, output_directory):
+    def deliver(self, source, output_directory, *, operator_workflow=None):
         self.calls += 1
+        self.operator_workflow = operator_workflow
         output = Path(output_directory)
         output.mkdir(parents=True, exist_ok=True)
         markdown = output / "operator_market_report.md"
@@ -564,7 +565,7 @@ class ProductionPipelineV01Tests(unittest.TestCase):
 
     def test_delivery_failure_never_marks_valid_report_successful(self) -> None:
         class FailingDelivery:
-            def deliver(self, source, output_directory):
+            def deliver(self, source, output_directory, *, operator_workflow=None):
                 raise RuntimeError("delivery unavailable")
 
         result = ProductionPipelineOrchestrator(delivery=FailingDelivery()).run(

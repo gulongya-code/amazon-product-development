@@ -91,6 +91,10 @@ from amazon_product_intelligence.product_intelligence import (
     ProductIntelligenceRequest,
     ProductScope,
 )
+from amazon_product_intelligence.operator_workflow import (
+    OperatorWorkflowBuilderV0_1,
+    OperatorWorkflowRequest,
+)
 from amazon_product_intelligence.semantic_clustering import SemanticClusterBuilder
 
 from .artifacts import RunArtifactLayout, write_json_atomic
@@ -577,11 +581,38 @@ class ProductionPipelineOrchestrator:
 
             current = PipelineStage.DELIVERY
             tracker.start(current)
-            delivered = self._delivery.deliver(validated, layout.output_directory)
+            recovery_evidence = self._recovery_evidence(
+                request_fingerprint,
+                checkpoint_store,
+                resume_set,
+                logical_operations,
+            )
+            workflow = OperatorWorkflowBuilderV0_1().build(
+                OperatorWorkflowRequest(
+                    report=validated,
+                    run_id=run_id,
+                    run_status=ProductionRunStatus.SUCCEEDED.value,
+                    provider_summary=(
+                        provider_summary.to_dict()
+                        if provider_summary is not None
+                        else None
+                    ),
+                    recovery=recovery_evidence,
+                )
+            )
+            delivered = self._delivery.deliver(
+                validated,
+                layout.output_directory,
+                operator_workflow=workflow,
+            )
             tracker.finish(
                 current,
-                "operator XLSX and Markdown delivered from the validated report",
-                evidence_ids=(delivered.xlsx_sha256, delivered.markdown_sha256),
+                "operator workflow, XLSX, and Markdown delivered from the validated report",
+                evidence_ids=(
+                    workflow.snapshot_id,
+                    delivered.xlsx_sha256,
+                    delivered.markdown_sha256,
+                ),
             )
 
             current = PipelineStage.MANIFEST
@@ -598,12 +629,8 @@ class ProductionPipelineOrchestrator:
                 provider_summary=provider_summary,
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
-                recovery=self._recovery_evidence(
-                    request_fingerprint,
-                    checkpoint_store,
-                    resume_set,
-                    logical_operations,
-                ),
+                recovery=recovery_evidence,
+                operator_workflow=workflow.to_dict(),
             )
             write_json_atomic(layout.manifest, result.to_dict())
             return result

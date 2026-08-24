@@ -215,6 +215,7 @@ class ProductionRunResult:
     unavailable_evidence: tuple[str, ...] = field(default_factory=tuple)
     error: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
+    operator_workflow: Mapping[str, Any] | None = None
     contract_version: str = PRODUCTION_RUN_CONTRACT_VERSION
     pipeline_version: str = PRODUCTION_PIPELINE_VERSION
 
@@ -236,6 +237,11 @@ class ProductionRunResult:
             "unavailable_evidence": list(self.unavailable_evidence),
             "error": dict(self.error) if self.error is not None else None,
             "recovery": dict(self.recovery) if self.recovery is not None else None,
+            "operator_workflow": (
+                dict(self.operator_workflow)
+                if self.operator_workflow is not None
+                else None
+            ),
         }
 
 

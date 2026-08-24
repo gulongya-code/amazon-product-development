@@ -57,7 +57,7 @@ ASINS = ("B0DWB00001", "B0DWB00002", "B0DWB00003")
 
 
 class DeterministicDelivery:
-    def deliver(self, source, output_directory):
+    def deliver(self, source, output_directory, *, operator_workflow=None):
         output = Path(output_directory)
         output.mkdir(parents=True, exist_ok=True)
         markdown = output / "operator_market_report.md"
@@ -379,6 +379,24 @@ class ProductionReliabilityV01Tests(unittest.TestCase):
         baseline_report = json.loads(Path(uninterrupted.artifact_paths["market_report_json"]).read_text(encoding="utf-8"))
         resumed_report = json.loads(Path(resumed.artifact_paths["market_report_json"]).read_text(encoding="utf-8"))
         self.assertEqual(baseline_report, resumed_report)
+        self.assertEqual(
+            uninterrupted.operator_workflow["semantic_fingerprint"],
+            resumed.operator_workflow["semantic_fingerprint"],
+        )
+        self.assertEqual(
+            uninterrupted.operator_workflow["operator_action"],
+            resumed.operator_workflow["operator_action"],
+        )
+        self.assertEqual(
+            uninterrupted.operator_workflow["next_actions"],
+            resumed.operator_workflow["next_actions"],
+        )
+        self.assertNotEqual(
+            uninterrupted.operator_workflow["run_health"],
+            resumed.operator_workflow["run_health"],
+        )
+        self.assertFalse(uninterrupted.operator_workflow["run_health"]["resumed"])
+        self.assertTrue(resumed.operator_workflow["run_health"]["resumed"])
         self.assertEqual(source_hashes, directory_hashes(source))
         self.assertEqual("faulted-run", resumed.recovery["resume_source_run_id"])
         self.assertEqual(4, resumed.recovery["checkpoint_count"])
