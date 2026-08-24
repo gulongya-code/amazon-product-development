@@ -73,7 +73,10 @@ No validated seed-keyword-to-ASIN cohort discovery path exists. Supplying
 `UNSUPPORTED_CAPABILITY` error. Seed discovery is a follow-up capability, not a
 claimed SP-034 feature.
 
-Retries, caches, resumable checkpoints, and partial-ASIN recovery remain deferred to
-SP-036. V0.1 is fail-fast: provider/schema/delivery failures are typed, the report is
-validated before delivery, and a failure manifest is written last with only artifacts
-that actually exist.
+SP-036 adds bounded transient retry and explicit checkpoint resume without changing
+the provider endpoint set or Intelligence semantics. Live logical operations use at
+most two transport attempts; fixture mode remains zero-network. Successful provider
+operations are atomically checkpointed under `checkpoints/`, while an incomplete
+explicit cohort remains `FAILED` and produces no normal Market Report. Resume always
+reads an earlier failed directory and writes a fresh destination; there is still no
+`--overwrite`. See `PRODUCTION_RELIABILITY_RECOVERY_V0.1.md` for the operator contract.

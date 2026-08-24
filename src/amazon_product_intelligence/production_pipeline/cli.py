@@ -31,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--run-id")
     run.add_argument("--mode", choices=tuple(item.value for item in ProductionRunMode), default="fixture")
     run.add_argument("--category-name")
+    run.add_argument(
+        "--resume-from",
+        type=Path,
+        help="read compatible checkpoints from a prior failed run; output-dir must be fresh",
+    )
     return parser
 
 
@@ -67,6 +72,7 @@ def main(
             run_id=args.run_id,
             mode=ProductionRunMode(args.mode),
             category_name=args.category_name,
+            resume_from=args.resume_from,
         )
     except (OSError, ValueError, ProductionPipelineError) as exc:
         code = exc.code.value if isinstance(exc, ProductionPipelineError) else "INVALID_INPUT"
@@ -102,7 +108,9 @@ def main(
         else:
             credit_text = f"live provider-reported credits: {credits}"
         print(
-            f"provider operations: {result.provider_summary.operation_count}; {credit_text}",
+            f"provider operations: {result.provider_summary.operation_count}; "
+            f"transport attempts: {result.provider_summary.transport_attempt_count}; "
+            f"replayed: {result.provider_summary.replayed_operation_count}; {credit_text}",
             file=stdout,
         )
     return 0

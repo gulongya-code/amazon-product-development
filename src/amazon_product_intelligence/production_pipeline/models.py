@@ -68,6 +68,7 @@ class ProductionRunRequest:
     asin_file: Path | None = None
     seed_keyword: str | None = None
     category_name: str | None = None
+    resume_from: Path | None = None
     contract_version: str = PRODUCTION_RUN_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
@@ -95,7 +96,61 @@ class ProductionRunRequest:
             raise ProductionRunValidationError("run_id contains unsupported characters")
         if self.category_name is not None and not self.category_name.strip():
             raise ProductionRunValidationError("category_name must be non-empty when supplied")
+        if self.resume_from is not None and not isinstance(self.resume_from, Path):
+            raise ProductionRunValidationError("resume_from must be a pathlib.Path when supplied")
         object.__setattr__(self, "asins", asins)
+
+
+class ProviderOperationExecutionSource(StrEnum):
+    NEW_PROVIDER = "NEW_PROVIDER"
+    CHECKPOINT_REPLAY = "CHECKPOINT_REPLAY"
+
+
+class ProviderTransportAttemptStatus(StrEnum):
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ProviderTransportAttemptSummary:
+    logical_operation_id: str
+    operation: str
+    attempt_ordinal: int
+    status: ProviderTransportAttemptStatus
+    provider_error_code: str | None = None
+    credits: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "logical_operation_id": self.logical_operation_id,
+            "operation": self.operation,
+            "attempt_ordinal": self.attempt_ordinal,
+            "status": self.status.value,
+            "provider_error_code": self.provider_error_code,
+            "credits": self.credits,
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ProviderLogicalOperationSummary:
+    logical_operation_id: str
+    operation: str
+    canonical_field: str
+    execution_source: ProviderOperationExecutionSource
+    status: str
+    transport_attempt_count: int
+    checkpoint_id: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "logical_operation_id": self.logical_operation_id,
+            "operation": self.operation,
+            "canonical_field": self.canonical_field,
+            "execution_source": self.execution_source.value,
+            "status": self.status,
+            "transport_attempt_count": self.transport_attempt_count,
+            "checkpoint_id": self.checkpoint_id,
+        }
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -124,6 +179,11 @@ class ProviderOperationSummary:
     credits: float | None
     credit_semantics: ProviderCreditSemantics
     provenance_ids: tuple[str, ...]
+    transport_attempt_count: int = 0
+    executed_operation_count: int = 0
+    replayed_operation_count: int = 0
+    logical_operations: tuple[ProviderLogicalOperationSummary, ...] = ()
+    transport_attempts: tuple[ProviderTransportAttemptSummary, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,6 +193,11 @@ class ProviderOperationSummary:
             "credits": self.credits,
             "credit_semantics": self.credit_semantics.value,
             "provenance_ids": list(self.provenance_ids),
+            "transport_attempt_count": self.transport_attempt_count,
+            "executed_operation_count": self.executed_operation_count,
+            "replayed_operation_count": self.replayed_operation_count,
+            "logical_operations": [item.to_dict() for item in self.logical_operations],
+            "transport_attempts": [item.to_dict() for item in self.transport_attempts],
         }
 
 
@@ -149,6 +214,7 @@ class ProductionRunResult:
     warnings: tuple[str, ...] = field(default_factory=tuple)
     unavailable_evidence: tuple[str, ...] = field(default_factory=tuple)
     error: Mapping[str, Any] | None = None
+    recovery: Mapping[str, Any] | None = None
     contract_version: str = PRODUCTION_RUN_CONTRACT_VERSION
     pipeline_version: str = PRODUCTION_PIPELINE_VERSION
 
@@ -169,6 +235,7 @@ class ProductionRunResult:
             "warnings": list(self.warnings),
             "unavailable_evidence": list(self.unavailable_evidence),
             "error": dict(self.error) if self.error is not None else None,
+            "recovery": dict(self.recovery) if self.recovery is not None else None,
         }
 
 
@@ -181,7 +248,11 @@ __all__ = (
     "ProductionRunResult",
     "ProductionRunStatus",
     "ProviderCreditSemantics",
+    "ProviderLogicalOperationSummary",
+    "ProviderOperationExecutionSource",
     "ProviderOperationSummary",
+    "ProviderTransportAttemptStatus",
+    "ProviderTransportAttemptSummary",
     "StageResult",
     "StageStatus",
 )
