@@ -1,0 +1,33 @@
+{
+  "policy_version": "opportunity-score-policy-v0.1",
+  "dimension_weights": {
+    "DEMAND_STRENGTH": 30.0,
+    "SUPPLY_GAP": 25.0,
+    "COMPETITION_FAVORABILITY": 20.0,
+    "ECONOMIC_EVIDENCE": 15.0,
+    "EVIDENCE_CONFIDENCE": 10.0
+  },
+  "thresholds": {
+    "demand.search_demand_share": {"rule_type": "NUMERIC_RANGE", "metric_weight": 0.45, "minimum": 0.0, "maximum": 1.0, "direction": "HIGHER_IS_FAVORABLE"},
+    "demand.review_mention_share": {"rule_type": "NUMERIC_RANGE", "metric_weight": 0.45, "minimum": 0.0, "maximum": 1.0, "direction": "HIGHER_IS_FAVORABLE"},
+    "demand.confidence": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.1, "scores": {"HIGH": 100.0, "MEDIUM": 70.0, "LOW": 40.0}},
+    "supply_gap.gap_type": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.65, "scores": {"HIGH_DEMAND_LOW_SUPPLY": 100.0, "HIGH_DEMAND_HIGH_SUPPLY": 35.0, "LOW_DEMAND_LOW_SUPPLY": 20.0, "LOW_DEMAND_HIGH_SUPPLY": 0.0}},
+    "supply_gap.gap_strength": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.35, "scores": {"HIGH": 100.0, "MEDIUM": 60.0, "LOW": 30.0}},
+    "competition.market_concentration": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.25, "scores": {"LOW": 100.0, "MEDIUM": 50.0, "HIGH": 0.0}},
+    "competition.brand_concentration": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.25, "scores": {"LOW": 100.0, "MEDIUM": 50.0, "HIGH": 0.0}},
+    "competition.review_barrier": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.25, "scores": {"LOW": 100.0, "MEDIUM": 50.0, "HIGH": 0.0}},
+    "competition.price_competition": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.25, "scores": {"LOW": 100.0, "MEDIUM": 50.0, "HIGH": 0.0}},
+    "economic.price_band": {"rule_type": "PRESENCE", "metric_weight": 0.3333333333333333, "present_score": 100.0},
+    "economic.sales_availability": {"rule_type": "PRESENCE", "metric_weight": 0.3333333333333333, "present_score": 100.0},
+    "economic.revenue_availability": {"rule_type": "PRESENCE", "metric_weight": 0.3333333333333334, "present_score": 100.0},
+    "evidence_confidence.demand": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.2, "scores": {"AVAILABLE": 100.0, "PARTIAL": 50.0}},
+    "evidence_confidence.supply": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.2, "scores": {"AVAILABLE": 100.0, "PARTIAL": 50.0}},
+    "evidence_confidence.gap": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.2, "scores": {"AVAILABLE": 100.0, "PARTIAL": 50.0}},
+    "evidence_confidence.competition": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.2, "scores": {"AVAILABLE": 100.0, "PARTIAL": 50.0}},
+    "evidence_confidence.economic": {"rule_type": "CATEGORY_MAP", "metric_weight": 0.2, "scores": {"AVAILABLE": 100.0, "PARTIAL": 50.0}}
+  },
+  "missing_data_policy": "SKIP_RENORMALIZE",
+  "rounding_policy": {"mode": "HALF_UP", "decimal_places": 2},
+  "confidence_rules": {"strategy": "PRESERVE_CANDIDATE_CONFIDENCE", "score_multiplier": false},
+  "policy_fingerprint": "sha256:e3fc809b0bcb8204c97e616153ca624e8a0459ae555159a87b506693a17b9c0c"
+}

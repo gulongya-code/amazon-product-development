@@ -1,0 +1,83 @@
+{
+  "fixture_id": "production-pipeline-fixture:dog-water-bottle-v0.1",
+  "category_name": "dog water bottle",
+  "category_scope": "Amazon US > Pet Supplies > Dog Travel Water Bottles",
+  "marketplace": "US",
+  "locale": "en-us",
+  "currency": "USD",
+  "retrieved_at": "2026-08-21T08:00:00Z",
+  "transformed_at": "2026-08-21T08:01:00Z",
+  "generated_at": "2026-08-21T08:05:00Z",
+  "operations": {
+    "asin_info": {
+      "status_code": 200,
+      "metadata": {"cost_credits": 1},
+      "payload": {
+        "entities": [
+          {
+            "asin": "B0DWB00001",
+            "country": "US",
+            "currency": "USD",
+            "price": "18.99",
+            "ratings": 620,
+            "stars": "4.5",
+            "title": "20oz Stainless Steel Leakproof Portable Dog Water Bottle"
+          },
+          {
+            "asin": "B0DWB00002",
+            "country": "US",
+            "currency": "USD",
+            "price": "16.99",
+            "ratings": 240,
+            "stars": "4.4",
+            "title": "12oz Plastic Travel Dog Water Bottle with Built-in Bowl"
+          },
+          {
+            "asin": "B0DWB00003",
+            "country": "US",
+            "currency": "USD",
+            "price": "21.99",
+            "ratings": 95,
+            "stars": "4.6",
+            "title": "600ml Leak Proof Portable Dog Water Bottle for Hiking"
+          }
+        ]
+      }
+    },
+    "asin_keywords": {
+      "B0DWB00001": {
+        "status_code": 200,
+        "metadata": {"cost_credits": 1},
+        "payload": {
+          "total": 2,
+          "list": [
+            {"country": "US", "searchTerm": "portable dog water bottle", "ranks": [], "trafficSummary": {"traffic": {"organic": 120, "advertising": 20, "total": 140}}},
+            {"country": "US", "searchTerm": "leak proof dog water bottle", "ranks": [], "trafficSummary": {"traffic": {"organic": 80, "advertising": 10, "total": 90}}}
+          ]
+        }
+      },
+      "B0DWB00002": {
+        "status_code": 200,
+        "metadata": {"cost_credits": 1},
+        "payload": {
+          "total": 2,
+          "list": [
+            {"country": "US", "searchTerm": "travel dog water bottle", "ranks": [], "trafficSummary": {"traffic": {"organic": 90, "advertising": 15, "total": 105}}},
+            {"country": "US", "searchTerm": "dog water bottle with built-in bowl", "ranks": [], "trafficSummary": {"traffic": {"organic": 70, "advertising": 5, "total": 75}}}
+          ]
+        }
+      },
+      "B0DWB00003": {
+        "status_code": 200,
+        "metadata": {"cost_credits": 1},
+        "payload": {
+          "total": 2,
+          "list": [
+            {"country": "US", "searchTerm": "portable dog water bottle", "ranks": [], "trafficSummary": {"traffic": {"organic": 100, "advertising": 12, "total": 112}}},
+            {"country": "US", "searchTerm": "hiking dog water bottle", "ranks": [], "trafficSummary": {"traffic": {"organic": 65, "advertising": 4, "total": 69}}}
+          ]
+        }
+      }
+    }
+  }
+}
