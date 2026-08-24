@@ -36,6 +36,8 @@ from amazon_product_intelligence.connectors import (
     NoRetryPolicy,
     ProviderConfig,
     ProviderConnectorError,
+    ProviderAttemptStatus,
+    ProviderErrorCode,
     ProviderRegistry,
     ProviderRequest,
     ProviderResolver,
@@ -109,11 +111,20 @@ from .models import (
     StageResult,
     StageStatus,
 )
-from .providers import AcquiredReplayProvider, FixtureTransport, RecordingTransport
+from .providers import (
+    AcquiredReplayProvider,
+    FixtureTransport,
+    RecordingTransport,
+    xiyou_reverse_keyword_parameters,
+)
 
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "dog_water_bottle_v0_1.json"
 _SCORE_POLICY = Path(__file__).parent / "fixtures" / "opportunity_score_policy_v0_1.json"
+_SAFE_RESOLVER_ATTEMPT_STATUSES = frozenset(
+    item.value for item in ProviderAttemptStatus
+)
+_SAFE_PROVIDER_ERROR_CODES = frozenset(item.value for item in ProviderErrorCode)
 
 
 @dataclass(slots=True)
@@ -263,7 +274,10 @@ class ProductionPipelineOrchestrator:
                     resolver.resolve(
                         ProviderRequest(
                             canonical_field="relationship.product_to_keyword",
-                            parameters={"country": request.marketplace, "asin": asin},
+                            parameters=xiyou_reverse_keyword_parameters(
+                                asin=asin,
+                                marketplace=request.marketplace,
+                            ),
                             marketplace=request.marketplace,
                             locale=str(runtime.metadata["locale"]),
                             retrieved_at=timestamps["retrieved_at"],
@@ -823,16 +837,22 @@ class ProductionPipelineOrchestrator:
         if isinstance(exc, ProductionPipelineError):
             return exc
         if isinstance(exc, ProviderConnectorError):
+            details: dict[str, Any] = {
+                "provider_error_code": exc.code.value,
+                "provider_id": exc.provider_id,
+                "operation": exc.operation,
+                "retryable": exc.retryable,
+            }
+            resolver_attempts = ProductionPipelineOrchestrator._safe_resolver_attempts(
+                exc
+            )
+            if resolver_attempts:
+                details["resolver_attempts"] = resolver_attempts
             return ProductionPipelineError(
                 ProductionPipelineErrorCode.PROVIDER_FAILURE,
                 "provider acquisition failed",
                 stage=stage.value,
-                details={
-                    "provider_error_code": exc.code.value,
-                    "provider_id": exc.provider_id,
-                    "operation": exc.operation,
-                    "retryable": exc.retryable,
-                },
+                details=details,
             )
         if stage is PipelineStage.SCHEMA_VALIDATION:
             code = ProductionPipelineErrorCode.SCHEMA_VALIDATION_FAILURE
@@ -857,6 +877,35 @@ class ProductionPipelineOrchestrator:
             stage=stage.value,
             details={"exception_type": type(exc).__name__},
         )
+
+    @staticmethod
+    def _safe_resolver_attempts(
+        error: ProviderConnectorError,
+    ) -> list[dict[str, str | None]]:
+        raw_attempts = error.details.get("attempts")
+        if not isinstance(raw_attempts, (list, tuple)):
+            return []
+        safe: list[dict[str, str | None]] = []
+        for attempt in raw_attempts:
+            if not isinstance(attempt, Mapping):
+                continue
+            provider_id = attempt.get("provider_id")
+            status = attempt.get("status")
+            error_code = attempt.get("error_code")
+            if provider_id != "xiyou":
+                continue
+            if status not in _SAFE_RESOLVER_ATTEMPT_STATUSES:
+                continue
+            if error_code is not None and error_code not in _SAFE_PROVIDER_ERROR_CODES:
+                continue
+            safe.append(
+                {
+                    "provider_id": "xiyou",
+                    "status": str(status),
+                    "error_code": str(error_code) if error_code is not None else None,
+                }
+            )
+        return safe
 
 
 __all__ = ("ProductionPipelineOrchestrator", "ProviderRuntime", "ProviderRuntimeFactory")

@@ -16,8 +16,11 @@ from amazon_product_intelligence.buyer_need_analysis.taxonomy_v0_2 import (
 )
 from amazon_product_intelligence.connectors import (
     ProviderConfig,
+    ProviderConnectorError,
     ProviderErrorCode,
     ProviderRegistry,
+    ProviderRequest,
+    ProviderResolver,
     TransportResponse,
     XiYouProvider,
 )
@@ -42,6 +45,7 @@ from amazon_product_intelligence.production_pipeline.orchestrator import (
 from amazon_product_intelligence.production_pipeline.providers import (
     FixtureTransport,
     RecordingTransport,
+    xiyou_reverse_keyword_parameters,
 )
 from amazon_product_intelligence.semantic_clustering.rules import (
     SEMANTIC_NORMALIZATION_REGISTRY_V0_1,
@@ -198,6 +202,67 @@ class ProductionPipelineV01Tests(unittest.TestCase):
         ):
             result = self.run_success("zero-network")
         self.assertIs(result.status, ProductionRunStatus.SUCCEEDED)
+
+    def test_fixture_reverse_keyword_requests_use_exact_bounded_contract(self) -> None:
+        recording_transports: list[RecordingTransport] = []
+
+        def captured_fixture_runtime(request):
+            runtime = ProductionPipelineOrchestrator._default_provider_runtime(request)
+            recording_transports.append(runtime.recording_transport)
+            return runtime
+
+        result = ProductionPipelineOrchestrator(
+            provider_runtime_factory=captured_fixture_runtime,
+            delivery=RecordingDelivery(),
+        ).run(self.request("bounded-reverse-keywords"))
+
+        self.assertIs(result.status, ProductionRunStatus.SUCCEEDED)
+        self.assertEqual(1, len(recording_transports))
+        recording = recording_transports[0]
+        reverse_requests = [
+            item for item in recording.safe_requests if item["operation"] == "asin_keywords"
+        ]
+        self.assertEqual(len(ASINS), len(reverse_requests))
+        self.assertEqual(
+            [
+                xiyou_reverse_keyword_parameters(asin=asin, marketplace="US")
+                for asin in ASINS
+            ],
+            [item["parameters"] for item in reverse_requests],
+        )
+        self.assertEqual(
+            ("asin_info", "asin_keywords", "asin_keywords", "asin_keywords"),
+            recording.operations,
+        )
+        self.assertEqual(4, recording.operation_count)
+        self.assertIsInstance(recording.wrapped, FixtureTransport)
+        self.assertEqual(4, recording.wrapped.execute_count)
+        self.assertEqual(0, recording.wrapped.network_call_count)
+
+        runtime = ProductionPipelineOrchestrator._default_provider_runtime(
+            self.request("bounded-reverse-keyword-provenance")
+        )
+        expected_parameters = xiyou_reverse_keyword_parameters(
+            asin=ASINS[0],
+            marketplace="US",
+        )
+        resolution = ProviderResolver(runtime.registry).resolve(
+            ProviderRequest(
+                canonical_field="relationship.product_to_keyword",
+                parameters=expected_parameters,
+                marketplace="US",
+                locale=str(runtime.metadata["locale"]),
+                retrieved_at=str(runtime.metadata["retrieved_at"]),
+                transformed_at=str(runtime.metadata["transformed_at"]),
+                collection_run_id="bounded-reverse-keyword-provenance",
+                currency=str(runtime.metadata["currency"]),
+            )
+        )
+        self.assertEqual(
+            canonical_json(expected_parameters),
+            canonical_json(resolution.result.adaptation.raw_evidence.sanitized_request),
+        )
+        self.assertEqual(0, runtime.recording_transport.wrapped.network_call_count)
 
     def test_managed_output_conflict_is_safe_before_provider_access(self) -> None:
         from unittest.mock import patch
@@ -364,9 +429,112 @@ class ProductionPipelineV01Tests(unittest.TestCase):
             ProviderErrorCode.RESOLUTION_EXHAUSTED.value,
             result.error["details"]["provider_error_code"],
         )
+        expected_attempts = [
+            {
+                "provider_id": "xiyou",
+                "status": "FAILED",
+                "error_code": "PROVIDER_UNAVAILABLE",
+            }
+        ]
+        self.assertEqual(
+            expected_attempts,
+            result.error["details"]["resolver_attempts"],
+        )
         manifest = Path(result.artifact_paths["run_manifest"]).read_text(encoding="utf-8")
+        manifest_payload = json.loads(manifest)
+        self.assertEqual(
+            expected_attempts,
+            manifest_payload["error"]["details"]["resolver_attempts"],
+        )
         self.assertNotIn(secret, canonical_json(result.to_dict()))
         self.assertNotIn(secret, manifest)
+
+        stdout, stderr = StringIO(), StringIO()
+        code = main(
+            [
+                "run", "--market", "US",
+                "--asin", ASINS[0], "--asin", ASINS[1], "--asin", ASINS[2],
+                "--output-dir", str(self.root / "provider-failure-cli"),
+                "--run-id", "provider-failure-cli",
+            ],
+            orchestrator=ProductionPipelineOrchestrator(
+                provider_runtime_factory=failing_runtime(secret, calls),
+                delivery=RecordingDelivery(),
+            ),
+            stdout=stdout,
+            stderr=stderr,
+        )
+        self.assertEqual(1, code)
+        self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
+
+    def test_safe_resolver_diagnostics_allowlist_distinguishes_attempts(self) -> None:
+        secret = "resolver-secret-must-not-survive"
+        connector_error = ProviderConnectorError(
+            ProviderErrorCode.RESOLUTION_EXHAUSTED,
+            secret,
+            details={
+                "attempts": (
+                    {
+                        "provider_id": "xiyou",
+                        "status": "FAILED",
+                        "error_code": "SCHEMA_MISMATCH",
+                        "raw_response": secret,
+                    },
+                    {
+                        "provider_id": "xiyou",
+                        "status": "FIELD_MISSING",
+                        "error_code": None,
+                        "headers": {"authorization": secret},
+                    },
+                    {
+                        "provider_id": "xiyou",
+                        "status": "FAILED",
+                        "error_code": "PROVIDER_UNAVAILABLE",
+                        "exception_text": secret,
+                    },
+                    {
+                        "provider_id": secret,
+                        "status": "FAILED",
+                        "error_code": "SCHEMA_MISMATCH",
+                    },
+                    {
+                        "provider_id": "xiyou",
+                        "status": secret,
+                        "error_code": "SCHEMA_MISMATCH",
+                    },
+                ),
+                "raw_response": secret,
+                "headers": {"X-Api-Key": secret},
+            },
+        )
+
+        typed = ProductionPipelineOrchestrator._typed_error(
+            connector_error,
+            PipelineStage.ACQUISITION,
+        )
+
+        self.assertEqual("PROVIDER_FAILURE", typed.code.value)
+        self.assertEqual(
+            [
+                {
+                    "provider_id": "xiyou",
+                    "status": "FAILED",
+                    "error_code": "SCHEMA_MISMATCH",
+                },
+                {
+                    "provider_id": "xiyou",
+                    "status": "FIELD_MISSING",
+                    "error_code": None,
+                },
+                {
+                    "provider_id": "xiyou",
+                    "status": "FAILED",
+                    "error_code": "PROVIDER_UNAVAILABLE",
+                },
+            ],
+            typed.details["resolver_attempts"],
+        )
+        self.assertNotIn(secret, canonical_json(typed.to_dict()))
 
     def test_same_fixture_produces_identical_market_report_content(self) -> None:
         first = self.run_success("deterministic-a", run_id="runtime-a")

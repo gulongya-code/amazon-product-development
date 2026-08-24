@@ -22,6 +22,29 @@ from amazon_product_intelligence.connectors import (
 )
 
 
+XIYOU_REVERSE_KEYWORD_PAGE = 1
+XIYOU_REVERSE_KEYWORD_PAGE_SIZE = 20
+XIYOU_REVERSE_KEYWORD_PERIOD = "last7days"
+XIYOU_REVERSE_KEYWORD_SORT_FIELD = "traffic"
+XIYOU_REVERSE_KEYWORD_SORT_ORDER = "desc"
+
+
+def xiyou_reverse_keyword_parameters(*, asin: str, marketplace: str) -> dict[str, Any]:
+    """Return the frozen, cost-bounded reverse-keyword request used by SP-032."""
+
+    return {
+        "asin": asin,
+        "country": marketplace,
+        "page": XIYOU_REVERSE_KEYWORD_PAGE,
+        "pageSize": XIYOU_REVERSE_KEYWORD_PAGE_SIZE,
+        "period": XIYOU_REVERSE_KEYWORD_PERIOD,
+        "sort": {
+            "field": XIYOU_REVERSE_KEYWORD_SORT_FIELD,
+            "order": XIYOU_REVERSE_KEYWORD_SORT_ORDER,
+        },
+    }
+
+
 class FixtureTransport:
     """Serve a sanitized package fixture without importing any network client."""
 
@@ -176,4 +199,14 @@ class AcquiredReplayProvider:
         )
 
 
-__all__ = ("AcquiredReplayProvider", "FixtureTransport", "RecordingTransport")
+__all__ = (
+    "AcquiredReplayProvider",
+    "FixtureTransport",
+    "RecordingTransport",
+    "XIYOU_REVERSE_KEYWORD_PAGE",
+    "XIYOU_REVERSE_KEYWORD_PAGE_SIZE",
+    "XIYOU_REVERSE_KEYWORD_PERIOD",
+    "XIYOU_REVERSE_KEYWORD_SORT_FIELD",
+    "XIYOU_REVERSE_KEYWORD_SORT_ORDER",
+    "xiyou_reverse_keyword_parameters",
+)
