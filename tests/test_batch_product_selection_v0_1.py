@@ -27,6 +27,7 @@ from amazon_product_intelligence.batch_product_selection import (
     BatchSummaryExcelRenderer,
     BatchSummaryMarkdownRenderer,
     CandidateExecutionSource,
+    CandidateRecoveryDisposition,
     parse_batch_request,
 )
 from amazon_product_intelligence.connectors import (
@@ -240,6 +241,7 @@ class BatchProductSelectionContractTests(unittest.TestCase):
         self.assertEqual("batch-selection-result-v0.1", BATCH_RESULT_CONTRACT_VERSION)
         self.assertEqual("UNAVAILABLE", BATCH_RANKING_STATUS)
         self.assertIn("BatchProductSelectionOrchestrator", batch_api.__all__)
+        self.assertIn("CandidateRecoveryDisposition", batch_api.__all__)
 
     def test_invalid_duplicate_discovery_and_path_unsafe_inputs_are_rejected(self) -> None:
         cases = []
@@ -398,6 +400,7 @@ class BatchProductSelectionFixtureAcceptanceTests(unittest.TestCase):
                 "action": summary.cell(row=row, column=3).value,
                 "opportunity": summary.cell(row=row, column=7).value,
                 "ranking": summary.cell(row=row, column=8).value,
+                "recovery": summary.cell(row=row, column=15).value,
             }
             for row in range(5, 5 + self.result.candidate_count)
         }
@@ -406,6 +409,10 @@ class BatchProductSelectionFixtureAcceptanceTests(unittest.TestCase):
             self.assertEqual(candidate.operator_action, rows[candidate.candidate_id]["action"])
             self.assertEqual("null (PENDING_DATA)", rows[candidate.candidate_id]["opportunity"])
             self.assertEqual("UNAVAILABLE", rows[candidate.candidate_id]["ranking"])
+            self.assertEqual(
+                "No recovery action is required.",
+                rows[candidate.candidate_id]["recovery"],
+            )
         repeated = self.root / "repeat-batch-summary.xlsx"
         BatchSummaryExcelRenderer().render(self.result, repeated)
         self.assertEqual(
@@ -504,6 +511,11 @@ class BatchProductSelectionRecoveryTests(unittest.TestCase):
         self.assertIn("candidate-b", partial_markdown)
         self.assertIn("UNAVAILABLE — candidate failed", partial_markdown)
         self.assertIn("Failures Requiring Rerun or Resume", partial_markdown)
+        self.assertIn("Checkpoint resume available", partial_markdown)
+        self.assertIs(
+            failed.recovery_disposition,
+            CandidateRecoveryDisposition.CHECKPOINT_RESUME_AVAILABLE,
+        )
         if os.environ.get("MARKET_REPORT_NODE_EXECUTABLE") and os.environ.get(
             "MARKET_REPORT_NODE_MODULES"
         ):
@@ -526,6 +538,19 @@ class BatchProductSelectionRecoveryTests(unittest.TestCase):
                 str(summary.cell(row=failed_row, column=2).fill.fgColor.rgb).endswith(
                     "FCE4D6"
                 )
+            )
+            self.assertIn(
+                "Checkpoint resume available",
+                summary.cell(row=failed_row, column=15).value,
+            )
+            health = workbook["Run Health"]
+            health_rows = {
+                health.cell(row=row, column=1).value: row
+                for row in range(5, 5 + partial.candidate_count)
+            }
+            self.assertEqual(
+                "CHECKPOINT_RESUME_AVAILABLE",
+                health.cell(row=health_rows["candidate-b"], column=4).value,
             )
 
         class ReturningPartial:
@@ -583,6 +608,10 @@ class BatchProductSelectionRecoveryTests(unittest.TestCase):
         self.assertIs(
             resumed_by_id["candidate-b"].execution_source,
             CandidateExecutionSource.CHECKPOINT_RESUME,
+        )
+        self.assertIs(
+            resumed_by_id["candidate-b"].recovery_disposition,
+            CandidateRecoveryDisposition.NOT_APPLICABLE,
         )
         self.assertTrue(
             resumed_by_id["candidate-a"].artifact_paths["run_manifest"].startswith(
@@ -665,6 +694,350 @@ class BatchProductSelectionRecoveryTests(unittest.TestCase):
         self.assertEqual("BATCH_ARTIFACT_INTEGRITY", integrity.exception.code.value)
         self.assertEqual([], calls)
         self.assertFalse((self.root / "integrity-destination").exists())
+
+    def test_three_generation_chained_resume_reuses_origins_and_sp036_work(self) -> None:
+        first_transports = {}
+        with patch(
+            "amazon_product_intelligence.connectors.transport.urlopen",
+            side_effect=AssertionError("network access attempted"),
+        ):
+            first = BatchProductSelectionOrchestrator(
+                pipeline_factory=self.pipeline_factory(
+                    first_transports, fault_candidate="candidate-b"
+                ),
+                delivery=DeterministicBatchDelivery(),
+            ).run(three_candidate_request(self.root, "chain-batch-1"))
+            first_hashes = directory_hashes(self.root / "chain-batch-1")
+
+            second_transports = {}
+            second = BatchProductSelectionOrchestrator(
+                pipeline_factory=self.pipeline_factory(
+                    second_transports, fault_candidate="candidate-b"
+                ),
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    "chain-batch-2",
+                    resume_from=self.root / "chain-batch-1",
+                )
+            )
+            second_hashes = directory_hashes(self.root / "chain-batch-2")
+
+            third_transports = {}
+            third = BatchProductSelectionOrchestrator(
+                pipeline_factory=self.pipeline_factory(third_transports),
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    "chain-batch-3",
+                    resume_from=self.root / "chain-batch-2",
+                )
+            )
+
+        self.assertIs(first.status, BatchStatus.PARTIAL)
+        self.assertIs(second.status, BatchStatus.PARTIAL)
+        self.assertIs(third.status, BatchStatus.SUCCEEDED)
+        self.assertEqual(first_hashes, directory_hashes(self.root / "chain-batch-1"))
+        self.assertEqual(second_hashes, directory_hashes(self.root / "chain-batch-2"))
+        self.assertEqual(["candidate-b"], list(second_transports))
+        self.assertEqual(["candidate-b"], list(third_transports))
+        self.assertEqual(
+            [f"asin_keywords:{ASINS[1]}", f"asin_keywords:{ASINS[1]}"],
+            second_transports["candidate-b"].calls,
+        )
+        self.assertEqual(
+            [f"asin_keywords:{ASINS[1]}"],
+            third_transports["candidate-b"].calls,
+        )
+        second_by_id = {item.candidate_id: item for item in second.candidates}
+        third_by_id = {item.candidate_id: item for item in third.candidates}
+        for candidate_id in ("candidate-a", "candidate-c"):
+            self.assertIs(
+                second_by_id[candidate_id].execution_source,
+                CandidateExecutionSource.REUSED_SUCCESS,
+            )
+            self.assertIs(
+                third_by_id[candidate_id].execution_source,
+                CandidateExecutionSource.REUSED_SUCCESS,
+            )
+            self.assertTrue(
+                third_by_id[candidate_id].artifact_paths["run_manifest"].startswith(
+                    str((self.root / "chain-batch-1").resolve())
+                )
+            )
+            self.assertEqual(
+                second_by_id[candidate_id].artifact_hashes,
+                third_by_id[candidate_id].artifact_hashes,
+            )
+        self.assertIs(
+            second_by_id["candidate-b"].execution_source,
+            CandidateExecutionSource.CHECKPOINT_RESUME,
+        )
+        self.assertIs(
+            second_by_id["candidate-b"].recovery_disposition,
+            CandidateRecoveryDisposition.CHECKPOINT_RESUME_AVAILABLE,
+        )
+        self.assertIs(
+            third_by_id["candidate-b"].execution_source,
+            CandidateExecutionSource.CHECKPOINT_RESUME,
+        )
+        self.assertEqual(1, third.usage.new_transport_attempts)
+        self.assertEqual(1, third.usage.executed_operations)
+        self.assertEqual(1, third.usage.checkpoint_replayed_operations)
+        self.assertEqual(4, third.usage.reused_source_operations)
+        self.assertEqual(1.0, third.usage.current_run_observed_credits)
+        self.assertEqual("FIXTURE_REFERENCE", third.usage.credit_semantics)
+        self.assertIn("not billed", third.usage.billing_note)
+
+        uninterrupted_transports = {}
+        uninterrupted = BatchProductSelectionOrchestrator(
+            pipeline_factory=self.pipeline_factory(uninterrupted_transports),
+            delivery=DeterministicBatchDelivery(),
+        ).run(three_candidate_request(self.root, "chain-uninterrupted"))
+        self.assertEqual(uninterrupted.semantic_fingerprint, third.semantic_fingerprint)
+        for expected, actual in zip(
+            uninterrupted.candidates, third.candidates, strict=True
+        ):
+            self.assertEqual(
+                expected.operator_semantic_fingerprint,
+                actual.operator_semantic_fingerprint,
+            )
+            self.assertEqual(expected.operator_action, actual.operator_action)
+            self.assertEqual(expected.next_actions, actual.next_actions)
+
+    def test_batch_layer_failure_without_safe_manifest_fresh_runs_next_batch(self) -> None:
+        first_transports = {}
+        normal_factory = self.pipeline_factory(first_transports)
+
+        def batch_layer_fault(candidate_id):
+            if candidate_id == "candidate-b":
+                raise RuntimeError("deterministic batch-layer fault before production state")
+            return normal_factory(candidate_id)
+
+        first = BatchProductSelectionOrchestrator(
+            pipeline_factory=batch_layer_fault,
+            delivery=DeterministicBatchDelivery(),
+        ).run(three_candidate_request(self.root, "fresh-batch-1"))
+        first_hashes = directory_hashes(self.root / "fresh-batch-1")
+        first_b = next(item for item in first.candidates if item.candidate_id == "candidate-b")
+        self.assertIs(first.status, BatchStatus.PARTIAL)
+        self.assertIs(first_b.execution_source, CandidateExecutionSource.NEW_EXECUTION)
+        self.assertIs(
+            first_b.recovery_disposition,
+            CandidateRecoveryDisposition.FRESH_EXECUTION_REQUIRED,
+        )
+        self.assertEqual({}, dict(first_b.artifact_paths))
+        self.assertIn(
+            "No safe checkpoint is available",
+            BatchSummaryMarkdownRenderer().render(first),
+        )
+        if os.environ.get("MARKET_REPORT_NODE_EXECUTABLE") and os.environ.get(
+            "MARKET_REPORT_NODE_MODULES"
+        ):
+            first_xlsx = self.root / "fresh-rerun-guidance.xlsx"
+            BatchSummaryExcelRenderer().render(first, first_xlsx)
+            workbook = load_workbook(first_xlsx, read_only=True, data_only=False)
+            self.addCleanup(workbook.close)
+            summary = workbook["Batch Summary"]
+            candidate_rows = {
+                summary.cell(row=row, column=1).value: row
+                for row in range(5, 5 + first.candidate_count)
+            }
+            self.assertIn(
+                "requires a fresh execution",
+                summary.cell(
+                    row=candidate_rows["candidate-b"], column=15
+                ).value,
+            )
+
+        resumed_transports = {}
+        resumed = BatchProductSelectionOrchestrator(
+            pipeline_factory=self.pipeline_factory(resumed_transports),
+            delivery=DeterministicBatchDelivery(),
+        ).run(
+            three_candidate_request(
+                self.root,
+                "fresh-batch-2",
+                resume_from=self.root / "fresh-batch-1",
+            )
+        )
+        self.assertIs(resumed.status, BatchStatus.SUCCEEDED)
+        self.assertEqual(["candidate-b"], list(resumed_transports))
+        resumed_b = next(
+            item for item in resumed.candidates if item.candidate_id == "candidate-b"
+        )
+        self.assertIs(resumed_b.execution_source, CandidateExecutionSource.NEW_EXECUTION)
+        self.assertEqual(
+            ["asin_info", f"asin_keywords:{ASINS[1]}"],
+            resumed_transports["candidate-b"].calls,
+        )
+        self.assertEqual(first_hashes, directory_hashes(self.root / "fresh-batch-1"))
+
+    def test_checkpoint_attempt_exception_records_truthful_lineage_then_fresh_runs(self) -> None:
+        first_transports = {}
+        first = BatchProductSelectionOrchestrator(
+            pipeline_factory=self.pipeline_factory(
+                first_transports, fault_candidate="candidate-b"
+            ),
+            delivery=DeterministicBatchDelivery(),
+        ).run(three_candidate_request(self.root, "truthful-batch-1"))
+        self.assertIs(first.status, BatchStatus.PARTIAL)
+
+        calls: list[str] = []
+
+        def resume_layer_fault(candidate_id):
+            calls.append(candidate_id)
+            raise RuntimeError("deterministic exception during checkpoint attempt")
+
+        second = BatchProductSelectionOrchestrator(
+            pipeline_factory=resume_layer_fault,
+            delivery=DeterministicBatchDelivery(),
+        ).run(
+            three_candidate_request(
+                self.root,
+                "truthful-batch-2",
+                resume_from=self.root / "truthful-batch-1",
+            )
+        )
+        self.assertEqual(["candidate-b"], calls)
+        second_b = next(
+            item for item in second.candidates if item.candidate_id == "candidate-b"
+        )
+        self.assertIs(
+            second_b.execution_source, CandidateExecutionSource.CHECKPOINT_RESUME
+        )
+        self.assertIs(
+            second_b.recovery_disposition,
+            CandidateRecoveryDisposition.FRESH_EXECUTION_REQUIRED,
+        )
+        self.assertEqual({}, dict(second_b.artifact_paths))
+
+        third_transports = {}
+        third = BatchProductSelectionOrchestrator(
+            pipeline_factory=self.pipeline_factory(third_transports),
+            delivery=DeterministicBatchDelivery(),
+        ).run(
+            three_candidate_request(
+                self.root,
+                "truthful-batch-3",
+                resume_from=self.root / "truthful-batch-2",
+            )
+        )
+        third_b = next(
+            item for item in third.candidates if item.candidate_id == "candidate-b"
+        )
+        self.assertIs(third.status, BatchStatus.SUCCEEDED)
+        self.assertIs(third_b.execution_source, CandidateExecutionSource.NEW_EXECUTION)
+        self.assertEqual(
+            ["asin_info", f"asin_keywords:{ASINS[1]}"],
+            third_transports["candidate-b"].calls,
+        )
+
+    def test_chained_artifact_tampering_fails_closed_before_provider_factory(self) -> None:
+        def build_chain(suffix):
+            first_transports = {}
+            BatchProductSelectionOrchestrator(
+                pipeline_factory=self.pipeline_factory(
+                    first_transports, fault_candidate="candidate-b"
+                ),
+                delivery=DeterministicBatchDelivery(),
+            ).run(three_candidate_request(self.root, f"integrity-{suffix}-1"))
+            second_transports = {}
+            BatchProductSelectionOrchestrator(
+                pipeline_factory=self.pipeline_factory(
+                    second_transports, fault_candidate="candidate-b"
+                ),
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    f"integrity-{suffix}-2",
+                    resume_from=self.root / f"integrity-{suffix}-1",
+                )
+            )
+            return (
+                self.root / f"integrity-{suffix}-1",
+                self.root / f"integrity-{suffix}-2",
+            )
+
+        first, second = build_chain("artifact")
+        artifact = first / "candidates" / "candidate-a" / "operator_market_report.md"
+        artifact.write_text("tampered chained artifact\n", encoding="utf-8")
+        calls: list[str] = []
+
+        def forbidden(candidate_id):
+            calls.append(candidate_id)
+            raise AssertionError("integrity must fail before pipeline construction")
+
+        with self.assertRaises(BatchSelectionError) as tampered:
+            BatchProductSelectionOrchestrator(
+                pipeline_factory=forbidden,
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    "integrity-artifact-3",
+                    resume_from=second,
+                )
+            )
+        self.assertEqual("BATCH_ARTIFACT_INTEGRITY", tampered.exception.code.value)
+        self.assertEqual([], calls)
+
+        first, second = build_chain("path")
+        batch_result_path = second / "batch_selection_result.json"
+        payload = json.loads(batch_result_path.read_text(encoding="utf-8"))
+        candidate_a = next(
+            item for item in payload["candidates"] if item["candidate_id"] == "candidate-a"
+        )
+        candidate_c = next(
+            item for item in payload["candidates"] if item["candidate_id"] == "candidate-c"
+        )
+        candidate_a["artifact_paths"]["operator_markdown"] = candidate_c[
+            "artifact_paths"
+        ]["operator_markdown"]
+        candidate_a["artifact_hashes"]["operator_markdown"] = candidate_c[
+            "artifact_hashes"
+        ]["operator_markdown"]
+        batch_result_path.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(BatchSelectionError) as path_tampered:
+            BatchProductSelectionOrchestrator(
+                pipeline_factory=forbidden,
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    "integrity-path-3",
+                    resume_from=second,
+                )
+            )
+        self.assertEqual(
+            "BATCH_ARTIFACT_INTEGRITY", path_tampered.exception.code.value
+        )
+        self.assertEqual([], calls)
+
+        first, second = build_chain("missing")
+        missing = first / "candidates" / "candidate-a" / "operator_market_report.md"
+        missing.unlink()
+        with self.assertRaises(BatchSelectionError) as missing_artifact:
+            BatchProductSelectionOrchestrator(
+                pipeline_factory=forbidden,
+                delivery=DeterministicBatchDelivery(),
+            ).run(
+                three_candidate_request(
+                    self.root,
+                    "integrity-missing-3",
+                    resume_from=second,
+                )
+            )
+        self.assertEqual(
+            "BATCH_ARTIFACT_INTEGRITY", missing_artifact.exception.code.value
+        )
+        self.assertEqual([], calls)
 
 
 if __name__ == "__main__":

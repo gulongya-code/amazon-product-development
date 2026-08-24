@@ -26,6 +26,7 @@ from .models import (
     BatchStatus,
     BatchUsageSummary,
     CandidateExecutionSource,
+    CandidateRecoveryDisposition,
     parse_batch_request,
 )
 from .orchestrator import BatchProductSelectionOrchestrator, PipelineFactory
@@ -54,6 +55,7 @@ __all__ = (
     "BatchSummaryMarkdownRenderer",
     "BatchUsageSummary",
     "CandidateExecutionSource",
+    "CandidateRecoveryDisposition",
     "PipelineFactory",
     "parse_batch_request",
 )

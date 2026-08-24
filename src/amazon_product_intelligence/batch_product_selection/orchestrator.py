@@ -11,8 +11,13 @@ from typing import Any
 from amazon_product_intelligence.contracts import deterministic_id
 from amazon_product_intelligence.production_pipeline import (
     ProductionPipelineOrchestrator,
+    RecoveryContractError,
     ProductionRunRequest,
     ProductionRunStatus,
+)
+from amazon_product_intelligence.production_pipeline.recovery import (
+    load_resume_source,
+    run_request_fingerprint,
 )
 
 from .delivery import BatchSummaryDelivery
@@ -27,6 +32,7 @@ from .models import (
     BatchStatus,
     BatchUsageSummary,
     CandidateExecutionSource,
+    CandidateRecoveryDisposition,
 )
 
 
@@ -253,16 +259,26 @@ def _candidate_summary_from_manifest(
         artifact_hashes=_artifact_hashes(safe_paths),
         lineage_reference_ids=tuple(sorted(lineage)),
         error=error_mapping,
+        recovery_disposition=(
+            CandidateRecoveryDisposition.NOT_APPLICABLE
+            if status == ProductionRunStatus.SUCCEEDED.value
+            else CandidateRecoveryDisposition.CHECKPOINT_RESUME_AVAILABLE
+            if "run_manifest" in safe_paths
+            else CandidateRecoveryDisposition.FRESH_EXECUTION_REQUIRED
+        ),
     )
 
 
 def _failed_exception_summary(
-    request: BatchSelectionRequest, candidate: BatchCandidateDefinition
+    request: BatchSelectionRequest,
+    candidate: BatchCandidateDefinition,
+    *,
+    execution_source: CandidateExecutionSource,
 ) -> BatchCandidateSummary:
     return BatchCandidateSummary(
         candidate_id=candidate.candidate_id,
         candidate_fingerprint=_candidate_fingerprint(request, candidate),
-        execution_source=CandidateExecutionSource.NEW_EXECUTION,
+        execution_source=execution_source,
         production_run_status="FAILED",
         requested_asin_count=len(candidate.asins),
         resolved_asin_count=0,
@@ -291,6 +307,27 @@ def _failed_exception_summary(
             "code": "CANDIDATE_ORCHESTRATOR_EXCEPTION",
             "message": "candidate orchestration failed before a safe result was returned",
         },
+        recovery_disposition=CandidateRecoveryDisposition.FRESH_EXECUTION_REQUIRED,
+    )
+
+
+def _production_request(
+    request: BatchSelectionRequest,
+    candidate: BatchCandidateDefinition,
+    *,
+    output_directory: Path,
+    resume_from: Path | None,
+) -> ProductionRunRequest:
+    return ProductionRunRequest(
+        marketplace=request.marketplace,
+        asins=candidate.asins,
+        output_directory=output_directory,
+        provider_preference=request.provider_preference,
+        provider_config_reference=request.provider_config_reference,
+        run_id=f"{request.batch_id}:{candidate.candidate_id}",
+        mode=request.mode,
+        category_name=request.category_name,
+        resume_from=resume_from,
     )
 
 
@@ -364,7 +401,10 @@ class BatchProductSelectionOrchestrator:
         if not isinstance(request, BatchSelectionRequest):
             raise TypeError("run requires BatchSelectionRequest")
         self._assert_fresh_destination(request.output_directory)
-        source = self._load_resume_batch(request) if request.resume_from else None
+        source: BatchSelectionResult | None = None
+        resume_sources: dict[str, Path | None] = {}
+        if request.resume_from:
+            source, resume_sources = self._load_resume_batch(request)
         source_by_id = (
             {item.candidate_id: item for item in source.candidates} if source else {}
         )
@@ -374,9 +414,8 @@ class BatchProductSelectionOrchestrator:
         for candidate in request.candidates:
             prior = source_by_id.get(candidate.candidate_id)
             if prior is not None and prior.production_run_status == "SUCCEEDED":
-                source_directory = self._source_candidate_directory(
-                    request, candidate.candidate_id
-                )
+                source_directory = resume_sources[candidate.candidate_id]
+                assert source_directory is not None
                 manifest = _load_json(
                     source_directory / "run_manifest.json",
                     code=BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
@@ -394,21 +433,14 @@ class BatchProductSelectionOrchestrator:
                 continue
             resume_from = None
             execution_source = CandidateExecutionSource.NEW_EXECUTION
-            if prior is not None:
-                resume_from = self._source_candidate_directory(
-                    request, candidate.candidate_id
-                )
+            if prior is not None and resume_sources[candidate.candidate_id] is not None:
+                resume_from = resume_sources[candidate.candidate_id]
                 execution_source = CandidateExecutionSource.CHECKPOINT_RESUME
             candidate_output = candidate_root / candidate.candidate_id
-            production_request = ProductionRunRequest(
-                marketplace=request.marketplace,
-                asins=candidate.asins,
+            production_request = _production_request(
+                request,
+                candidate,
                 output_directory=candidate_output,
-                provider_preference=request.provider_preference,
-                provider_config_reference=request.provider_config_reference,
-                run_id=f"{request.batch_id}:{candidate.candidate_id}",
-                mode=request.mode,
-                category_name=request.category_name,
                 resume_from=resume_from,
             )
             try:
@@ -427,7 +459,13 @@ class BatchProductSelectionOrchestrator:
             except BatchSelectionError:
                 raise
             except Exception:
-                summaries.append(_failed_exception_summary(request, candidate))
+                summaries.append(
+                    _failed_exception_summary(
+                        request,
+                        candidate,
+                        execution_source=execution_source,
+                    )
+                )
         candidate_summaries = tuple(sorted(summaries, key=lambda item: item.candidate_id))
         succeeded = sum(
             item.production_run_status == ProductionRunStatus.SUCCEEDED.value
@@ -501,7 +539,7 @@ class BatchProductSelectionOrchestrator:
 
     def _load_resume_batch(
         self, request: BatchSelectionRequest
-    ) -> BatchSelectionResult:
+    ) -> tuple[BatchSelectionResult, dict[str, Path | None]]:
         source_directory = request.resume_from
         assert source_directory is not None
         payload = _load_json(
@@ -528,6 +566,7 @@ class BatchProductSelectionOrchestrator:
                 BatchSelectionErrorCode.INCOMPATIBLE_BATCH_RESUME,
                 "resume source candidate inventory does not match",
             )
+        resume_sources: dict[str, Path | None] = {}
         for candidate, prior in zip(request.candidates, result.candidates, strict=True):
             if prior.candidate_fingerprint != _candidate_fingerprint(request, candidate):
                 raise BatchSelectionError(
@@ -535,54 +574,249 @@ class BatchProductSelectionOrchestrator:
                     "resume source candidate fingerprint does not match",
                     details={"candidate_id": candidate.candidate_id},
                 )
-            self._preflight_source_candidate(
-                request, candidate.candidate_id, prior
+            resume_sources[candidate.candidate_id] = self._preflight_source_candidate(
+                request,
+                candidate,
+                prior,
+                source_result=result,
             )
-        return result
+        return result, resume_sources
 
     @staticmethod
     def _source_candidate_directory(
-        request: BatchSelectionRequest, candidate_id: str
+        source_directory: Path, candidate_id: str
     ) -> Path:
-        assert request.resume_from is not None
-        return request.resume_from / "candidates" / candidate_id
+        return source_directory / "candidates" / candidate_id
 
     def _preflight_source_candidate(
         self,
         request: BatchSelectionRequest,
-        candidate_id: str,
+        candidate: BatchCandidateDefinition,
         prior: BatchCandidateSummary,
-    ) -> None:
-        directory = self._source_candidate_directory(request, candidate_id)
+        *,
+        source_result: BatchSelectionResult,
+    ) -> Path | None:
+        if prior.production_run_status == ProductionRunStatus.SUCCEEDED.value:
+            return self._resolve_successful_artifact_origin(
+                request,
+                candidate,
+                prior,
+                source_result=source_result,
+            )
+
+        if not prior.artifact_paths:
+            if prior.artifact_hashes:
+                raise BatchSelectionError(
+                    BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                    "failed candidate has hashes without recorded artifacts",
+                    details={"candidate_id": candidate.candidate_id},
+                )
+            return None
+
+        source_directory = request.resume_from
+        assert source_directory is not None
+        directory = self._source_candidate_directory(
+            source_directory, candidate.candidate_id
+        )
         expected_manifest = directory / "run_manifest.json"
         recorded_manifest = prior.artifact_paths.get("run_manifest")
         if (
-            not expected_manifest.is_file()
+            set(prior.artifact_paths) != {"run_manifest"}
+            or set(prior.artifact_hashes) != {"run_manifest"}
+            or not expected_manifest.is_file()
             or recorded_manifest is None
+            or not Path(recorded_manifest).is_absolute()
             or Path(recorded_manifest).resolve() != expected_manifest.resolve()
             or prior.artifact_hashes.get("run_manifest") != _sha256(expected_manifest)
         ):
             raise BatchSelectionError(
                 BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
                 "resume source candidate manifest ownership is invalid",
+                details={"candidate_id": candidate.candidate_id},
+            )
+        manifest = _load_json(
+            expected_manifest,
+            code=BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+            message="failed candidate manifest is unreadable",
+        )
+        manifest_paths = manifest.get("artifact_paths")
+        if (
+            manifest.get("status") != ProductionRunStatus.FAILED.value
+            or not isinstance(manifest_paths, Mapping)
+            or set(manifest_paths) != {"run_manifest"}
+            or Path(str(manifest_paths["run_manifest"])).resolve()
+            != expected_manifest.resolve()
+        ):
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "failed candidate production ownership is invalid",
+                details={"candidate_id": candidate.candidate_id},
+            )
+        candidate_request = _production_request(
+            request,
+            candidate,
+            output_directory=request.output_directory
+            / "candidates"
+            / candidate.candidate_id,
+            resume_from=directory,
+        )
+        try:
+            load_resume_source(
+                directory,
+                expected_request_fingerprint=run_request_fingerprint(candidate_request),
+            )
+        except RecoveryContractError as exc:
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "failed candidate checkpoint source failed integrity validation",
+                details={"candidate_id": candidate.candidate_id},
+            ) from exc
+        return directory
+
+    def _resolve_successful_artifact_origin(
+        self,
+        request: BatchSelectionRequest,
+        candidate: BatchCandidateDefinition,
+        prior: BatchCandidateSummary,
+        *,
+        source_result: BatchSelectionResult,
+    ) -> Path:
+        candidate_id = candidate.candidate_id
+        if (
+            set(prior.artifact_paths) != set(_CANDIDATE_ARTIFACTS)
+            or set(prior.artifact_hashes) != set(_CANDIDATE_ARTIFACTS)
+        ):
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "successful candidate artifact inventory is invalid",
                 details={"candidate_id": candidate_id},
             )
-        if prior.production_run_status == "SUCCEEDED":
-            for name, filename in _CANDIDATE_ARTIFACTS.items():
-                path = directory / filename
-                recorded = prior.artifact_paths.get(name)
-                expected_hash = prior.artifact_hashes.get(name)
-                if (
-                    not path.is_file()
-                    or recorded is None
-                    or Path(recorded).resolve() != path.resolve()
-                    or expected_hash != _sha256(path)
-                ):
-                    raise BatchSelectionError(
-                        BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
-                        "resume source successful candidate artifact integrity failed",
-                        details={"candidate_id": candidate_id, "artifact": name},
-                    )
+        paths = {name: Path(prior.artifact_paths[name]) for name in _CANDIDATE_ARTIFACTS}
+        if any(not path.is_absolute() for path in paths.values()):
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "successful candidate artifact paths must be absolute",
+                details={"candidate_id": candidate_id},
+            )
+        origin = paths["run_manifest"].parent
+        for name, filename in _CANDIDATE_ARTIFACTS.items():
+            path = paths[name]
+            if (
+                not path.is_file()
+                or path.is_symlink()
+                or path.resolve() != (origin / filename).resolve()
+                or prior.artifact_hashes[name] != _sha256(path)
+            ):
+                raise BatchSelectionError(
+                    BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                    "resume source successful candidate artifact integrity failed",
+                    details={"candidate_id": candidate_id, "artifact": name},
+                )
+        manifest = _load_json(
+            paths["run_manifest"],
+            code=BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+            message="reused candidate manifest is unreadable",
+        )
+        manifest_paths = manifest.get("artifact_paths")
+        if (
+            manifest.get("status") != ProductionRunStatus.SUCCEEDED.value
+            or manifest.get("run_id") != f"{request.batch_id}:{candidate_id}"
+            or manifest.get("requested_asin_count") != len(candidate.asins)
+            or manifest.get("resolved_asin_count") != len(candidate.asins)
+            or not isinstance(manifest_paths, Mapping)
+            or set(manifest_paths) != set(_CANDIDATE_ARTIFACTS)
+            or any(
+                not isinstance(manifest_paths.get(name), str)
+                or Path(manifest_paths[name]).resolve() != paths[name].resolve()
+                for name in _CANDIDATE_ARTIFACTS
+            )
+        ):
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "successful candidate production artifact ownership is invalid",
+                details={"candidate_id": candidate_id},
+            )
+
+        source_directory = request.resume_from
+        assert source_directory is not None
+        current_directory = source_directory.resolve()
+        current_result = source_result
+        seen: set[Path] = set()
+        while True:
+            if current_directory in seen:
+                raise BatchSelectionError(
+                    BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                    "batch artifact ownership lineage contains a cycle",
+                    details={"candidate_id": candidate_id},
+                )
+            seen.add(current_directory)
+            self._validate_lineage_generation(
+                request,
+                candidate,
+                prior,
+                current_directory=current_directory,
+                current_result=current_result,
+            )
+            direct_owner = self._source_candidate_directory(
+                current_directory, candidate_id
+            ).resolve()
+            if direct_owner == origin.resolve():
+                return origin
+            parent = current_result.source_batch_directory
+            if parent is None or not Path(parent).is_absolute():
+                raise BatchSelectionError(
+                    BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                    "successful candidate artifact origin is outside recorded batch lineage",
+                    details={"candidate_id": candidate_id},
+                )
+            current_directory = Path(parent).resolve()
+            payload = _load_json(
+                current_directory / "batch_selection_result.json",
+                code=BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                message="recorded ancestor batch result is unreadable",
+            )
+            try:
+                current_result = BatchSelectionResult.from_dict(payload)
+            except Exception as exc:
+                raise BatchSelectionError(
+                    BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                    "recorded ancestor batch result contract is invalid",
+                    details={"candidate_id": candidate_id},
+                ) from exc
+
+    def _validate_lineage_generation(
+        self,
+        request: BatchSelectionRequest,
+        candidate: BatchCandidateDefinition,
+        target: BatchCandidateSummary,
+        *,
+        current_directory: Path,
+        current_result: BatchSelectionResult,
+    ) -> None:
+        batch_json = current_directory / "batch_selection_result.json"
+        recorded_batch_json = current_result.batch_artifact_paths.get("batch_json")
+        candidates = {item.candidate_id: item for item in current_result.candidates}
+        generation_candidate = candidates.get(candidate.candidate_id)
+        if (
+            not batch_json.is_file()
+            or recorded_batch_json is None
+            or not Path(recorded_batch_json).is_absolute()
+            or Path(recorded_batch_json).resolve() != batch_json.resolve()
+            or current_result.input_fingerprint != request.input_fingerprint
+            or tuple(candidates) != tuple(item.candidate_id for item in request.candidates)
+            or generation_candidate is None
+            or generation_candidate.candidate_fingerprint
+            != _candidate_fingerprint(request, candidate)
+            or generation_candidate.production_run_status
+            != ProductionRunStatus.SUCCEEDED.value
+            or dict(generation_candidate.artifact_paths) != dict(target.artifact_paths)
+            or dict(generation_candidate.artifact_hashes) != dict(target.artifact_hashes)
+        ):
+            raise BatchSelectionError(
+                BatchSelectionErrorCode.BATCH_ARTIFACT_INTEGRITY,
+                "batch artifact ownership lineage is inconsistent",
+                details={"candidate_id": candidate.candidate_id},
+            )
 
 
 __all__ = ("BatchProductSelectionOrchestrator", "PipelineFactory")

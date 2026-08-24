@@ -122,12 +122,31 @@ candidate inventory, candidate fingerprints, source manifests, artifact ownershi
 and hashes.
 
 - A previously successful candidate is reused only after all four normal artifacts
-  pass integrity checks. The new aggregate references those immutable source
-  artifacts and makes no provider call for that candidate.
+  pass integrity checks. Chained resume is supported: reusable artifacts may be
+  owned by an older immutable batch generation rather than the immediate source
+  directory. The batch layer follows each recorded `source_batch_directory`,
+  validates candidate/fingerprint compatibility in every generation, and requires
+  the recorded artifact paths and hashes to agree through the lineage before it
+  accepts the production manifest's internally consistent four-artifact set. The
+  new aggregate references the validated immutable origin and makes no provider call
+  for that candidate.
 - A previously failed candidate is delegated to the existing Production Pipeline
-  with its source candidate directory as `resume_from`. SP-036 validates and replays
-  its checkpoints; the batch layer does not implement another checkpoint format.
+  with its source candidate directory as `resume_from` only when a valid failure
+  manifest and SP-036 checkpoint contract are present. Its structured
+  `recovery_disposition` is `CHECKPOINT_RESUME_AVAILABLE` and operator output states
+  that checkpoint resume is available. The batch layer does not implement another
+  checkpoint format.
+- A batch-layer/orchestration exception that returned no valid resumable Production
+  Pipeline state records `FRESH_EXECUTION_REQUIRED`. The next compatible batch uses
+  `NEW_EXECUTION` for that candidate in the fresh destination and does not falsely
+  claim checkpoint recovery.
 - The resume destination is always fresh and the source batch is never modified.
+
+Failed integrity is never converted into a silent re-execution of a previously
+successful candidate. A tampered recorded path, hash mismatch, missing origin
+artifact, inconsistent production manifest, broken ancestor link, or lineage cycle
+fails closed as `BATCH_ARTIFACT_INTEGRITY` before candidate pipeline/provider
+construction.
 
 Operator semantic fingerprints, actions, and next checks remain equal to an
 uninterrupted equivalent run. Runtime health may differ because checkpoint replay

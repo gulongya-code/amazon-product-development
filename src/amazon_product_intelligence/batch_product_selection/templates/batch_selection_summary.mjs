@@ -42,6 +42,11 @@ const missing = (items, maximum = 3) => items?.length
 const nextAction = (candidate) => candidate.next_actions?.length
   ? `[P${candidate.next_actions[0].priority}] ${candidate.next_actions[0].action}`
   : "UNAVAILABLE";
+const recoveryGuidance = (candidate) => candidate.recovery_disposition === "CHECKPOINT_RESUME_AVAILABLE"
+  ? "Checkpoint resume available; use batch --resume-from with this immutable source batch."
+  : candidate.recovery_disposition === "FRESH_EXECUTION_REQUIRED"
+    ? "No safe checkpoint is available; candidate requires a fresh execution in the next compatible batch run."
+    : "No recovery action is required.";
 const opportunityValue = (candidate) => candidate.opportunity_score_value === null || candidate.opportunity_score_value === undefined
   ? `null (${text(candidate.opportunity_score_status)})`
   : candidate.opportunity_score_value;
@@ -106,12 +111,12 @@ const summary = baseSheet(
   "Batch Summary",
   "Batch Product Selection — Operator Triage",
   `${result.batch_id} · ${result.status} · ranking ${result.ranking_status} · candidate-ID display order is not opportunity ranking`,
-  "N",
+  "O",
 );
 const summaryHeaders = [[
   "Candidate ID", "Run Status", "Operator Action", "Evidence Readiness", "Why This Action",
   "Opportunity Status", "Opportunity Value", "Ranking", "Competition Status", "Top Buyer Needs",
-  "Top Missing Evidence", "Next Action", "Provider Usage", "Execution Source",
+  "Top Missing Evidence", "Next Action", "Provider Usage", "Execution Source", "Recovery Guidance",
 ]];
 const summaryRows = candidates.map((candidate) => [
   candidate.candidate_id,
@@ -128,17 +133,18 @@ const summaryRows = candidates.map((candidate) => [
   nextAction(candidate),
   providerUsage(candidate),
   candidate.execution_source,
+  recoveryGuidance(candidate),
 ]);
-summary.getRange("A4:N4").values = summaryHeaders;
-if (summaryRows.length) summary.getRange(`A5:N${4 + summaryRows.length}`).values = summaryRows;
-styleTable(summary, `A4:N${4 + summaryRows.length}`, "A4:N4", summaryRows.length ? `A5:N${4 + summaryRows.length}` : null);
+summary.getRange("A4:O4").values = summaryHeaders;
+if (summaryRows.length) summary.getRange(`A5:O${4 + summaryRows.length}`).values = summaryRows;
+styleTable(summary, `A4:O${4 + summaryRows.length}`, "A4:O4", summaryRows.length ? `A5:O${4 + summaryRows.length}` : null);
 summary.freezePanes.freezeRows(4);
 summary.freezePanes.freezeColumns(1);
-const widths = [18, 15, 22, 19, 48, 20, 18, 16, 20, 34, 34, 42, 38, 20];
+const widths = [18, 15, 22, 19, 48, 20, 18, 16, 20, 34, 34, 42, 38, 20, 52];
 widths.forEach((width, index) => summary.getRangeByIndexes(0, index, 1, 1).format.columnWidth = width);
 for (let index = 0; index < candidates.length; index += 1) {
   const row = 5 + index;
-  summary.getRange(`A${row}:N${row}`).format.rowHeight = 78;
+  summary.getRange(`A${row}:O${row}`).format.rowHeight = 78;
   summary.getRange(`B${row}`).format.fill = statusFill(candidates[index].production_run_status);
   summary.getRange(`C${row}`).format.fill = candidates[index].production_run_status === "FAILED" ? COLORS.red : COLORS.amber;
 }
@@ -167,18 +173,18 @@ gapsSheet.freezePanes.freezeRows(4);
 [18, 32, 18, 52, 54].forEach((width, index) => gapsSheet.getRangeByIndexes(0, index, 1, 1).format.columnWidth = width);
 if (gapRows.length) gapsSheet.getRange(`A5:E${4 + gapRows.length}`).format.rowHeight = 48;
 
-const healthSheet = baseSheet("Run Health", "Run Health & Provider Usage", `${result.usage.billing_note}; current-run credits=${text(result.usage.current_run_observed_credits, "null")}`, "L");
+const healthSheet = baseSheet("Run Health", "Run Health & Provider Usage", `${result.usage.billing_note}; current-run credits=${text(result.usage.current_run_observed_credits, "null")}`, "M");
 const healthRows = candidates.map((candidate) => {
   const usage = candidate.provider_usage;
   const health = candidate.run_health ?? {};
-  return [candidate.candidate_id, candidate.production_run_status, candidate.execution_source, text(health.retried), text(health.resumed), usage.logical_operation_count, usage.new_transport_attempts, usage.executed_operations, usage.checkpoint_replayed_operations, usage.reused_source_operations, text(usage.current_run_observed_credits, "null"), usage.credit_semantics];
+  return [candidate.candidate_id, candidate.production_run_status, candidate.execution_source, candidate.recovery_disposition, text(health.retried), text(health.resumed), usage.logical_operation_count, usage.new_transport_attempts, usage.executed_operations, usage.checkpoint_replayed_operations, usage.reused_source_operations, text(usage.current_run_observed_credits, "null"), usage.credit_semantics];
 });
-healthSheet.getRange("A4:L4").values = [["Candidate ID", "Run Status", "Execution Source", "Retried", "Resumed", "Logical Ops", "New Attempts", "Executed", "Checkpoint Replayed", "Source Reused", "Current Credits", "Credit Semantics"]];
-if (healthRows.length) healthSheet.getRange(`A5:L${4 + healthRows.length}`).values = healthRows;
-styleTable(healthSheet, `A4:L${4 + healthRows.length}`, "A4:L4", healthRows.length ? `A5:L${4 + healthRows.length}` : null);
+healthSheet.getRange("A4:M4").values = [["Candidate ID", "Run Status", "Execution Source", "Recovery Disposition", "Retried", "Resumed", "Logical Ops", "New Attempts", "Executed", "Checkpoint Replayed", "Source Reused", "Current Credits", "Credit Semantics"]];
+if (healthRows.length) healthSheet.getRange(`A5:M${4 + healthRows.length}`).values = healthRows;
+styleTable(healthSheet, `A4:M${4 + healthRows.length}`, "A4:M4", healthRows.length ? `A5:M${4 + healthRows.length}` : null);
 healthSheet.freezePanes.freezeRows(4);
-[18, 15, 20, 12, 12, 14, 14, 14, 20, 16, 16, 24].forEach((width, index) => healthSheet.getRangeByIndexes(0, index, 1, 1).format.columnWidth = width);
-if (healthRows.length) healthSheet.getRange(`A5:L${4 + healthRows.length}`).format.rowHeight = 28;
+[18, 15, 20, 28, 12, 12, 14, 14, 14, 20, 16, 16, 24].forEach((width, index) => healthSheet.getRangeByIndexes(0, index, 1, 1).format.columnWidth = width);
+if (healthRows.length) healthSheet.getRange(`A5:M${4 + healthRows.length}`).format.rowHeight = 28;
 
 const auditSheet = baseSheet("Audit Lineage", "Audit / Lineage", `${result.semantic_fingerprint} · source batch ${text(result.source_batch_directory)}`, "D");
 const auditRows = candidates.flatMap((candidate) => {

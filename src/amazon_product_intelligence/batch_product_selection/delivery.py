@@ -54,6 +54,17 @@ def _opportunity(candidate: BatchCandidateSummary) -> str:
     return f"{status}; value={value}"
 
 
+def _recovery_guidance(candidate: BatchCandidateSummary) -> str:
+    if candidate.recovery_disposition.value == "CHECKPOINT_RESUME_AVAILABLE":
+        return "Checkpoint resume available; use batch --resume-from with this immutable source batch."
+    if candidate.recovery_disposition.value == "FRESH_EXECUTION_REQUIRED":
+        return (
+            "No safe checkpoint is available; candidate will require a fresh execution "
+            "in the next compatible batch run."
+        )
+    return "No recovery action is required."
+
+
 class BatchSummaryMarkdownRenderer:
     def render(self, result: BatchSelectionResult) -> str:
         action_counts = Counter(_candidate_action(item) for item in result.candidates)
@@ -110,7 +121,7 @@ class BatchSummaryMarkdownRenderer:
             for item in failures:
                 code = item.error.get("code", "UNKNOWN") if item.error else "UNKNOWN"
                 lines.append(
-                    f"- **{item.candidate_id}** — `{code}`; use batch `--resume-from` with this immutable source batch."
+                    f"- **{item.candidate_id}** — `{code}`; {_recovery_guidance(item)}"
                 )
         else:
             lines.append("- None.")
@@ -122,6 +133,7 @@ class BatchSummaryMarkdownRenderer:
                     "",
                     f"- Run status: `{candidate.production_run_status}`",
                     f"- Execution source: `{candidate.execution_source.value}`",
+                    f"- Recovery disposition: `{candidate.recovery_disposition.value}` — {_recovery_guidance(candidate)}",
                     f"- Operator action: `{_candidate_action(candidate)}`",
                     f"- Evidence readiness: `{candidate.evidence_readiness or 'UNAVAILABLE'}`",
                     f"- Why: {candidate.action_reason or 'Candidate failed before operator workflow delivery.'}",

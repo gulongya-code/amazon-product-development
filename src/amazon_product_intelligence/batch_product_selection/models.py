@@ -38,6 +38,12 @@ class CandidateExecutionSource(StrEnum):
     REUSED_SUCCESS = "REUSED_SUCCESS"
 
 
+class CandidateRecoveryDisposition(StrEnum):
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    CHECKPOINT_RESUME_AVAILABLE = "CHECKPOINT_RESUME_AVAILABLE"
+    FRESH_EXECUTION_REQUIRED = "FRESH_EXECUTION_REQUIRED"
+
+
 def _text(value: Any, field_name: str) -> str:
     if type(value) is not str or not value.strip():
         raise BatchInputValidationError(f"{field_name} must be non-empty text")
@@ -192,12 +198,17 @@ class BatchCandidateSummary(JsonContract):
     artifact_hashes: Mapping[str, str]
     lineage_reference_ids: tuple[str, ...]
     error: Mapping[str, Any] | None = None
+    recovery_disposition: CandidateRecoveryDisposition = (
+        CandidateRecoveryDisposition.NOT_APPLICABLE
+    )
 
     def __post_init__(self) -> None:
         _identifier(self.candidate_id, "candidate summary candidate_id")
         _text(self.candidate_fingerprint, "candidate_fingerprint")
         if not isinstance(self.execution_source, CandidateExecutionSource):
             raise BatchInputValidationError("candidate execution_source is invalid")
+        if not isinstance(self.recovery_disposition, CandidateRecoveryDisposition):
+            raise BatchInputValidationError("candidate recovery_disposition is invalid")
         if self.production_run_status not in {"SUCCEEDED", "FAILED"}:
             raise BatchInputValidationError("candidate production_run_status is invalid")
         for name in ("requested_asin_count", "resolved_asin_count"):
@@ -213,6 +224,10 @@ class BatchCandidateSummary(JsonContract):
         if self.opportunity_score_status == "PENDING_DATA" and self.opportunity_score_value is not None:
             raise BatchInputValidationError("PENDING_DATA opportunity score must remain null")
         if self.production_run_status == "SUCCEEDED":
+            if self.recovery_disposition is not CandidateRecoveryDisposition.NOT_APPLICABLE:
+                raise BatchInputValidationError(
+                    "successful candidate recovery_disposition must be NOT_APPLICABLE"
+                )
             if self.operator_workflow_ruleset_version != OPERATOR_WORKFLOW_RULESET_VERSION:
                 raise BatchInputValidationError("successful candidate ruleset is incompatible")
             for name in (
