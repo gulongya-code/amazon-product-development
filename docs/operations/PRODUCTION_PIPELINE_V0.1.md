@@ -40,6 +40,20 @@ operator_market_report.md
 run_manifest.json
 ```
 
+These four names are managed artifacts owned by one run. Before constructing a
+provider or making an API request, the pipeline rejects an output directory when any
+managed path already exists. It returns `OUTPUT_ARTIFACT_CONFLICT`, writes no new
+artifact (including no failure manifest), and never deletes, overwrites, or attributes
+the existing files to the rejected run. V0.1 intentionally has no `--overwrite` option;
+operators must select a new or empty output directory.
+
+Fixture response credit values are retained as `FIXTURE_REFERENCE` metadata for
+planning and deterministic testing. They are not billed consumption, and the CLI
+labels them `fixture reference credits ... (not billed)`. Live responses use
+`LIVE_PROVIDER_REPORTED`; those values are provider-observed metadata and the CLI
+labels them separately without printing credentials. The machine-readable distinction
+is `provider_summary.credit_semantics` in the run result and manifest.
+
 ## ASIN files
 
 `--asin-file path.txt` accepts one ASIN per line. Blank lines and lines beginning

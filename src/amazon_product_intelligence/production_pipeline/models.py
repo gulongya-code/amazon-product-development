@@ -28,6 +28,11 @@ class ProductionRunStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class ProviderCreditSemantics(StrEnum):
+    FIXTURE_REFERENCE = "FIXTURE_REFERENCE"
+    LIVE_PROVIDER_REPORTED = "LIVE_PROVIDER_REPORTED"
+
+
 class StageStatus(StrEnum):
     NOT_STARTED = "NOT_STARTED"
     RUNNING = "RUNNING"
@@ -117,6 +122,7 @@ class ProviderOperationSummary:
     operations: tuple[str, ...]
     operation_count: int
     credits: float | None
+    credit_semantics: ProviderCreditSemantics
     provenance_ids: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -125,6 +131,7 @@ class ProviderOperationSummary:
             "operations": list(self.operations),
             "operation_count": self.operation_count,
             "credits": self.credits,
+            "credit_semantics": self.credit_semantics.value,
             "provenance_ids": list(self.provenance_ids),
         }
 
@@ -173,6 +180,7 @@ __all__ = (
     "ProductionRunRequest",
     "ProductionRunResult",
     "ProductionRunStatus",
+    "ProviderCreditSemantics",
     "ProviderOperationSummary",
     "StageResult",
     "StageStatus",

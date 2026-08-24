@@ -28,6 +28,7 @@ from amazon_product_intelligence.market_report.delivery import (
 )
 from amazon_product_intelligence.production_pipeline import (
     PipelineStage,
+    ProviderCreditSemantics,
     ProductionRunMode,
     ProductionRunRequest,
     ProductionRunStatus,
@@ -38,7 +39,10 @@ from amazon_product_intelligence.production_pipeline.orchestrator import (
     ProductionPipelineOrchestrator,
     ProviderRuntime,
 )
-from amazon_product_intelligence.production_pipeline.providers import RecordingTransport
+from amazon_product_intelligence.production_pipeline.providers import (
+    FixtureTransport,
+    RecordingTransport,
+)
 from amazon_product_intelligence.semantic_clustering.rules import (
     SEMANTIC_NORMALIZATION_REGISTRY_V0_1,
 )
@@ -108,6 +112,36 @@ def failing_runtime(secret: str, counter: list[int]):
             provider=provider,
             recording_transport=recording,
             metadata=metadata,
+            credit_semantics=ProviderCreditSemantics.LIVE_PROVIDER_REPORTED,
+        )
+
+    return factory
+
+
+def live_fixture_runtime(secret: str):
+    def factory(request):
+        metadata = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        recording = RecordingTransport(FixtureTransport(metadata))
+        provider = XiYouProvider(
+            recording,
+            environment={"TEST_LIVE_SECRET": secret},
+        )
+        registry = ProviderRegistry()
+        registry.register(
+            provider,
+            ProviderConfig(
+                provider_id="xiyou",
+                enabled=True,
+                priority=1,
+                credential_env="TEST_LIVE_SECRET",
+            ),
+        )
+        return ProviderRuntime(
+            registry=registry,
+            provider=provider,
+            recording_transport=recording,
+            metadata=metadata,
+            credit_semantics=ProviderCreditSemantics.LIVE_PROVIDER_REPORTED,
         )
 
     return factory
@@ -146,6 +180,14 @@ class ProductionPipelineV01Tests(unittest.TestCase):
         self.assertTrue(all(Path(path).is_file() for path in result.artifact_paths.values()))
         self.assertEqual(4, result.provider_summary.operation_count)
         self.assertEqual(4.0, result.provider_summary.credits)
+        self.assertIs(
+            result.provider_summary.credit_semantics,
+            ProviderCreditSemantics.FIXTURE_REFERENCE,
+        )
+        self.assertEqual(
+            "FIXTURE_REFERENCE",
+            result.to_dict()["provider_summary"]["credit_semantics"],
+        )
 
     def test_fixture_mode_has_zero_network_calls(self) -> None:
         from unittest.mock import patch
@@ -156,6 +198,132 @@ class ProductionPipelineV01Tests(unittest.TestCase):
         ):
             result = self.run_success("zero-network")
         self.assertIs(result.status, ProductionRunStatus.SUCCEEDED)
+
+    def test_managed_output_conflict_is_safe_before_provider_access(self) -> None:
+        from unittest.mock import patch
+
+        output = self.root / "owned-output"
+        output.mkdir()
+        contents = {
+            "market_report.json": b'{"owner":"earlier-run"}\n',
+            "operator_market_report.xlsx": b"PK\x03\x04earlier-xlsx",
+            "operator_market_report.md": b"# Earlier operator report\n",
+            "run_manifest.json": b'{"run_id":"earlier-run"}\n',
+        }
+        for name, content in contents.items():
+            (output / name).write_bytes(content)
+        original_hashes = {
+            name: sha256((output / name).read_bytes()).hexdigest()
+            for name in contents
+        }
+        provider_factory_calls: list[int] = []
+
+        def forbidden_factory(request):
+            provider_factory_calls.append(1)
+            raise AssertionError("provider factory must not be called")
+
+        orchestrator = ProductionPipelineOrchestrator(
+            provider_runtime_factory=forbidden_factory,
+            delivery=RecordingDelivery(),
+        )
+        with patch(
+            "amazon_product_intelligence.connectors.transport.urlopen",
+            side_effect=AssertionError("network access attempted"),
+        ):
+            result = orchestrator.run(
+                ProductionRunRequest(
+                    marketplace="US",
+                    asins=ASINS,
+                    output_directory=output,
+                    run_id="rejected-run",
+                    mode=ProductionRunMode.FIXTURE,
+                )
+            )
+
+        self.assertEqual([], provider_factory_calls)
+        self.assertIs(result.status, ProductionRunStatus.FAILED)
+        self.assertEqual("OUTPUT_ARTIFACT_CONFLICT", result.error["code"])
+        self.assertEqual({}, result.artifact_paths)
+        self.assertIsNone(result.provider_summary)
+        self.assertEqual(
+            StageStatus.SKIPPED,
+            result.stages[-1].status,
+        )
+        self.assertEqual(
+            original_hashes,
+            {
+                name: sha256((output / name).read_bytes()).hexdigest()
+                for name in contents
+            },
+        )
+        self.assertNotIn("operator_xlsx", result.artifact_paths)
+        self.assertNotIn("operator_markdown", result.artifact_paths)
+
+        stdout, stderr = StringIO(), StringIO()
+        code = main(
+            [
+                "run", "--market", "US",
+                "--asin", ASINS[0], "--asin", ASINS[1], "--asin", ASINS[2],
+                "--output-dir", str(output),
+                "--run-id", "cli-rejected-run",
+            ],
+            orchestrator=orchestrator,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        self.assertEqual(1, code)
+        self.assertEqual([], provider_factory_calls)
+        self.assertIn("OUTPUT_ARTIFACT_CONFLICT", stderr.getvalue())
+        self.assertIn("no artifacts written", stderr.getvalue())
+        self.assertNotIn(str(output / "operator_market_report.xlsx"), stderr.getvalue())
+        self.assertNotIn(str(output / "operator_market_report.md"), stderr.getvalue())
+        self.assertEqual(
+            original_hashes,
+            {
+                name: sha256((output / name).read_bytes()).hexdigest()
+                for name in contents
+            },
+        )
+
+    def test_each_managed_artifact_independently_conflicts(self) -> None:
+        managed_names = (
+            "market_report.json",
+            "operator_market_report.xlsx",
+            "operator_market_report.md",
+            "run_manifest.json",
+        )
+        provider_factory_calls: list[str] = []
+
+        def forbidden_factory(request):
+            provider_factory_calls.append(request.run_id or "missing")
+            raise AssertionError("provider factory must not be called")
+
+        orchestrator = ProductionPipelineOrchestrator(
+            provider_runtime_factory=forbidden_factory,
+            delivery=RecordingDelivery(),
+        )
+        for index, managed_name in enumerate(managed_names):
+            with self.subTest(managed_name=managed_name):
+                output = self.root / f"single-conflict-{index}"
+                output.mkdir()
+                managed_path = output / managed_name
+                managed_path.write_bytes(f"earlier-{managed_name}".encode())
+                original_hash = sha256(managed_path.read_bytes()).hexdigest()
+
+                result = orchestrator.run(
+                    ProductionRunRequest(
+                        marketplace="US",
+                        asins=ASINS,
+                        output_directory=output,
+                        run_id=f"single-conflict-{index}",
+                        mode=ProductionRunMode.FIXTURE,
+                    )
+                )
+
+                self.assertEqual("OUTPUT_ARTIFACT_CONFLICT", result.error["code"])
+                self.assertEqual({}, result.artifact_paths)
+                self.assertEqual(original_hash, sha256(managed_path.read_bytes()).hexdigest())
+        self.assertEqual([], provider_factory_calls)
 
     def test_invalid_seed_keyword_fails_before_provider_factory(self) -> None:
         calls: list[int] = []
@@ -270,7 +438,52 @@ class ProductionPipelineV01Tests(unittest.TestCase):
         self.assertIn("3/3 ASINs", stdout.getvalue())
         self.assertIn("operator_xlsx", stdout.getvalue())
         self.assertIn("provider operations: 4", stdout.getvalue())
+        self.assertIn("fixture reference credits: 4.0 (not billed)", stdout.getvalue())
+        self.assertNotIn("live provider-reported credits", stdout.getvalue())
         self.assertEqual("", stderr.getvalue())
+
+    def test_live_provider_reported_credit_semantics_are_secret_safe(self) -> None:
+        secret = "live-secret-must-not-be-printed"
+        orchestrator = ProductionPipelineOrchestrator(
+            provider_runtime_factory=live_fixture_runtime(secret),
+            delivery=RecordingDelivery(),
+        )
+        request = ProductionRunRequest(
+            marketplace="US",
+            asins=ASINS,
+            output_directory=self.root / "live-summary",
+            run_id="live-summary",
+            mode=ProductionRunMode.LIVE,
+            category_name="dog water bottle",
+        )
+        result = orchestrator.run(request)
+
+        self.assertIs(result.status, ProductionRunStatus.SUCCEEDED)
+        self.assertEqual(4.0, result.provider_summary.credits)
+        self.assertIs(
+            result.provider_summary.credit_semantics,
+            ProviderCreditSemantics.LIVE_PROVIDER_REPORTED,
+        )
+        self.assertNotIn(secret, canonical_json(result.to_dict()))
+
+        stdout, stderr = StringIO(), StringIO()
+        code = main(
+            [
+                "run", "--market", "US",
+                "--asin", ASINS[0], "--asin", ASINS[1], "--asin", ASINS[2],
+                "--output-dir", str(self.root / "live-cli-summary"),
+                "--run-id", "live-cli-summary",
+                "--mode", "live",
+                "--category-name", "dog water bottle",
+            ],
+            orchestrator=orchestrator,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        self.assertEqual(0, code)
+        self.assertIn("live provider-reported credits: 4.0", stdout.getvalue())
+        self.assertNotIn("not billed", stdout.getvalue())
+        self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
 
     def test_cli_failure_exit_code(self) -> None:
         stdout, stderr = StringIO(), StringIO()

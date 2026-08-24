@@ -92,6 +92,7 @@ from amazon_product_intelligence.semantic_clustering import SemanticClusterBuild
 
 from .artifacts import RunArtifactLayout, write_json_atomic
 from .errors import (
+    OutputArtifactConflictError,
     ProductionPipelineError,
     ProductionPipelineErrorCode,
     UnsupportedCapabilityError,
@@ -99,6 +100,7 @@ from .errors import (
 from .models import (
     PRODUCTION_PIPELINE_VERSION,
     PipelineStage,
+    ProviderCreditSemantics,
     ProductionRunMode,
     ProductionRunRequest,
     ProductionRunResult,
@@ -120,6 +122,7 @@ class ProviderRuntime:
     provider: XiYouProvider
     recording_transport: RecordingTransport
     metadata: Mapping[str, Any]
+    credit_semantics: ProviderCreditSemantics
 
 
 ProviderRuntimeFactory = Callable[[ProductionRunRequest], ProviderRuntime]
@@ -170,12 +173,19 @@ class _StageTracker:
                     detail="skipped after an earlier failure",
                 )
 
+    def skip(self, stage: PipelineStage, detail: str) -> None:
+        self._records[stage] = StageResult(
+            stage=stage,
+            status=StageStatus.SKIPPED,
+            detail=detail,
+        )
+
     def records(self) -> tuple[StageResult, ...]:
         return tuple(self._records[stage] for stage in PipelineStage)
 
 
 class ProductionPipelineOrchestrator:
-    """Run the SP-034 sequence and write the manifest after every other artifact."""
+    """Run SP-034 and write the manifest last after output ownership is established."""
 
     def __init__(
         self,
@@ -202,6 +212,9 @@ class ProductionPipelineOrchestrator:
         current = PipelineStage.INPUT_VALIDATION
         try:
             tracker.start(current)
+            conflicts = layout.conflicts()
+            if conflicts:
+                raise OutputArtifactConflictError(conflicts)
             self._validate_operator_request(request)
             tracker.finish(current, "operator input validated before provider construction")
 
@@ -519,8 +532,17 @@ class ProductionPipelineOrchestrator:
             error = self._typed_error(exc, current)
             tracker.fail(current, error)
             tracker.skip_remaining()
-            tracker.start(PipelineStage.MANIFEST)
-            tracker.finish(PipelineStage.MANIFEST, "failure manifest written last")
+            output_conflict = (
+                error.code is ProductionPipelineErrorCode.OUTPUT_ARTIFACT_CONFLICT
+            )
+            if output_conflict:
+                tracker.skip(
+                    PipelineStage.MANIFEST,
+                    "not written because the output directory is owned by an earlier run",
+                )
+            else:
+                tracker.start(PipelineStage.MANIFEST)
+                tracker.finish(PipelineStage.MANIFEST, "failure manifest written last")
             if runtime is not None and provider_summary is None:
                 provider_summary = self._provider_summary(runtime, ())
             result = ProductionRunResult(
@@ -529,14 +551,17 @@ class ProductionPipelineOrchestrator:
                 requested_asin_count=len(request.asins),
                 resolved_asin_count=resolved_count,
                 stages=tracker.records(),
-                artifact_paths=self._artifact_paths(layout, include_all=False),
+                artifact_paths=(
+                    {} if output_conflict else self._artifact_paths(layout, include_all=False)
+                ),
                 market_report_version=MARKET_REPORT_VERSION,
                 provider_summary=provider_summary,
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
                 error=error.to_dict(),
             )
-            write_json_atomic(layout.manifest, result.to_dict())
+            if not output_conflict:
+                write_json_atomic(layout.manifest, result.to_dict())
             return result
 
     @staticmethod
@@ -577,6 +602,7 @@ class ProductionPipelineOrchestrator:
             transport = RecordingTransport(FixtureTransport(metadata))
             environment = {"AMAZON_INTEL_OFFLINE_FIXTURE_KEY": "offline-fixture-sentinel"}
             credential_env = "AMAZON_INTEL_OFFLINE_FIXTURE_KEY"
+            credit_semantics = ProviderCreditSemantics.FIXTURE_REFERENCE
         else:
             base_url = os.environ.get("XIYOU_API_BASE_URL")
             if not base_url:
@@ -594,6 +620,7 @@ class ProductionPipelineOrchestrator:
             transport = RecordingTransport(HttpJsonTransport({"xiyou": base_url}))
             environment = os.environ
             credential_env = "XIYOU_API_KEY"
+            credit_semantics = ProviderCreditSemantics.LIVE_PROVIDER_REPORTED
             now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             metadata = {
                 "locale": "en-us",
@@ -626,6 +653,7 @@ class ProductionPipelineOrchestrator:
             provider=provider,
             recording_transport=transport,
             metadata=metadata,
+            credit_semantics=credit_semantics,
         )
 
     @staticmethod
@@ -768,6 +796,7 @@ class ProductionPipelineOrchestrator:
             operations=recording.operations,
             operation_count=recording.operation_count,
             credits=recording.credits,
+            credit_semantics=runtime.credit_semantics,
             provenance_ids=tuple(sorted(provenance_ids)),
         )
 

@@ -8,7 +8,12 @@ import sys
 from typing import Sequence, TextIO
 
 from .errors import ProductionPipelineError
-from .models import ProductionRunMode, ProductionRunRequest, ProductionRunStatus
+from .models import (
+    ProductionRunMode,
+    ProductionRunRequest,
+    ProductionRunStatus,
+    ProviderCreditSemantics,
+)
 from .orchestrator import ProductionPipelineOrchestrator
 
 
@@ -72,7 +77,11 @@ def main(
     if result.status is ProductionRunStatus.FAILED:
         error = result.error or {"code": "UNKNOWN", "message": "run failed"}
         print(f"run failed [{error['code']}]: {error['message']}", file=stderr)
-        print(f"manifest: {result.artifact_paths['run_manifest']}", file=stderr)
+        manifest = result.artifact_paths.get("run_manifest")
+        if manifest is None:
+            print("no artifacts written for this failed run", file=stderr)
+        else:
+            print(f"manifest: {manifest}", file=stderr)
         return 1
 
     print(
@@ -88,9 +97,12 @@ def main(
             if result.provider_summary.credits is None
             else str(result.provider_summary.credits)
         )
+        if result.provider_summary.credit_semantics is ProviderCreditSemantics.FIXTURE_REFERENCE:
+            credit_text = f"fixture reference credits: {credits} (not billed)"
+        else:
+            credit_text = f"live provider-reported credits: {credits}"
         print(
-            f"provider operations: {result.provider_summary.operation_count}; "
-            f"credits: {credits}",
+            f"provider operations: {result.provider_summary.operation_count}; {credit_text}",
             file=stdout,
         )
     return 0

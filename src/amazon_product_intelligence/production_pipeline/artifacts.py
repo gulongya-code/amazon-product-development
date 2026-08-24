@@ -12,6 +12,14 @@ from typing import Any, Mapping
 class RunArtifactLayout:
     output_directory: Path
 
+    def managed_paths(self) -> dict[str, Path]:
+        return {
+            "market_report_json": self.market_report,
+            "operator_xlsx": self.operator_xlsx,
+            "operator_markdown": self.operator_markdown,
+            "run_manifest": self.manifest,
+        }
+
     @property
     def market_report(self) -> Path:
         return self.output_directory / "market_report.json"
@@ -29,17 +37,18 @@ class RunArtifactLayout:
         return self.output_directory / "run_manifest.json"
 
     def existing(self) -> dict[str, str]:
-        candidates = {
-            "market_report_json": self.market_report,
-            "operator_xlsx": self.operator_xlsx,
-            "operator_markdown": self.operator_markdown,
-            "run_manifest": self.manifest,
-        }
         return {
             name: str(path.resolve())
-            for name, path in candidates.items()
+            for name, path in self.managed_paths().items()
             if path.is_file()
         }
+
+    def conflicts(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name, path in self.managed_paths().items()
+            if path.exists() or path.is_symlink()
+        )
 
 
 def write_json_atomic(destination: Path, payload: Mapping[str, Any]) -> Path:

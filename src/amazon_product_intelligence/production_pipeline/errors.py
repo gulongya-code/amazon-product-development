@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 class ProductionPipelineErrorCode(StrEnum):
     INVALID_INPUT = "INVALID_INPUT"
+    OUTPUT_ARTIFACT_CONFLICT = "OUTPUT_ARTIFACT_CONFLICT"
     UNSUPPORTED_CAPABILITY = "UNSUPPORTED_CAPABILITY"
     PROVIDER_FAILURE = "PROVIDER_FAILURE"
     INTELLIGENCE_FAILURE = "INTELLIGENCE_FAILURE"
@@ -55,9 +56,20 @@ class UnsupportedCapabilityError(ProductionPipelineError):
         )
 
 
+class OutputArtifactConflictError(ProductionPipelineError):
+    def __init__(self, managed_artifacts: tuple[str, ...]) -> None:
+        super().__init__(
+            ProductionPipelineErrorCode.OUTPUT_ARTIFACT_CONFLICT,
+            "output directory already contains managed production artifacts",
+            stage="input_validation",
+            details={"conflicting_managed_artifacts": list(managed_artifacts)},
+        )
+
+
 __all__ = (
     "ProductionPipelineError",
     "ProductionPipelineErrorCode",
     "ProductionRunValidationError",
+    "OutputArtifactConflictError",
     "UnsupportedCapabilityError",
 )
