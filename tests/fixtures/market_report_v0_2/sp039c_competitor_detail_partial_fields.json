@@ -1,0 +1,400 @@
+{
+  "availability": "PARTIAL",
+  "contract_version": "competitor-detail-section-v0.1",
+  "limitations": [
+    "FBA fee evidence is missing",
+    "fulfillment evidence is missing",
+    "seller location is not governed upstream",
+    "some competitor fields are unavailable"
+  ],
+  "provenance_reference_ids": [
+    "provenance:fixture:sp039c"
+  ],
+  "purpose": "INCLUDED_COMPETITORS",
+  "records": [
+    {
+      "availability": "PARTIAL",
+      "canonical_source_reference_ids": [
+        "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0"
+      ],
+      "contract_version": "competitor-detail-record-v0.1",
+      "disposition": "INCLUDED",
+      "disposition_reference_id": "market-report-v0.2-reference:7786ef2c4dfdb9d417109d75afece27cb5af1a357870c52d7a98d5a023505378",
+      "evidence_ids": [
+        "evidence:material",
+        "evidence:title"
+      ],
+      "fields": [
+        {
+          "availability": "UNAVAILABLE",
+          "contract_version": "competitor-field-projection-v0.1",
+          "display_value": null,
+          "evidence_ids": [],
+          "evidence_semantics": "UNKNOWN",
+          "field_group": "FULFILLMENT_ECONOMICS",
+          "field_id": "market-report-v0.2-competitor-field:4f36d4255979a47c819594afb0295a02883e63f01664ff56cb3b09c096723d20",
+          "field_name": "fulfillment_mode",
+          "limitations": [
+            "fulfillment evidence is missing"
+          ],
+          "method_policy_id": null,
+          "method_policy_version": null,
+          "presence_status": "MISSING",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "source_reference_ids": [
+            "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a"
+          ],
+          "value": null
+        },
+        {
+          "availability": "AVAILABLE",
+          "contract_version": "competitor-field-projection-v0.1",
+          "display_value": "Portable Dog Water Bottle",
+          "evidence_ids": [
+            "evidence:title"
+          ],
+          "evidence_semantics": "RESOLVED",
+          "field_group": "IDENTITY_CATALOG",
+          "field_id": "market-report-v0.2-competitor-field:3c9860bb105259f34542ee22c1dbe1946a8845bb4db2ea4e335caa344b4deebb",
+          "field_name": "title",
+          "limitations": [],
+          "method_policy_id": "policy:canonical-resolution",
+          "method_policy_version": "v1",
+          "presence_status": "PRESENT",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "source_reference_ids": [
+            "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a",
+            "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0"
+          ],
+          "value": "Portable Dog Water Bottle"
+        },
+        {
+          "availability": "AVAILABLE",
+          "contract_version": "competitor-field-projection-v0.1",
+          "display_value": "Plastic",
+          "evidence_ids": [
+            "evidence:material"
+          ],
+          "evidence_semantics": "RESOLVED",
+          "field_group": "PRODUCT_FACTS",
+          "field_id": "market-report-v0.2-competitor-field:00e8b5b286ca9d627151194e81a9f96fa26cb7f0d2fdfca9cd4b132de79b8957",
+          "field_name": "material",
+          "limitations": [],
+          "method_policy_id": "policy:canonical-resolution",
+          "method_policy_version": "v1",
+          "presence_status": "PRESENT",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "source_reference_ids": [
+            "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a"
+          ],
+          "value": "plastic"
+        },
+        {
+          "availability": "UNAVAILABLE",
+          "contract_version": "competitor-field-projection-v0.1",
+          "display_value": null,
+          "evidence_ids": [],
+          "evidence_semantics": "UNKNOWN",
+          "field_group": "SELLER_MARKETING",
+          "field_id": "market-report-v0.2-competitor-field:e89f93de02e8a57bfecd8162bf404e36c83e25ad314668a7f1a831b2c9049fb6",
+          "field_name": "seller_location",
+          "limitations": [
+            "seller location is not governed upstream"
+          ],
+          "method_policy_id": null,
+          "method_policy_version": null,
+          "presence_status": "MISSING",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "source_reference_ids": [
+            "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a"
+          ],
+          "value": null
+        }
+      ],
+      "grain_entity_reference_id": "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0",
+      "limitations": [
+        "FBA fee evidence is missing",
+        "fulfillment evidence is missing",
+        "seller location is not governed upstream",
+        "some competitor fields are unavailable"
+      ],
+      "marketplace": "US",
+      "metrics": [
+        {
+          "availability": "UNAVAILABLE",
+          "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "completeness": "UNKNOWN",
+          "confidence": null,
+          "contract_version": "metric-context-envelope-v0.1",
+          "coverage": null,
+          "currency": "USD",
+          "denominator_reference_id": null,
+          "evidence_ids": [],
+          "evidence_semantics": "UNKNOWN",
+          "limitations": [
+            "FBA fee evidence is missing"
+          ],
+          "marketplace": "US",
+          "method_policy_id": null,
+          "method_policy_version": null,
+          "metric_id": "market-report-v0.2-metric:648c5c14f37d6bf920835a27858b56ed167c779ff12164c4292fe6606e9740f7",
+          "metric_name": "fba_fee",
+          "period_reference_id": "market-report-v0.2-reference:ff2a5697cbd0891b234d7930cfeee79e1a1e8a2072061ee040538667b986bbb3",
+          "presence_status": "MISSING",
+          "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "sample_context": {
+            "excluded_count": null,
+            "included_count": null,
+            "total_count": null,
+            "unknown_count": null
+          },
+          "subject_reference_ids": [
+            "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0"
+          ],
+          "unit": null,
+          "value": null,
+          "value_type": "MONEY"
+        }
+      ],
+      "product_identity_reference_ids": [
+        "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0"
+      ],
+      "product_intelligence_reference_ids": [
+        "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a"
+      ],
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "purpose": "INCLUDED_COMPETITORS",
+      "record_id": "market-report-v0.2-competitor-detail-record:f8d7e5cbe1fc3c3d84ac6b7aea880808d7fcb46368706abe1a86c4cac3ae0d56",
+      "references": [
+        {
+          "content_fingerprint": "sha256:cohort:included",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "true-competitor",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:3644231b550a2bba4ef4e0837275f3f70677683753ac440e57727d56540ac059",
+          "target_id": "cohort:included",
+          "target_version": "fixture-v1"
+        },
+        {
+          "content_fingerprint": "sha256:snapshot:188ff590b06eb551b9a0cd48d960ade046d8805f9965eb8c3e3601f64bcc9075",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "product-intelligence",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a",
+          "target_id": "snapshot:188ff590b06eb551b9a0cd48d960ade046d8805f9965eb8c3e3601f64bcc9075",
+          "target_version": "product-intelligence-v0.1"
+        },
+        {
+          "content_fingerprint": null,
+          "kind": "REPORT_LOCAL",
+          "namespace": "market-report-v0.2.scope-context",
+          "provenance_reference_ids": [],
+          "reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "target_id": "market-report-v0.2-scope:c2570391ccf318644fbefea8ae02025eb305dfe983689e8745aeb043de272fa5",
+          "target_version": "scope-context-v0.1"
+        },
+        {
+          "content_fingerprint": "sha256:product:US:B0G2VV4RBW",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "canonical-product",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0",
+          "target_id": "product:US:B0G2VV4RBW",
+          "target_version": "fixture-v1"
+        },
+        {
+          "content_fingerprint": null,
+          "kind": "REPORT_LOCAL",
+          "namespace": "market-report-v0.2.true-competitor-disposition",
+          "provenance_reference_ids": [],
+          "reference_id": "market-report-v0.2-reference:7786ef2c4dfdb9d417109d75afece27cb5af1a357870c52d7a98d5a023505378",
+          "target_id": "market-report-v0.2-competitor-disposition:5a040e4db0b75d78885e9f532c79d34deda4d9844616a6f5499c22f937c94cbe",
+          "target_version": "true-competitor-set-v0.1"
+        },
+        {
+          "content_fingerprint": null,
+          "kind": "REPORT_LOCAL",
+          "namespace": "market-report-v0.2.true-competitor-set",
+          "provenance_reference_ids": [],
+          "reference_id": "market-report-v0.2-reference:9078209443dc741a1decb90339a48c51de902d5d770316325ca5ecb2d9e9f440",
+          "target_id": "market-report-v0.2-true-competitor-set:fc768be6c5c345912007361f4487341e379e99ad593f7fa53f73ce65cd81496d",
+          "target_version": "true-competitor-set-v0.1"
+        },
+        {
+          "content_fingerprint": "sha256:cohort:US:dog-water-bottle",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "category-product-map",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "target_id": "cohort:US:dog-water-bottle",
+          "target_version": "fixture-v1"
+        },
+        {
+          "content_fingerprint": "sha256:category:US:dog-water-bottle",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "category-product-map",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:ab1f560063d44cb5437c4c81abb7029f26e716b1c36c8d7d3b9731b5d3799798",
+          "target_id": "category:US:dog-water-bottle",
+          "target_version": "fixture-v1"
+        },
+        {
+          "content_fingerprint": "sha256:denominator:included",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "true-competitor",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:c3d31672e9e0dce3bf2c41e81d9e098998dd7e4d1c942ff3f9872d658fc27392",
+          "target_id": "denominator:included",
+          "target_version": "fixture-v1"
+        },
+        {
+          "content_fingerprint": "sha256:period:2026-07",
+          "kind": "EXTERNAL_PROVENANCE",
+          "namespace": "data-window",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "reference_id": "market-report-v0.2-reference:ff2a5697cbd0891b234d7930cfeee79e1a1e8a2072061ee040538667b986bbb3",
+          "target_id": "period:2026-07",
+          "target_version": "fixture-v1"
+        }
+      ],
+      "scope_context_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+      "true_competitor_set_reference_id": "market-report-v0.2-reference:9078209443dc741a1decb90339a48c51de902d5d770316325ca5ecb2d9e9f440"
+    }
+  ],
+  "references": [
+    {
+      "content_fingerprint": "sha256:cohort:included",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "true-competitor",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:3644231b550a2bba4ef4e0837275f3f70677683753ac440e57727d56540ac059",
+      "target_id": "cohort:included",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:snapshot:188ff590b06eb551b9a0cd48d960ade046d8805f9965eb8c3e3601f64bcc9075",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "product-intelligence",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:41dd2ed8a5771c69cbd10154561225ab6fa7d0df57e690eef09566f04769394a",
+      "target_id": "snapshot:188ff590b06eb551b9a0cd48d960ade046d8805f9965eb8c3e3601f64bcc9075",
+      "target_version": "product-intelligence-v0.1"
+    },
+    {
+      "content_fingerprint": null,
+      "kind": "REPORT_LOCAL",
+      "namespace": "market-report-v0.2.scope-context",
+      "provenance_reference_ids": [],
+      "reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+      "target_id": "market-report-v0.2-scope:c2570391ccf318644fbefea8ae02025eb305dfe983689e8745aeb043de272fa5",
+      "target_version": "scope-context-v0.1"
+    },
+    {
+      "content_fingerprint": "sha256:product:US:B0G2VV4RBW",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "canonical-product",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:6cce0abe99db023934fd1749a6c48f92fd4dd0ef46b909098c9f8673a159abd0",
+      "target_id": "product:US:B0G2VV4RBW",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": null,
+      "kind": "REPORT_LOCAL",
+      "namespace": "market-report-v0.2.true-competitor-disposition",
+      "provenance_reference_ids": [],
+      "reference_id": "market-report-v0.2-reference:7786ef2c4dfdb9d417109d75afece27cb5af1a357870c52d7a98d5a023505378",
+      "target_id": "market-report-v0.2-competitor-disposition:5a040e4db0b75d78885e9f532c79d34deda4d9844616a6f5499c22f937c94cbe",
+      "target_version": "true-competitor-set-v0.1"
+    },
+    {
+      "content_fingerprint": null,
+      "kind": "REPORT_LOCAL",
+      "namespace": "market-report-v0.2.true-competitor-set",
+      "provenance_reference_ids": [],
+      "reference_id": "market-report-v0.2-reference:9078209443dc741a1decb90339a48c51de902d5d770316325ca5ecb2d9e9f440",
+      "target_id": "market-report-v0.2-true-competitor-set:fc768be6c5c345912007361f4487341e379e99ad593f7fa53f73ce65cd81496d",
+      "target_version": "true-competitor-set-v0.1"
+    },
+    {
+      "content_fingerprint": "sha256:cohort:US:dog-water-bottle",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "category-product-map",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+      "target_id": "cohort:US:dog-water-bottle",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:category:US:dog-water-bottle",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "category-product-map",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:ab1f560063d44cb5437c4c81abb7029f26e716b1c36c8d7d3b9731b5d3799798",
+      "target_id": "category:US:dog-water-bottle",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:denominator:included",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "true-competitor",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:c3d31672e9e0dce3bf2c41e81d9e098998dd7e4d1c942ff3f9872d658fc27392",
+      "target_id": "denominator:included",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:period:2026-07",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "data-window",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:ff2a5697cbd0891b234d7930cfeee79e1a1e8a2072061ee040538667b986bbb3",
+      "target_id": "period:2026-07",
+      "target_version": "fixture-v1"
+    }
+  ],
+  "scope_context_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+  "section_id": "market-report-v0.2-competitor-detail-section:29ca5aa63b8b07963a0a653729b6a5789fb8d6f1a3f3e8c66ac5826645400e9d",
+  "true_competitor_set_reference_id": "market-report-v0.2-reference:9078209443dc741a1decb90339a48c51de902d5d770316325ca5ecb2d9e9f440"
+}
