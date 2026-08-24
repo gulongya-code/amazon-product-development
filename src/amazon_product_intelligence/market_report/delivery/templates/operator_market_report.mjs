@@ -7,7 +7,12 @@ if (!inputPath || !outputPath) {
   throw new Error("usage: operator_market_report.mjs <input.json> <output.xlsx> [preview-dir]");
 }
 
-const report = JSON.parse(await fs.readFile(inputPath, "utf8"));
+const payload = JSON.parse(await fs.readFile(inputPath, "utf8"));
+const report = payload.report ?? payload;
+const workflow = payload.operator_workflow;
+if (!workflow) {
+  throw new Error("operator workflow payload is required");
+}
 const workbook = Workbook.create();
 
 const COLORS = {
@@ -38,6 +43,17 @@ const compactJson = (value) => {
   if (value === null || value === undefined) return "UNAVAILABLE";
   if (typeof value === "object") return JSON.stringify(sortedJsonValue(value));
   return String(value);
+};
+
+const executiveClaimValue = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return compactJson(value);
+  if (typeof value.share === "number") {
+    const basis = value.share_basis === "ASIN_COVERAGE_SHARE"
+      ? "ASIN coverage"
+      : String(value.share_basis ?? "basis unavailable").replaceAll("_", " ").toLowerCase();
+    return `${(value.share * 100).toFixed(1)}% (${basis})`;
+  }
+  return compactJson(value);
 };
 
 const evidence = (values) => values?.length ? [...values].sort().join(", ") : "UNAVAILABLE";
@@ -99,6 +115,70 @@ function distributionValue(value) {
   const parts = labels.filter(([key]) => value[key] !== undefined).map(([key, label]) => `${label}: ${value[key]}`);
   return parts.length ? parts.join(" | ") : compactJson(value);
 }
+
+const joinedClaims = (values, maximum, renderValue = true) => {
+  if (!values?.length) return "UNAVAILABLE";
+  const shown = values.slice(0, maximum).map((item) => renderValue
+    ? `${item.label} [${item.status}]: ${compactJson(item.value)}`
+    : `${item.label} [${item.status}]`
+  );
+  if (values.length > maximum) shown.push(`+${values.length - maximum} more; see detailed sheets / Markdown`);
+  return shown.join("; ");
+};
+
+const joinedActions = (values) => values?.length
+  ? values.slice(0, 5).map((item, index) => `${index + 1}. [P${item.priority}] ${item.action}`).concat(
+      values.length > 5 ? [`+${values.length - 5} more; see Markdown / Manifest`] : [],
+    ).join("\n")
+  : "Human review is required before advancing.";
+
+const health = workflow.run_health;
+const creditNote = health.credit_semantics === "FIXTURE_REFERENCE"
+  ? "fixture reference credits; not billed"
+  : health.credit_semantics === "LIVE_PROVIDER_REPORTED"
+    ? "live provider-reported credits"
+    : "billing semantics not recorded";
+const summary = baseSheet(
+  "Operator Summary",
+  "Operator Decision & Next-Action Summary",
+  `${report.category.category_name} · ${report.category.marketplace} · ${workflow.ruleset_version}`,
+  "D",
+);
+summary.getRange("A4:B15").values = [
+  ["Operator Action", workflow.operator_action],
+  ["Why This Action", workflow.action_reason],
+  ["Evidence Readiness", workflow.evidence_readiness],
+  ["Governed Recommendation Semantic", workflow.recommendation_type],
+  ["Top Opportunity Themes", joinedClaims(
+    workflow.top_buyer_need_themes.map((item) => ({ ...item, value: executiveClaimValue(item.value) })),
+    3,
+  )],
+  ["Top Risks / Blockers", joinedClaims(workflow.risks_and_limitations, 5)],
+  ["Missing Evidence", joinedClaims(workflow.missing_evidence, 6, false)],
+  ["Recommended Next Checks", joinedActions(workflow.next_actions)],
+  ["Run Health", `status=${health.status}; retried=${health.retried}; resumed=${health.resumed}; source=${health.resume_source_run_id ?? "UNAVAILABLE"}`],
+  ["Provider Usage", `provider=${health.provider_id}; logical operations=${health.logical_operation_count}; attempts=${health.transport_attempt_count}; executed=${health.executed_operation_count}; replayed=${health.replayed_operation_count}; credits=${compactJson(health.credits)}; semantics=${health.credit_semantics}; ${creditNote}`],
+  ["Audit / Provenance", `Workflow: ${workflow.snapshot_id}\nSemantic: ${workflow.semantic_fingerprint}\nLineage reference count: ${workflow.lineage_reference_ids.length}; full references are in Manifest / Markdown`],
+  ["Semantic Boundary", "Evidence triage only. Not profitability, guaranteed success, purchase advice, or an automatic market-entry decision."],
+];
+summary.getRange("A4:A15").format = {
+  fill: COLORS.paleBlue,
+  font: { bold: true, color: COLORS.navy },
+  borders: { preset: "inside", style: "thin", color: COLORS.line },
+  verticalAlignment: "top",
+  wrapText: true,
+};
+styleBody(summary.getRange("B4:B15"));
+statusColor(summary.getRange("B4"), workflow.operator_action === "ADVANCE_REVIEW" ? "AVAILABLE" : "PARTIAL");
+statusColor(summary.getRange("B6"), workflow.evidence_readiness === "INCOMPLETE" ? "UNAVAILABLE" : "PARTIAL");
+summary.getRange("A:A").format.columnWidth = 34;
+summary.getRange("B:B").format.columnWidth = 96;
+summary.getRange("C:D").format.columnWidth = 10;
+summary.getRange("A5:B5").format.rowHeight = 44;
+summary.getRange("A8:B10").format.rowHeight = 58;
+summary.getRange("A11:B11").format.rowHeight = 92;
+summary.getRange("A12:B13").format.rowHeight = 36;
+summary.getRange("A14:B14").format.rowHeight = 54;
 
 const overview = baseSheet(
   "Market Overview",
@@ -279,7 +359,7 @@ await output.save(outputPath);
 
 if (previewDirectory) {
   await fs.mkdir(previewDirectory, { recursive: true });
-  for (const name of ["Market Overview", "Buyer Need Analysis", "Competition Analysis", "Opportunity Analysis"]) {
+  for (const name of ["Operator Summary", "Market Overview", "Buyer Need Analysis", "Competition Analysis", "Opportunity Analysis"]) {
     const preview = await workbook.render({ sheetName: name, autoCrop: "all", scale: 1, format: "png" });
     const safeName = name.toLowerCase().replaceAll(" ", "_");
     await fs.writeFile(`${previewDirectory}/${safeName}.png`, new Uint8Array(await preview.arrayBuffer()));

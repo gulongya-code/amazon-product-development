@@ -9,6 +9,10 @@ from amazon_product_intelligence.market_report.models import (
     MarketReportSnapshot,
     ReportAvailability,
 )
+from amazon_product_intelligence.operator_workflow import (
+    OperatorWorkflowSnapshotV0_1,
+    build_standalone_operator_workflow,
+)
 
 
 def _cell(value: object) -> str:
@@ -50,9 +54,16 @@ def _metric_label(metric_name: str) -> str:
 class MarkdownReportRenderer:
     """Render a validated Market Report without adding analytical claims."""
 
-    def render(self, report: MarketReportSnapshot) -> str:
+    def render(
+        self,
+        report: MarketReportSnapshot,
+        *,
+        operator_workflow: OperatorWorkflowSnapshotV0_1 | None = None,
+    ) -> str:
         report.validate()
-        lines = [
+        workflow = operator_workflow or build_standalone_operator_workflow(report)
+        lines = self._executive_lines(workflow)
+        lines.extend((
             "# Market Overview",
             "",
             "| Field | Value |",
@@ -74,7 +85,7 @@ class MarkdownReportRenderer:
             "",
             "| Buyer Need | Share | Confidence | Validation Status | Evidence |",
             "|---|---:|---|---|---|",
-        ]
+        ))
         for need in report.buyer_needs.needs:
             lines.append(
                 "| "
@@ -181,6 +192,99 @@ class MarkdownReportRenderer:
                 + " |"
             )
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _executive_lines(workflow: OperatorWorkflowSnapshotV0_1) -> list[str]:
+        health = workflow.run_health
+        credit_note = (
+            "fixture reference credits; not billed"
+            if health.credit_semantics == "FIXTURE_REFERENCE"
+            else "live provider-reported credits"
+            if health.credit_semantics == "LIVE_PROVIDER_REPORTED"
+            else "billing semantics not recorded"
+        )
+        provider_usage = (
+            f"provider={health.provider_id}; logical operations={health.logical_operation_count}; "
+            f"transport attempts={health.transport_attempt_count}; executed={health.executed_operation_count}; "
+            f"replayed={health.replayed_operation_count}; credits={_cell(health.credits)}; "
+            f"credit semantics={health.credit_semantics}; {credit_note}"
+        )
+        recovery = (
+            f"RESUMED from {health.resume_source_run_id}"
+            if health.resumed
+            else "UNINTERRUPTED / no resume lineage"
+        )
+        lines = [
+            "# Operator Brief",
+            "",
+            "| Field | Operator view |",
+            "|---|---|",
+            f"| Operator action | **{workflow.operator_action.value}** |",
+            f"| Recommendation semantic | `{workflow.recommendation_type}` |",
+            f"| Why this action | {_cell(workflow.action_reason)} |",
+            f"| Evidence readiness | **{workflow.evidence_readiness}** |",
+            f"| Run health | {_cell(health.status)}; retried={str(health.retried).lower()}; {_cell(recovery)} |",
+            f"| Provider usage | {_cell(provider_usage)} |",
+            f"| Workflow contract | `{workflow.ruleset_version}` |",
+            f"| Workflow audit ID | `{workflow.snapshot_id}` |",
+            "",
+            "## What We Know",
+            "",
+        ]
+        lines.extend(
+            f"- **{_cell(item.label)}** — `{item.status}` — {_cell(item.value)} "
+            f"(Evidence: {_cell(_evidence(item.evidence_ids or item.provenance_reference_ids))})"
+            for item in workflow.supporting_evidence
+        )
+        if not workflow.supporting_evidence:
+            lines.append("- No supporting evidence is currently available.")
+        lines.extend(("", "## What We Do Not Know", ""))
+        lines.extend(
+            f"- **{_cell(item.label)}** — `{item.status}` — {_cell(item.reason)} "
+            f"(Audit: {_cell(_evidence(item.provenance_reference_ids))})"
+            for item in workflow.missing_evidence
+        )
+        if not workflow.missing_evidence:
+            lines.append("- No material evidence gap is recorded in the validated report.")
+        lines.extend(("", "## Top Opportunity Themes", ""))
+        lines.extend(
+            f"- **{_cell(item.label)}** — {_cell(item.value)} — `{item.status}`"
+            for item in workflow.top_buyer_need_themes
+        )
+        lines.extend(("", "## Top Risks / Blockers", ""))
+        lines.extend(f"- {_cell(item.value)}" for item in workflow.risks_and_limitations)
+        if not workflow.risks_and_limitations:
+            lines.append("- No explicit risk record is available; framework adapter review is still required.")
+        lines.extend(("", "## Recommended Next Checks", ""))
+        lines.extend(
+            f"{index}. **[P{item.priority}] {_cell(item.action)}** Trigger: `{item.trigger_status}`. "
+            f"Why: {_cell(item.reason)} Audit: {_cell(_evidence(item.provenance_reference_ids))}."
+            for index, item in enumerate(workflow.next_actions, start=1)
+        )
+        if not workflow.next_actions:
+            lines.append(
+                "1. Perform human review before advancing; automatic market-entry decisions are out of scope."
+            )
+        lines.extend(
+            (
+                "",
+                "## Run Health / Provider Usage",
+                "",
+                f"- Status: `{health.status}`",
+                f"- Retry observed: `{str(health.retried).lower()}`",
+                f"- Recovery: {_cell(recovery)}",
+                f"- Provider usage: {_cell(provider_usage)}",
+                "",
+                "## Semantic Boundary",
+                "",
+                f"- Decision Framework: `{workflow.framework_integration['decision_framework_execution_status']}`.",
+                f"- Recommendation Framework: `{workflow.framework_integration['recommendation_framework_execution_status']}`.",
+                f"- Adapter gap: {_cell(workflow.framework_integration['adapter_gap'])}",
+                "- This workflow does not claim profitability, guaranteed success, purchase advice, or an automatic market-entry decision.",
+                "",
+            )
+        )
+        return lines
 
     @staticmethod
     def _competition_metrics(

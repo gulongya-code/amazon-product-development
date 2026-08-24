@@ -12,6 +12,10 @@ from tempfile import TemporaryDirectory
 import zipfile
 
 from amazon_product_intelligence.market_report.models import MarketReportSnapshot
+from amazon_product_intelligence.operator_workflow import (
+    OperatorWorkflowSnapshotV0_1,
+    build_standalone_operator_workflow,
+)
 
 
 class OperatorReportExcelError(RuntimeError):
@@ -43,9 +47,11 @@ class ExcelReportRenderer:
         report: MarketReportSnapshot,
         destination: str | Path,
         *,
+        operator_workflow: OperatorWorkflowSnapshotV0_1 | None = None,
         preview_directory: str | Path | None = None,
     ) -> Path:
         report.validate()
+        workflow = operator_workflow or build_standalone_operator_workflow(report)
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True)
         node = self._resolve_node()
@@ -63,7 +69,10 @@ class ExcelReportRenderer:
             shutil.copyfile(template, executable_template)
             source.write_text(
                 json.dumps(
-                    report.to_dict(),
+                    {
+                        "report": report.to_dict(),
+                        "operator_workflow": workflow.to_dict(),
+                    },
                     ensure_ascii=False,
                     allow_nan=False,
                     sort_keys=True,
@@ -117,6 +126,7 @@ class ExcelReportRenderer:
                 expected_previews = tuple(
                     previews / name
                     for name in (
+                        "operator_summary.png",
                         "market_overview.png",
                         "buyer_need_analysis.png",
                         "competition_analysis.png",
@@ -200,11 +210,18 @@ class ExcelReportRenderer:
             "/xl/styles.xml": "rId1",
             "/xl/theme/theme1.xml": "rId2",
             "/xl/sharedStrings.xml": "rId3",
-            "/xl/worksheets/sheet1.xml": "rId4",
-            "/xl/worksheets/sheet2.xml": "rId5",
-            "/xl/worksheets/sheet3.xml": "rId6",
-            "/xl/worksheets/sheet4.xml": "rId7",
         }
+        worksheet_targets = sorted(
+            (
+                target
+                for target in re.findall(r'\bTarget="([^"]+)"', relationship_xml)
+                if target.startswith("/xl/worksheets/sheet") and target.endswith(".xml")
+            ),
+            key=lambda value: int(re.search(r"sheet(\d+)\.xml$", value).group(1)),
+        )
+        stable_targets.update(
+            {target: f"rId{index}" for index, target in enumerate(worksheet_targets, start=4)}
+        )
         for target, stable_id in stable_targets.items():
             match = re.search(
                 rf'<Relationship\b(?=[^>]*\bTarget="{re.escape(target)}")'

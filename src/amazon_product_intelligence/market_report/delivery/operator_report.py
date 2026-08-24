@@ -14,6 +14,10 @@ from amazon_product_intelligence.market_report.models import (
     MarketReportValidationError,
     validate_market_report_payload,
 )
+from amazon_product_intelligence.operator_workflow import (
+    OperatorWorkflowSnapshotV0_1,
+    build_standalone_operator_workflow,
+)
 
 from .excel_renderer import ExcelReportRenderer
 from .markdown_renderer import MarkdownReportRenderer
@@ -32,6 +36,7 @@ class OperatorReportDeliveryResult:
     markdown_path: Path
     xlsx_sha256: str
     markdown_sha256: str
+    operator_workflow_id: str | None = None
 
 
 class OperatorReportDelivery:
@@ -51,21 +56,24 @@ class OperatorReportDelivery:
         source: MarketReportSnapshot | Mapping[str, Any] | str | Path,
         output_directory: str | Path,
         *,
+        operator_workflow: OperatorWorkflowSnapshotV0_1 | None = None,
         preview_directory: str | Path | None = None,
     ) -> OperatorReportDeliveryResult:
         report = self.load_report(source)
+        workflow = operator_workflow or build_standalone_operator_workflow(report)
         destination = Path(output_directory)
         destination.mkdir(parents=True, exist_ok=True)
         markdown_path = destination / OPERATOR_MARKDOWN_FILENAME
         xlsx_path = destination / OPERATOR_XLSX_FILENAME
 
-        markdown = self._markdown_renderer.render(report)
+        markdown = self._markdown_renderer.render(report, operator_workflow=workflow)
         temporary_markdown = destination / f".{OPERATOR_MARKDOWN_FILENAME}.tmp"
         temporary_markdown.write_text(markdown, encoding="utf-8", newline="\n")
         temporary_markdown.replace(markdown_path)
         self._excel_renderer.render(
             report,
             xlsx_path,
+            operator_workflow=workflow,
             preview_directory=preview_directory,
         )
         return OperatorReportDeliveryResult(
@@ -75,6 +83,7 @@ class OperatorReportDelivery:
             markdown_path=markdown_path,
             xlsx_sha256=self._sha256(xlsx_path),
             markdown_sha256=self._sha256(markdown_path),
+            operator_workflow_id=workflow.snapshot_id,
         )
 
     @staticmethod
