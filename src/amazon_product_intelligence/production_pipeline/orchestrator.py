@@ -32,6 +32,7 @@ from amazon_product_intelligence.competition_intelligence import (
     CompetitionIntelligenceRequest,
 )
 from amazon_product_intelligence.connectors import (
+    BoundedTransientRetryPolicy,
     HttpJsonTransport,
     NoRetryPolicy,
     ProviderConfig,
@@ -103,11 +104,15 @@ from .models import (
     PRODUCTION_PIPELINE_VERSION,
     PipelineStage,
     ProviderCreditSemantics,
+    ProviderLogicalOperationSummary,
+    ProviderOperationExecutionSource,
     ProductionRunMode,
     ProductionRunRequest,
     ProductionRunResult,
     ProductionRunStatus,
     ProviderOperationSummary,
+    ProviderTransportAttemptStatus,
+    ProviderTransportAttemptSummary,
     StageResult,
     StageStatus,
 )
@@ -116,6 +121,15 @@ from .providers import (
     FixtureTransport,
     RecordingTransport,
     xiyou_reverse_keyword_parameters,
+)
+from .recovery import (
+    RECOVERY_CONTRACT_VERSION,
+    CheckpointReplayTransport,
+    CheckpointStore,
+    ResumeCheckpointSet,
+    load_resume_source,
+    logical_operation_id,
+    run_request_fingerprint,
 )
 
 
@@ -217,16 +231,33 @@ class ProductionPipelineOrchestrator:
         run_id = request.run_id or f"run-{uuid4().hex}"
         runtime: ProviderRuntime | None = None
         provider_summary: ProviderOperationSummary | None = None
+        logical_operations: list[ProviderLogicalOperationSummary] = []
+        transport_attempts: list[ProviderTransportAttemptSummary] = []
+        provenance_seen: set[str] = set()
         resolved_count = 0
         warnings: set[str] = set()
         unavailable: set[str] = set()
+        request_fingerprint = run_request_fingerprint(request)
+        checkpoint_store = CheckpointStore(
+            request.output_directory,
+            run_id=run_id,
+            request_fingerprint=request_fingerprint,
+        )
+        resume_set: ResumeCheckpointSet | None = None
         current = PipelineStage.INPUT_VALIDATION
         try:
             tracker.start(current)
             conflicts = layout.conflicts()
             if conflicts:
                 raise OutputArtifactConflictError(conflicts)
+            if (layout.output_directory / "checkpoints").exists():
+                raise OutputArtifactConflictError(("recovery_checkpoints",))
             self._validate_operator_request(request)
+            if request.resume_from is not None:
+                resume_set = load_resume_source(
+                    request.resume_from,
+                    expected_request_fingerprint=request_fingerprint,
+                )
             tracker.finish(current, "operator input validated before provider construction")
 
             runtime = self._provider_runtime_factory(request)
@@ -239,23 +270,35 @@ class ProductionPipelineOrchestrator:
             current = PipelineStage.PROVIDER_RESOLUTION
             tracker.start(current)
             resolver = ProviderResolver(runtime.registry)
-            product_resolution = resolver.resolve(
-                ProviderRequest(
-                    canonical_field="metric.price",
-                    parameters={
-                        "entities": [
-                            {"country": request.marketplace, "asin": asin}
-                            for asin in request.asins
-                        ]
-                    },
-                    marketplace=request.marketplace,
-                    locale=str(runtime.metadata["locale"]),
-                    retrieved_at=timestamps["retrieved_at"],
-                    transformed_at=timestamps["transformed_at"],
-                    collection_run_id=f"{data_run_id}:asin-info",
-                    currency=str(runtime.metadata["currency"]),
-                )
+            product_request = ProviderRequest(
+                canonical_field="metric.price",
+                parameters={
+                    "entities": [
+                        {"country": request.marketplace, "asin": asin}
+                        for asin in request.asins
+                    ]
+                },
+                marketplace=request.marketplace,
+                locale=str(runtime.metadata["locale"]),
+                retrieved_at=timestamps["retrieved_at"],
+                transformed_at=timestamps["transformed_at"],
+                collection_run_id=f"{data_run_id}:asin-info",
+                currency=str(runtime.metadata["currency"]),
             )
+            product_resolution = self._resolve_operation(
+                runtime=runtime,
+                resolver=resolver,
+                provider_request=product_request,
+                operation="asin_info",
+                checkpoint_store=checkpoint_store,
+                resume_set=resume_set,
+                logical_operations=logical_operations,
+                transport_attempts=transport_attempts,
+            )
+            if product_resolution.result.adaptation.raw_evidence is not None:
+                provenance_seen.add(
+                    product_resolution.result.adaptation.raw_evidence.raw_evidence_id
+                )
             tracker.finish(
                 current,
                 f"selected provider {product_resolution.selected_provider_id}",
@@ -270,23 +313,34 @@ class ProductionPipelineOrchestrator:
             tracker.start(current)
             acquisitions = [product_resolution.result]
             for asin in request.asins:
-                acquisitions.append(
-                    resolver.resolve(
-                        ProviderRequest(
-                            canonical_field="relationship.product_to_keyword",
-                            parameters=xiyou_reverse_keyword_parameters(
-                                asin=asin,
-                                marketplace=request.marketplace,
-                            ),
-                            marketplace=request.marketplace,
-                            locale=str(runtime.metadata["locale"]),
-                            retrieved_at=timestamps["retrieved_at"],
-                            transformed_at=timestamps["transformed_at"],
-                            collection_run_id=f"{data_run_id}:asin-keywords:{asin}",
-                            currency=str(runtime.metadata["currency"]),
-                        )
-                    ).result
+                keyword_request = ProviderRequest(
+                    canonical_field="relationship.product_to_keyword",
+                    parameters=xiyou_reverse_keyword_parameters(
+                        asin=asin,
+                        marketplace=request.marketplace,
+                    ),
+                    marketplace=request.marketplace,
+                    locale=str(runtime.metadata["locale"]),
+                    retrieved_at=timestamps["retrieved_at"],
+                    transformed_at=timestamps["transformed_at"],
+                    collection_run_id=f"{data_run_id}:asin-keywords:{asin}",
+                    currency=str(runtime.metadata["currency"]),
                 )
+                keyword_resolution = self._resolve_operation(
+                    runtime=runtime,
+                    resolver=resolver,
+                    provider_request=keyword_request,
+                    operation="asin_keywords",
+                    checkpoint_store=checkpoint_store,
+                    resume_set=resume_set,
+                    logical_operations=logical_operations,
+                    transport_attempts=transport_attempts,
+                )
+                acquisitions.append(keyword_resolution.result)
+                if keyword_resolution.result.adaptation.raw_evidence is not None:
+                    provenance_seen.add(
+                        keyword_resolution.result.adaptation.raw_evidence.raw_evidence_id
+                    )
             bundles = tuple(item.adaptation.bundle for item in acquisitions)
             resolved_asins = {
                 asin
@@ -312,7 +366,12 @@ class ProductionPipelineOrchestrator:
                     if item.adaptation.raw_evidence is not None
                 )
             )
-            provider_summary = self._provider_summary(runtime, provenance_ids)
+            provider_summary = self._provider_summary(
+                runtime,
+                provenance_ids,
+                logical_operations,
+                transport_attempts,
+            )
             tracker.finish(
                 current,
                 f"acquired {len(acquisitions)} minimum provider operation payloads",
@@ -539,6 +598,12 @@ class ProductionPipelineOrchestrator:
                 provider_summary=provider_summary,
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
+                recovery=self._recovery_evidence(
+                    request_fingerprint,
+                    checkpoint_store,
+                    resume_set,
+                    logical_operations,
+                ),
             )
             write_json_atomic(layout.manifest, result.to_dict())
             return result
@@ -558,7 +623,12 @@ class ProductionPipelineOrchestrator:
                 tracker.start(PipelineStage.MANIFEST)
                 tracker.finish(PipelineStage.MANIFEST, "failure manifest written last")
             if runtime is not None and provider_summary is None:
-                provider_summary = self._provider_summary(runtime, ())
+                provider_summary = self._provider_summary(
+                    runtime,
+                    tuple(sorted(provenance_seen)),
+                    logical_operations,
+                    transport_attempts,
+                )
             result = ProductionRunResult(
                 run_id=run_id,
                 status=ProductionRunStatus.FAILED,
@@ -573,6 +643,12 @@ class ProductionPipelineOrchestrator:
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
                 error=error.to_dict(),
+                recovery=self._recovery_evidence(
+                    request_fingerprint,
+                    checkpoint_store,
+                    resume_set,
+                    logical_operations,
+                ),
             )
             if not output_conflict:
                 write_json_atomic(layout.manifest, result.to_dict())
@@ -648,7 +724,11 @@ class ProductionPipelineOrchestrator:
         provider = XiYouProvider(
             transport,
             environment=environment,
-            retry_policy=NoRetryPolicy(),
+            retry_policy=(
+                NoRetryPolicy()
+                if request.mode is ProductionRunMode.FIXTURE
+                else BoundedTransientRetryPolicy()
+            ),
         )
         registry = ProviderRegistry()
         registry.register(
@@ -659,7 +739,7 @@ class ProductionPipelineOrchestrator:
                 priority=1,
                 credential_env=credential_env,
                 timeout_seconds=15.0,
-                max_attempts=1,
+                max_attempts=(1 if request.mode is ProductionRunMode.FIXTURE else 2),
             ),
         )
         return ProviderRuntime(
@@ -801,17 +881,241 @@ class ProductionPipelineOrchestrator:
         return EvidenceBasedOpportunityScorerV0_1().score(scoring_input, policy)
 
     @staticmethod
+    def _resolve_operation(
+        *,
+        runtime: ProviderRuntime,
+        resolver: ProviderResolver,
+        provider_request: ProviderRequest,
+        operation: str,
+        checkpoint_store: CheckpointStore,
+        resume_set: ResumeCheckpointSet | None,
+        logical_operations: list[ProviderLogicalOperationSummary],
+        transport_attempts: list[ProviderTransportAttemptSummary],
+    ) -> Any:
+        operation_id = logical_operation_id(operation, provider_request)
+        checkpoint = (
+            resume_set.find(operation, provider_request)
+            if resume_set is not None
+            else None
+        )
+        if checkpoint is not None:
+            replay_transport = CheckpointReplayTransport(checkpoint)
+            replay_provider = XiYouProvider(
+                replay_transport,
+                environment={"CHECKPOINT_REPLAY_SENTINEL": "offline-only"},
+                retry_policy=NoRetryPolicy(),
+            )
+            replay_registry = ProviderRegistry()
+            replay_registry.register(
+                replay_provider,
+                ProviderConfig(
+                    provider_id="xiyou",
+                    enabled=True,
+                    priority=1,
+                    credential_env="CHECKPOINT_REPLAY_SENTINEL",
+                    timeout_seconds=1.0,
+                    max_attempts=1,
+                ),
+            )
+            replay_request = checkpoint.replay_request(provider_request)
+            resolution = ProviderResolver(replay_registry).resolve(replay_request)
+            raw_evidence = resolution.result.adaptation.raw_evidence
+            if (
+                replay_transport.execute_count != 1
+                or raw_evidence is None
+                or raw_evidence.raw_evidence_id
+                != checkpoint.payload["provenance_raw_evidence_id"]
+            ):
+                raise ProductionPipelineError(
+                    ProductionPipelineErrorCode.CHECKPOINT_INTEGRITY_FAILURE,
+                    "checkpoint replay did not reproduce its audited provenance identity",
+                    stage=PipelineStage.ACQUISITION.value,
+                )
+            copied = checkpoint_store.write_success(
+                operation=operation,
+                request=replay_request,
+                response=checkpoint.response,
+                provenance_id=raw_evidence.raw_evidence_id,
+                replayed_from=checkpoint.checkpoint_id,
+            )
+            logical_operations.append(
+                ProviderLogicalOperationSummary(
+                    logical_operation_id=operation_id,
+                    operation=operation,
+                    canonical_field=provider_request.canonical_field,
+                    execution_source=ProviderOperationExecutionSource.CHECKPOINT_REPLAY,
+                    status="SUCCEEDED",
+                    transport_attempt_count=0,
+                    checkpoint_id=copied.checkpoint_id,
+                )
+            )
+            return resolution
+
+        before = len(runtime.recording_transport.attempt_records)
+        try:
+            resolution = resolver.resolve(provider_request)
+        except Exception as exc:
+            records = runtime.recording_transport.attempt_records[before:]
+            ProductionPipelineOrchestrator._record_transport_attempts(
+                operation_id,
+                operation,
+                records,
+                transport_attempts,
+            )
+            logical_operations.append(
+                ProviderLogicalOperationSummary(
+                    logical_operation_id=operation_id,
+                    operation=operation,
+                    canonical_field=provider_request.canonical_field,
+                    execution_source=ProviderOperationExecutionSource.NEW_PROVIDER,
+                    status="FAILED",
+                    transport_attempt_count=len(records),
+                )
+            )
+            transient = {
+                ProviderErrorCode.NETWORK.value,
+                ProviderErrorCode.TIMEOUT.value,
+                ProviderErrorCode.PROVIDER_UNAVAILABLE.value,
+            }
+            if (
+                len(records) >= 2
+                and records[-1].provider_error_code in transient
+                and all(item.provider_error_code in transient for item in records)
+            ):
+                raise ProductionPipelineError(
+                    ProductionPipelineErrorCode.BOUNDED_RETRY_EXHAUSTED,
+                    "transient provider failure exhausted the bounded attempt limit",
+                    stage=PipelineStage.ACQUISITION.value,
+                    details={
+                        "operation": operation,
+                        "transport_attempt_count": len(records),
+                        "final_provider_error_code": records[-1].provider_error_code,
+                    },
+                ) from exc
+            raise
+
+        records = runtime.recording_transport.attempt_records[before:]
+        ProductionPipelineOrchestrator._record_transport_attempts(
+            operation_id,
+            operation,
+            records,
+            transport_attempts,
+        )
+        raw_evidence = resolution.result.adaptation.raw_evidence
+        successful_response = next(
+            (
+                item.response
+                for item in reversed(records)
+                if item.status == "SUCCEEDED" and item.response is not None
+            ),
+            None,
+        )
+        if raw_evidence is None or successful_response is None:
+            raise ProductionPipelineError(
+                ProductionPipelineErrorCode.INTERNAL_FAILURE,
+                "successful provider operation lacked checkpointable audited evidence",
+                stage=PipelineStage.ACQUISITION.value,
+            )
+        checkpoint = checkpoint_store.write_success(
+            operation=operation,
+            request=provider_request,
+            response=successful_response,
+            provenance_id=raw_evidence.raw_evidence_id,
+        )
+        logical_operations.append(
+            ProviderLogicalOperationSummary(
+                logical_operation_id=operation_id,
+                operation=operation,
+                canonical_field=provider_request.canonical_field,
+                execution_source=ProviderOperationExecutionSource.NEW_PROVIDER,
+                status="SUCCEEDED",
+                transport_attempt_count=len(records),
+                checkpoint_id=checkpoint.checkpoint_id,
+            )
+        )
+        return resolution
+
+    @staticmethod
+    def _record_transport_attempts(
+        operation_id: str,
+        operation: str,
+        records: list[Any],
+        destination: list[ProviderTransportAttemptSummary],
+    ) -> None:
+        for ordinal, record in enumerate(records, 1):
+            destination.append(
+                ProviderTransportAttemptSummary(
+                    logical_operation_id=operation_id,
+                    operation=operation,
+                    attempt_ordinal=ordinal,
+                    status=(
+                        ProviderTransportAttemptStatus.SUCCEEDED
+                        if record.status == "SUCCEEDED"
+                        else ProviderTransportAttemptStatus.FAILED
+                    ),
+                    provider_error_code=record.provider_error_code,
+                    credits=record.credits,
+                )
+            )
+
+    @staticmethod
+    def _recovery_evidence(
+        request_fingerprint: str,
+        checkpoint_store: CheckpointStore,
+        resume_set: ResumeCheckpointSet | None,
+        logical_operations: list[ProviderLogicalOperationSummary],
+    ) -> dict[str, Any]:
+        replayed_source_ids = tuple(
+            sorted(
+                checkpoint.checkpoint_id
+                for checkpoint in (resume_set.checkpoints.values() if resume_set else ())
+            )
+        )
+        return {
+            "contract_version": RECOVERY_CONTRACT_VERSION,
+            "request_fingerprint": request_fingerprint,
+            "checkpoint_contract_version": "production-provider-checkpoint-v0.1",
+            "checkpoint_directory": "checkpoints",
+            "checkpoint_ids": list(checkpoint_store.checkpoint_ids),
+            "checkpoint_count": len(checkpoint_store.checkpoint_ids),
+            "resume_source_run_id": resume_set.source_run_id if resume_set else None,
+            "resume_source_checkpoint_ids": list(replayed_source_ids),
+            "executed_operation_count": sum(
+                item.execution_source is ProviderOperationExecutionSource.NEW_PROVIDER
+                for item in logical_operations
+            ),
+            "replayed_operation_count": sum(
+                item.execution_source is ProviderOperationExecutionSource.CHECKPOINT_REPLAY
+                for item in logical_operations
+            ),
+        }
+
+    @staticmethod
     def _provider_summary(
-        runtime: ProviderRuntime, provenance_ids: tuple[str, ...]
+        runtime: ProviderRuntime,
+        provenance_ids: tuple[str, ...],
+        logical_operations: list[ProviderLogicalOperationSummary],
+        transport_attempts: list[ProviderTransportAttemptSummary],
     ) -> ProviderOperationSummary:
         recording = runtime.recording_transport
         return ProviderOperationSummary(
             provider_id=runtime.provider.provider_id,
-            operations=recording.operations,
-            operation_count=recording.operation_count,
+            operations=tuple(item.operation for item in logical_operations),
+            operation_count=len(logical_operations),
             credits=recording.credits,
             credit_semantics=runtime.credit_semantics,
             provenance_ids=tuple(sorted(provenance_ids)),
+            transport_attempt_count=len(transport_attempts),
+            executed_operation_count=sum(
+                item.execution_source is ProviderOperationExecutionSource.NEW_PROVIDER
+                for item in logical_operations
+            ),
+            replayed_operation_count=sum(
+                item.execution_source is ProviderOperationExecutionSource.CHECKPOINT_REPLAY
+                for item in logical_operations
+            ),
+            logical_operations=tuple(logical_operations),
+            transport_attempts=tuple(transport_attempts),
         )
 
     @staticmethod

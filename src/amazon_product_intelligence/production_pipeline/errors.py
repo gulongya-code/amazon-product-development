@@ -9,6 +9,11 @@ from typing import Any, Mapping
 class ProductionPipelineErrorCode(StrEnum):
     INVALID_INPUT = "INVALID_INPUT"
     OUTPUT_ARTIFACT_CONFLICT = "OUTPUT_ARTIFACT_CONFLICT"
+    INCOMPATIBLE_RESUME_SOURCE = "INCOMPATIBLE_RESUME_SOURCE"
+    CHECKPOINT_INTEGRITY_FAILURE = "CHECKPOINT_INTEGRITY_FAILURE"
+    UNSUPPORTED_CHECKPOINT_VERSION = "UNSUPPORTED_CHECKPOINT_VERSION"
+    UNSAFE_CHECKPOINT_CONTENT = "UNSAFE_CHECKPOINT_CONTENT"
+    BOUNDED_RETRY_EXHAUSTED = "BOUNDED_RETRY_EXHAUSTED"
     UNSUPPORTED_CAPABILITY = "UNSUPPORTED_CAPABILITY"
     PROVIDER_FAILURE = "PROVIDER_FAILURE"
     INTELLIGENCE_FAILURE = "INTELLIGENCE_FAILURE"
@@ -66,10 +71,24 @@ class OutputArtifactConflictError(ProductionPipelineError):
         )
 
 
+class RecoveryContractError(ProductionPipelineError):
+    """Typed, secret-safe recovery/checkpoint contract failure."""
+
+    def __init__(
+        self,
+        code: ProductionPipelineErrorCode,
+        message: str,
+        *,
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(code, message, stage="input_validation", details=details)
+
+
 __all__ = (
     "ProductionPipelineError",
     "ProductionPipelineErrorCode",
     "ProductionRunValidationError",
+    "RecoveryContractError",
     "OutputArtifactConflictError",
     "UnsupportedCapabilityError",
 )

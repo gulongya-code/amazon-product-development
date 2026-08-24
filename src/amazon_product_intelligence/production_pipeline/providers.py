@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
+from hashlib import sha256
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -111,21 +113,102 @@ class RecordingTransport:
         self.wrapped = wrapped
         self.safe_requests: list[dict[str, Any]] = []
         self.credit_values: list[float] = []
+        self.attempt_records: list[RecordedTransportAttempt] = []
 
     def execute(self, request: TransportRequest) -> TransportResponse:
-        self.safe_requests.append(request.to_safe_dict())
-        response = self.wrapped.execute(request)
+        safe_request = request.to_safe_dict()
+        self.safe_requests.append(safe_request)
+        try:
+            response = self.wrapped.execute(request)
+        except ProviderConnectorError as exc:
+            self.attempt_records.append(
+                RecordedTransportAttempt(
+                    safe_request=safe_request,
+                    status="FAILED",
+                    provider_error_code=exc.code.value,
+                    credits=self._error_credit(exc),
+                    response=None,
+                )
+            )
+            if self.attempt_records[-1].credits is not None:
+                self.credit_values.append(self.attempt_records[-1].credits)
+            raise
+        except TimeoutError:
+            self.attempt_records.append(
+                RecordedTransportAttempt(
+                    safe_request=safe_request,
+                    status="FAILED",
+                    provider_error_code=ProviderErrorCode.TIMEOUT.value,
+                    credits=None,
+                    response=None,
+                )
+            )
+            raise
+        except OSError:
+            self.attempt_records.append(
+                RecordedTransportAttempt(
+                    safe_request=safe_request,
+                    status="FAILED",
+                    provider_error_code=ProviderErrorCode.NETWORK.value,
+                    credits=None,
+                    response=None,
+                )
+            )
+            raise
+        credit = self._response_credit(response)
+        error_code = self._response_error_code(response.status_code)
+        self.attempt_records.append(
+            RecordedTransportAttempt(
+                safe_request=safe_request,
+                status="SUCCEEDED" if error_code is None else "FAILED",
+                provider_error_code=error_code,
+                credits=credit,
+                response=response,
+            )
+        )
+        if credit is not None:
+            self.credit_values.append(credit)
+        return response
+
+    @staticmethod
+    def _response_credit(response: TransportResponse) -> float | None:
         credit = response.metadata.get("cost_credits")
         if credit is None and isinstance(response.payload, Mapping):
             credit = response.payload.get("cost_credits")
         if isinstance(credit, (int, float)) and not isinstance(credit, bool):
-            self.credit_values.append(float(credit))
+            return float(credit)
         elif isinstance(credit, str):
             try:
-                self.credit_values.append(float(credit))
+                return float(credit)
             except ValueError:
-                pass
-        return response
+                return None
+        return None
+
+    @staticmethod
+    def _error_credit(error: ProviderConnectorError) -> float | None:
+        credit = error.details.get("cost_credits")
+        if isinstance(credit, (int, float)) and not isinstance(credit, bool):
+            return float(credit)
+        if isinstance(credit, str):
+            try:
+                return float(credit)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _response_error_code(status_code: int) -> str | None:
+        if 200 <= status_code <= 299:
+            return None
+        if status_code in {401, 403}:
+            return ProviderErrorCode.AUTHENTICATION.value
+        if status_code == 429:
+            return ProviderErrorCode.RATE_LIMIT.value
+        if status_code in {408, 504}:
+            return ProviderErrorCode.TIMEOUT.value
+        if status_code >= 500:
+            return ProviderErrorCode.PROVIDER_UNAVAILABLE.value
+        return ProviderErrorCode.BAD_RESPONSE.value
 
     @property
     def operation_count(self) -> int:
@@ -138,6 +221,28 @@ class RecordingTransport:
     @property
     def credits(self) -> float | None:
         return sum(self.credit_values) if self.credit_values else None
+
+
+@dataclass(frozen=True, slots=True)
+class RecordedTransportAttempt:
+    """Internal response-bearing attempt record; public evidence is allowlisted later."""
+
+    safe_request: Mapping[str, Any]
+    status: str
+    provider_error_code: str | None
+    credits: float | None
+    response: TransportResponse | None
+
+    @property
+    def request_sha256(self) -> str:
+        material = json.dumps(
+            self.safe_request,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+        return sha256(material).hexdigest()
 
 
 class AcquiredReplayProvider:
@@ -203,6 +308,7 @@ __all__ = (
     "AcquiredReplayProvider",
     "FixtureTransport",
     "RecordingTransport",
+    "RecordedTransportAttempt",
     "XIYOU_REVERSE_KEYWORD_PAGE",
     "XIYOU_REVERSE_KEYWORD_PAGE_SIZE",
     "XIYOU_REVERSE_KEYWORD_PERIOD",
