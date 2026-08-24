@@ -1,0 +1,304 @@
+{
+  "availability": "AVAILABLE",
+  "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+  "contract_version": "distribution-section-item-v0.1",
+  "currency": null,
+  "declared_metric_names": [
+    "product_count",
+    "product_share"
+  ],
+  "dimension": "product_type",
+  "distribution_id": "market-report-v0.2-distribution:f2e0baa407285e99bafbafd3a8999aaf4325ac7c1b04c5eb74e5637a601e2b74",
+  "distribution_kind": "ATTRIBUTE_VALUE",
+  "evidence_ids": [
+    "evidence:product_count:1",
+    "evidence:product_share:0.5",
+    "evidence:segment:bucket:known",
+    "evidence:segment:bucket:unknown"
+  ],
+  "limitations": [],
+  "marketplace": "US",
+  "membership_mode": "SINGLE_CLASSIFICATION",
+  "period_reference_id": null,
+  "policy_id": "policy:product-type-v1",
+  "policy_version": "v1",
+  "product_denominator_reference_id": "market-report-v0.2-reference:542ff131a2bda69192a63b56c89516b98ea30e6acd9d1acd84ba744af91aaeac",
+  "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+  "provenance_reference_ids": [
+    "provenance:fixture:sp039c"
+  ],
+  "references": [
+    {
+      "content_fingerprint": "sha256:product:US:B0GGR3F5KZ",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "canonical-product",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:05b1865588423839d49f7a8a9f331b1d30087abc7d384e2a5ec1156681caf879",
+      "target_id": "product:US:B0GGR3F5KZ",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": null,
+      "kind": "REPORT_LOCAL",
+      "namespace": "market-report-v0.2.scope-context",
+      "provenance_reference_ids": [],
+      "reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+      "target_id": "market-report-v0.2-scope:c2570391ccf318644fbefea8ae02025eb305dfe983689e8745aeb043de272fa5",
+      "target_version": "scope-context-v0.1"
+    },
+    {
+      "content_fingerprint": "sha256:denominator:all-products",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "distribution-denominator",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:542ff131a2bda69192a63b56c89516b98ea30e6acd9d1acd84ba744af91aaeac",
+      "target_id": "denominator:all-products",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:product:US:B09265WXY5",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "canonical-product",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:856255925e07080b65234949ccdab90a4a6c5076cd68681b89c881ba09ec1565",
+      "target_id": "product:US:B09265WXY5",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:cohort:US:dog-water-bottle",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "category-product-map",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+      "target_id": "cohort:US:dog-water-bottle",
+      "target_version": "fixture-v1"
+    },
+    {
+      "content_fingerprint": "sha256:category:US:dog-water-bottle",
+      "kind": "EXTERNAL_PROVENANCE",
+      "namespace": "category-product-map",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "reference_id": "market-report-v0.2-reference:ab1f560063d44cb5437c4c81abb7029f26e716b1c36c8d7d3b9731b5d3799798",
+      "target_id": "category:US:dog-water-bottle",
+      "target_version": "fixture-v1"
+    }
+  ],
+  "revenue_denominator_reference_id": null,
+  "sales_denominator_reference_id": null,
+  "scope_context_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+  "segments": [
+    {
+      "canonical_definition": {
+        "value": "bottle"
+      },
+      "classification": "CLASSIFIED",
+      "contract_version": "distribution-segment-v0.1",
+      "display_label": "Bottle",
+      "evidence_ids": [
+        "evidence:product_count:1",
+        "evidence:product_share:0.5",
+        "evidence:segment:bucket:known"
+      ],
+      "limitations": [],
+      "member_grain_entity_reference_ids": [
+        "market-report-v0.2-reference:856255925e07080b65234949ccdab90a4a6c5076cd68681b89c881ba09ec1565"
+      ],
+      "membership_disclosure": "COMPLETE",
+      "metrics": [
+        {
+          "availability": "AVAILABLE",
+          "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "completeness": "COMPLETE",
+          "confidence": null,
+          "contract_version": "metric-context-envelope-v0.1",
+          "coverage": 1.0,
+          "currency": null,
+          "denominator_reference_id": null,
+          "evidence_ids": [
+            "evidence:product_count:1"
+          ],
+          "evidence_semantics": "OBSERVED",
+          "limitations": [],
+          "marketplace": "US",
+          "method_policy_id": "policy:governed-metric",
+          "method_policy_version": "v1",
+          "metric_id": "market-report-v0.2-metric:1071619bfa0d4ca0e5b75a2c46c9d95aec332e8a012d474e3c6700fbd4262748",
+          "metric_name": "product_count",
+          "period_reference_id": null,
+          "presence_status": "PRESENT",
+          "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "sample_context": {
+            "excluded_count": 1,
+            "included_count": 1,
+            "total_count": 2,
+            "unknown_count": 0
+          },
+          "subject_reference_ids": [
+            "market-report-v0.2-reference:856255925e07080b65234949ccdab90a4a6c5076cd68681b89c881ba09ec1565"
+          ],
+          "unit": "products",
+          "value": 1,
+          "value_type": "COUNT"
+        },
+        {
+          "availability": "AVAILABLE",
+          "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "completeness": "COMPLETE",
+          "confidence": null,
+          "contract_version": "metric-context-envelope-v0.1",
+          "coverage": 1.0,
+          "currency": null,
+          "denominator_reference_id": "market-report-v0.2-reference:542ff131a2bda69192a63b56c89516b98ea30e6acd9d1acd84ba744af91aaeac",
+          "evidence_ids": [
+            "evidence:product_share:0.5"
+          ],
+          "evidence_semantics": "OBSERVED",
+          "limitations": [],
+          "marketplace": "US",
+          "method_policy_id": "policy:governed-metric",
+          "method_policy_version": "v1",
+          "metric_id": "market-report-v0.2-metric:101c2fdee10663cc1dd4bc5137a4d0c8b6a5c310dd556842b4c7fbc3ab402ca2",
+          "metric_name": "product_share",
+          "period_reference_id": null,
+          "presence_status": "PRESENT",
+          "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "sample_context": {
+            "excluded_count": 1,
+            "included_count": 1,
+            "total_count": 2,
+            "unknown_count": 0
+          },
+          "subject_reference_ids": [
+            "market-report-v0.2-reference:856255925e07080b65234949ccdab90a4a6c5076cd68681b89c881ba09ec1565"
+          ],
+          "unit": "share",
+          "value": 0.5,
+          "value_type": "SHARE"
+        }
+      ],
+      "policy_ordinal": 10,
+      "policy_value_id": "bucket:known",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "segment_id": "market-report-v0.2-distribution-segment:b55d7c89896673dfb44c1954e4323e3287549e55812636479e70f40814c67ad9"
+    },
+    {
+      "canonical_definition": null,
+      "classification": "UNKNOWN_UNCLASSIFIED",
+      "contract_version": "distribution-segment-v0.1",
+      "display_label": "Unknown / unclassified",
+      "evidence_ids": [
+        "evidence:product_count:1",
+        "evidence:product_share:0.5",
+        "evidence:segment:bucket:unknown"
+      ],
+      "limitations": [],
+      "member_grain_entity_reference_ids": [
+        "market-report-v0.2-reference:05b1865588423839d49f7a8a9f331b1d30087abc7d384e2a5ec1156681caf879"
+      ],
+      "membership_disclosure": "COMPLETE",
+      "metrics": [
+        {
+          "availability": "AVAILABLE",
+          "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "completeness": "COMPLETE",
+          "confidence": null,
+          "contract_version": "metric-context-envelope-v0.1",
+          "coverage": 1.0,
+          "currency": null,
+          "denominator_reference_id": null,
+          "evidence_ids": [
+            "evidence:product_count:1"
+          ],
+          "evidence_semantics": "OBSERVED",
+          "limitations": [],
+          "marketplace": "US",
+          "method_policy_id": "policy:governed-metric",
+          "method_policy_version": "v1",
+          "metric_id": "market-report-v0.2-metric:a382804ab59b0e23d46b9628e86da9cfba9586d68a988994c45b14abac9c0051",
+          "metric_name": "product_count",
+          "period_reference_id": null,
+          "presence_status": "PRESENT",
+          "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "sample_context": {
+            "excluded_count": 1,
+            "included_count": 1,
+            "total_count": 2,
+            "unknown_count": 0
+          },
+          "subject_reference_ids": [
+            "market-report-v0.2-reference:05b1865588423839d49f7a8a9f331b1d30087abc7d384e2a5ec1156681caf879"
+          ],
+          "unit": "products",
+          "value": 1,
+          "value_type": "COUNT"
+        },
+        {
+          "availability": "AVAILABLE",
+          "cohort_reference_id": "market-report-v0.2-reference:aa864afea8c2961c81fe1f153fcb981d9d3601c8fa2e4f8948613aff2e4cb49e",
+          "completeness": "COMPLETE",
+          "confidence": null,
+          "contract_version": "metric-context-envelope-v0.1",
+          "coverage": 1.0,
+          "currency": null,
+          "denominator_reference_id": "market-report-v0.2-reference:542ff131a2bda69192a63b56c89516b98ea30e6acd9d1acd84ba744af91aaeac",
+          "evidence_ids": [
+            "evidence:product_share:0.5"
+          ],
+          "evidence_semantics": "OBSERVED",
+          "limitations": [],
+          "marketplace": "US",
+          "method_policy_id": "policy:governed-metric",
+          "method_policy_version": "v1",
+          "metric_id": "market-report-v0.2-metric:855cf22ac1129ff3cce320ab81f34325297f4744cb57b2835f6b5df9881e615c",
+          "metric_name": "product_share",
+          "period_reference_id": null,
+          "presence_status": "PRESENT",
+          "product_grain_reference_id": "market-report-v0.2-reference:47842126fdfda3fb6b46e52252742e8f06a761c0dc6f97a716104d7e003215f6",
+          "provenance_reference_ids": [
+            "provenance:fixture:sp039c"
+          ],
+          "sample_context": {
+            "excluded_count": 1,
+            "included_count": 1,
+            "total_count": 2,
+            "unknown_count": 0
+          },
+          "subject_reference_ids": [
+            "market-report-v0.2-reference:05b1865588423839d49f7a8a9f331b1d30087abc7d384e2a5ec1156681caf879"
+          ],
+          "unit": "share",
+          "value": 0.5,
+          "value_type": "SHARE"
+        }
+      ],
+      "policy_ordinal": 99,
+      "policy_value_id": "bucket:unknown",
+      "provenance_reference_ids": [
+        "provenance:fixture:sp039c"
+      ],
+      "segment_id": "market-report-v0.2-distribution-segment:5c1d10bfa93352798d22d10e7b4f3f278d719036670a0f9096f401e577b90c61"
+    }
+  ],
+  "unsafe_aggregate_guard": false
+}
