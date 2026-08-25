@@ -17,10 +17,12 @@ from amazon_product_intelligence.batch_product_selection import (
 
 from .errors import ProductionPipelineError
 from .models import (
+    DEFAULT_MARKET_REPORT_VERSION,
     ProductionRunMode,
     ProductionRunRequest,
     ProductionRunStatus,
     ProviderCreditSemantics,
+    SUPPORTED_MARKET_REPORT_VERSIONS,
 )
 from .orchestrator import ProductionPipelineOrchestrator
 
@@ -39,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--run-id")
     run.add_argument("--mode", choices=tuple(item.value for item in ProductionRunMode), default="fixture")
     run.add_argument("--category-name")
+    run.add_argument(
+        "--report-version",
+        choices=tuple(sorted(SUPPORTED_MARKET_REPORT_VERSIONS)),
+        default=DEFAULT_MARKET_REPORT_VERSION,
+        help="explicit report contract opt-in; omitted remains market-report-v0.1",
+    )
     run.add_argument(
         "--resume-from",
         type=Path,
@@ -125,6 +133,7 @@ def main(
             mode=ProductionRunMode(args.mode),
             category_name=args.category_name,
             resume_from=args.resume_from,
+            report_version=args.report_version,
         )
     except (OSError, json.JSONDecodeError, ValueError, ProductionPipelineError) as exc:
         code = (

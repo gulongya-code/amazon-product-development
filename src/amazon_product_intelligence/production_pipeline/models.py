@@ -13,6 +13,10 @@ from .errors import ProductionRunValidationError
 
 PRODUCTION_RUN_CONTRACT_VERSION = "production-run-v0.1"
 PRODUCTION_PIPELINE_VERSION = "production-pipeline-v0.1"
+DEFAULT_MARKET_REPORT_VERSION = "market-report-v0.1"
+SUPPORTED_MARKET_REPORT_VERSIONS = frozenset(
+    {DEFAULT_MARKET_REPORT_VERSION, "market-report-v0.2"}
+)
 
 _ASIN = re.compile(r"^[A-Z0-9]{10}$")
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -69,6 +73,7 @@ class ProductionRunRequest:
     seed_keyword: str | None = None
     category_name: str | None = None
     resume_from: Path | None = None
+    report_version: str = DEFAULT_MARKET_REPORT_VERSION
     contract_version: str = PRODUCTION_RUN_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
@@ -76,8 +81,19 @@ class ProductionRunRequest:
             raise ProductionRunValidationError(
                 f"contract_version must be {PRODUCTION_RUN_CONTRACT_VERSION}"
             )
+        if self.report_version not in SUPPORTED_MARKET_REPORT_VERSIONS:
+            raise ProductionRunValidationError(
+                "report_version must be exactly market-report-v0.1 or market-report-v0.2"
+            )
         if not isinstance(self.mode, ProductionRunMode):
             raise ProductionRunValidationError("mode must be fixture or live")
+        if (
+            self.report_version == "market-report-v0.2"
+            and self.mode is not ProductionRunMode.FIXTURE
+        ):
+            raise ProductionRunValidationError(
+                "market-report-v0.2 is offline fixture-only until SP-039G"
+            )
         market = self.marketplace.strip().upper() if isinstance(self.marketplace, str) else ""
         if not market or market != self.marketplace:
             raise ProductionRunValidationError("marketplace must be normalized uppercase text")
@@ -216,11 +232,14 @@ class ProductionRunResult:
     error: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
     operator_workflow: Mapping[str, Any] | None = None
+    requested_market_report_version: str | None = None
+    market_report_id: str | None = None
+    delivery_status: str | None = None
     contract_version: str = PRODUCTION_RUN_CONTRACT_VERSION
     pipeline_version: str = PRODUCTION_PIPELINE_VERSION
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "contract_version": self.contract_version,
             "pipeline_version": self.pipeline_version,
             "run_id": self.run_id,
@@ -243,11 +262,20 @@ class ProductionRunResult:
                 else None
             ),
         }
+        if self.requested_market_report_version is not None:
+            payload["requested_market_report_version"] = self.requested_market_report_version
+        if self.market_report_id is not None:
+            payload["market_report_id"] = self.market_report_id
+        if self.delivery_status is not None:
+            payload["delivery_status"] = self.delivery_status
+        return payload
 
 
 __all__ = (
+    "DEFAULT_MARKET_REPORT_VERSION",
     "PRODUCTION_PIPELINE_VERSION",
     "PRODUCTION_RUN_CONTRACT_VERSION",
+    "SUPPORTED_MARKET_REPORT_VERSIONS",
     "PipelineStage",
     "ProductionRunMode",
     "ProductionRunRequest",

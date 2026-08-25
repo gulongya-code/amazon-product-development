@@ -115,6 +115,7 @@ def run_request_fingerprint(request: ProductionRunRequest) -> str:
         "provider_preference": request.provider_preference,
         "provider_config_reference": request.provider_config_reference,
         "mode": request.mode.value,
+        "report_version": request.report_version,
         "category_name": request.category_name,
         "provider_operations": [
             _operation_contract(operation) for operation in _RECOVERY_OPERATIONS
