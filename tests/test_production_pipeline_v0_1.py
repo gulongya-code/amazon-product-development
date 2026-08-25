@@ -654,6 +654,79 @@ class ProductionPipelineV01Tests(unittest.TestCase):
         self.assertNotIn("not billed", stdout.getvalue())
         self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
 
+    def test_safe_auth_diagnostics_are_allowlisted_and_non_retryable(self) -> None:
+        secret = "auth-secret-must-never-survive"
+
+        class AuthenticationFailureTransport:
+            def execute(self, request):
+                return TransportResponse(
+                    status_code=401,
+                    payload={
+                        "reason": "APICredentialUnavailable",
+                        "message": secret,
+                        "metadata": {"account_id": secret},
+                    },
+                    metadata={
+                        "trace_id": "trace-safe_123",
+                        "cost_credits": "0",
+                        "unknown": secret,
+                    },
+                )
+
+        def factory(request):
+            metadata = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            recording = RecordingTransport(AuthenticationFailureTransport())
+            provider = XiYouProvider(
+                recording,
+                environment={"TEST_LIVE_SECRET": secret},
+            )
+            registry = ProviderRegistry()
+            registry.register(
+                provider,
+                ProviderConfig(
+                    provider_id="xiyou",
+                    enabled=True,
+                    priority=1,
+                    credential_env="TEST_LIVE_SECRET",
+                    max_attempts=2,
+                ),
+            )
+            return ProviderRuntime(
+                registry=registry,
+                provider=provider,
+                recording_transport=recording,
+                metadata=metadata,
+                credit_semantics=ProviderCreditSemantics.LIVE_PROVIDER_REPORTED,
+            )
+
+        result = ProductionPipelineOrchestrator(
+            provider_runtime_factory=factory,
+            delivery=RecordingDelivery(),
+        ).run(
+            ProductionRunRequest(
+                marketplace="US",
+                asins=(ASINS[0],),
+                output_directory=self.root / "auth-diagnostics",
+                run_id="auth-diagnostics",
+                mode=ProductionRunMode.LIVE,
+                category_name="dog water bottle",
+            )
+        )
+
+        self.assertIs(result.status, ProductionRunStatus.FAILED)
+        self.assertEqual(1, result.provider_summary.transport_attempt_count)
+        attempt = result.provider_summary.transport_attempts[0].to_dict()
+        self.assertEqual(401, attempt["http_status_code"])
+        self.assertEqual("APICredentialUnavailable", attempt["provider_reason"])
+        self.assertEqual("trace-safe_123", attempt["trace_id"])
+        self.assertEqual(0.0, attempt["credits"])
+        persisted = canonical_json(result.to_dict()) + Path(
+            result.artifact_paths["run_manifest"]
+        ).read_text(encoding="utf-8")
+        self.assertNotIn(secret, persisted)
+        self.assertNotIn("account_id", persisted)
+        self.assertNotIn("unknown", persisted)
+
     def test_cli_failure_exit_code(self) -> None:
         stdout, stderr = StringIO(), StringIO()
         code = main(

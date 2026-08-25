@@ -1137,6 +1137,9 @@ class ProductionPipelineOrchestrator:
                     ),
                     provider_error_code=record.provider_error_code,
                     credits=record.credits,
+                    http_status_code=record.http_status_code,
+                    provider_reason=record.provider_reason,
+                    trace_id=record.trace_id,
                 )
             )
 
