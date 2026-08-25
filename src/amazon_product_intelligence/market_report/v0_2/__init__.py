@@ -1,7 +1,7 @@
-"""Isolated staged Market Report V0.2 contracts through SP-039D.
+"""Strict isolated Market Report V0.2 analytical contracts through SP-039E.
 
-This package intentionally contains no top-level report, renderer, delivery, or
-production-pipeline integration.
+This package intentionally contains no renderer, delivery, or production-pipeline
+integration.
 """
 
 from . import adapters, models
@@ -25,7 +25,16 @@ from .version import (
     PRODUCT_DIRECTION_SECTION_CONTRACT_VERSION,
     SCOPE_CONTEXT_CONTRACT_VERSION,
     TRUE_COMPETITOR_SET_CONTRACT_VERSION,
+    REPORT_CONTEXT_CONTRACT_VERSION,
+    OPPORTUNITY_PROJECTION_CONTRACT_VERSION,
+    EXECUTIVE_SUMMARY_CONTRACT_VERSION,
+    EVIDENCE_REGISTRY_CONTRACT_VERSION,
+    SANITIZED_APPENDIX_CONTRACT_VERSION,
+    EXTERNAL_INTEGRATIONS_CONTRACT_VERSION,
+    REPORT_SNAPSHOT_CONTRACT_VERSION,
 )
+from .builder import compose_market_report_v0_2
+from .validation import market_report_v0_2_from_dict
 
 __all__ = (
     "BUYER_NEED_LINK_CONTRACT_VERSION",
@@ -47,6 +56,15 @@ __all__ = (
     "PRODUCT_DIRECTION_SECTION_CONTRACT_VERSION",
     "SCOPE_CONTEXT_CONTRACT_VERSION",
     "TRUE_COMPETITOR_SET_CONTRACT_VERSION",
+    "REPORT_CONTEXT_CONTRACT_VERSION",
+    "OPPORTUNITY_PROJECTION_CONTRACT_VERSION",
+    "EXECUTIVE_SUMMARY_CONTRACT_VERSION",
+    "EVIDENCE_REGISTRY_CONTRACT_VERSION",
+    "SANITIZED_APPENDIX_CONTRACT_VERSION",
+    "EXTERNAL_INTEGRATIONS_CONTRACT_VERSION",
+    "REPORT_SNAPSHOT_CONTRACT_VERSION",
+    "compose_market_report_v0_2",
+    "market_report_v0_2_from_dict",
     "adapters",
     "models",
 )

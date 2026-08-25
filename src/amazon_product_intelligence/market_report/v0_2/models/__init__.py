@@ -81,6 +81,46 @@ from .product_directions import (
     build_product_direction,
     build_product_direction_section,
 )
+from .evidence_registry import (
+    ALLOWED_EXTERNAL_NAMESPACES,
+    EvidenceRecord,
+    EvidenceRegistry,
+    ReportProvenanceRecord,
+    build_evidence_registry,
+    build_provenance_record,
+)
+from .executive_summary import (
+    EXECUTIVE_CLAIM_CATEGORY_ORDER,
+    ExecutiveClaim,
+    ExecutiveClaimCategory,
+    ExecutiveSummarySection,
+    build_executive_claim,
+    build_executive_summary,
+)
+from .external_integrations import (
+    ExternalIntegrationAttachment,
+    ExternalIntegrationState,
+    ExternalIntegrationsRegistry,
+    build_external_attachment,
+    build_external_integrations,
+)
+from .opportunity import OpportunityProjectionV0_2, build_opportunity_projection
+from .report_context import (
+    CategoryContextV0_2,
+    DataWindowContextV0_2,
+    ReportMetadataV0_2,
+    SampleContextV0_2,
+    build_category_context,
+    build_data_window_context,
+    build_sample_context,
+)
+from .report_snapshot import MarketReportSnapshotV0_2, report_id_for, semantic_fingerprint_for
+from .sanitized_appendix import (
+    SanitizedAppendixSection,
+    SanitizedEvidenceReference,
+    build_sanitized_appendix,
+    build_sanitized_reference,
+)
 
 
 __all__ = (
@@ -147,4 +187,37 @@ __all__ = (
     "build_scope_context",
     "build_true_competitor_set",
     "unavailable_metric",
+    "ALLOWED_EXTERNAL_NAMESPACES",
+    "CategoryContextV0_2",
+    "DataWindowContextV0_2",
+    "EvidenceRecord",
+    "EvidenceRegistry",
+    "EXECUTIVE_CLAIM_CATEGORY_ORDER",
+    "ExecutiveClaim",
+    "ExecutiveClaimCategory",
+    "ExecutiveSummarySection",
+    "ExternalIntegrationAttachment",
+    "ExternalIntegrationState",
+    "ExternalIntegrationsRegistry",
+    "MarketReportSnapshotV0_2",
+    "OpportunityProjectionV0_2",
+    "ReportMetadataV0_2",
+    "ReportProvenanceRecord",
+    "SampleContextV0_2",
+    "SanitizedAppendixSection",
+    "SanitizedEvidenceReference",
+    "build_category_context",
+    "build_data_window_context",
+    "build_evidence_registry",
+    "build_executive_claim",
+    "build_executive_summary",
+    "build_external_attachment",
+    "build_external_integrations",
+    "build_opportunity_projection",
+    "build_provenance_record",
+    "build_sample_context",
+    "build_sanitized_appendix",
+    "build_sanitized_reference",
+    "report_id_for",
+    "semantic_fingerprint_for",
 )
