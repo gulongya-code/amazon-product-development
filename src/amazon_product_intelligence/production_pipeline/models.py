@@ -135,9 +135,12 @@ class ProviderTransportAttemptSummary:
     status: ProviderTransportAttemptStatus
     provider_error_code: str | None = None
     credits: float | None = None
+    http_status_code: int | None = None
+    provider_reason: str | None = None
+    trace_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "logical_operation_id": self.logical_operation_id,
             "operation": self.operation,
             "attempt_ordinal": self.attempt_ordinal,
@@ -145,6 +148,13 @@ class ProviderTransportAttemptSummary:
             "provider_error_code": self.provider_error_code,
             "credits": self.credits,
         }
+        if self.http_status_code is not None:
+            payload["http_status_code"] = self.http_status_code
+        if self.provider_reason is not None:
+            payload["provider_reason"] = self.provider_reason
+        if self.trace_id is not None:
+            payload["trace_id"] = self.trace_id
+        return payload
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

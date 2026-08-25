@@ -30,6 +30,16 @@ XIYOU_REVERSE_KEYWORD_PERIOD = "last7days"
 XIYOU_REVERSE_KEYWORD_SORT_FIELD = "traffic"
 XIYOU_REVERSE_KEYWORD_SORT_ORDER = "desc"
 
+_SAFE_XIYOU_PROVIDER_REASONS = frozenset(
+    {
+        "APICredentialUnavailable",
+        "APICredentialNotFound",
+        "CreditBalanceInsufficient",
+        "CreditAccountUnavailable",
+        "CreditAccountNotFound",
+    }
+)
+
 
 def xiyou_reverse_keyword_parameters(*, asin: str, marketplace: str) -> dict[str, Any]:
     """Return the frozen, cost-bounded reverse-keyword request used by SP-032."""
@@ -243,6 +253,31 @@ class RecordedTransportAttempt:
             default=str,
         ).encode("utf-8")
         return sha256(material).hexdigest()
+
+    @property
+    def http_status_code(self) -> int | None:
+        return self.response.status_code if self.response is not None else None
+
+    @property
+    def provider_reason(self) -> str | None:
+        if self.response is None or not isinstance(self.response.payload, Mapping):
+            return None
+        reason = self.response.payload.get("reason")
+        return reason if reason in _SAFE_XIYOU_PROVIDER_REASONS else None
+
+    @property
+    def trace_id(self) -> str | None:
+        if self.response is None:
+            return None
+        trace_id = self.response.metadata.get("trace_id")
+        if not isinstance(trace_id, str):
+            return None
+        trace_id = trace_id.strip()
+        if not trace_id or len(trace_id) > 128:
+            return None
+        if any(not (character.isalnum() or character in "._:-") for character in trace_id):
+            return None
+        return trace_id
 
 
 class AcquiredReplayProvider:
