@@ -1,0 +1,1 @@
+{"scenario":"partial_market_economics","builder_args":{"market_unavailable":true},"expected":{"monthly_sales":null,"monthly_revenue":null,"executive_claim_availability":"UNAVAILABLE"}}

@@ -29,6 +29,13 @@ from .competitor_shortlist_adapter import (
     CompetitorShortlistAdapter,
     GovernedCompetitorShortlistInput,
 )
+from .executive_summary_adapter import (
+    ExecutiveSummaryAdapter,
+    GovernedExecutiveClaimInput,
+    ValidatedExecutiveSource,
+)
+from .opportunity_adapter import OpportunityProjectionAdapter
+from .report_context_adapter import ReportContextAdapter
 
 __all__ = (
     "BuyerNeedLinkAdapter",
@@ -48,4 +55,9 @@ __all__ = (
     "ProductDirectionMetricBoundary",
     "ScopeContextAdapter",
     "TrueCompetitorSetAdapter",
+    "ExecutiveSummaryAdapter",
+    "GovernedExecutiveClaimInput",
+    "OpportunityProjectionAdapter",
+    "ReportContextAdapter",
+    "ValidatedExecutiveSource",
 )

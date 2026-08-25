@@ -1,0 +1,1 @@
+{"scenario":"keyword_not_attached","builder_args":{},"expected":{"external_integration_state":"NOT_ATTACHED","keyword_attached":false,"keyword_demand_inferred":false}}
