@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from zipfile import ZipFile
+from zipfile import ZIP_STORED, ZipFile
 
 from openpyxl import load_workbook
 
@@ -23,6 +23,9 @@ from amazon_product_intelligence.xlsx_delivery import (
     XlsxDeliverySerializationError,
     XlsxDeliverySnapshotV0_1,
     XlsxDeliveryValidationError,
+)
+from amazon_product_intelligence.xlsx_delivery.package_fingerprint import (
+    ooxml_package_content_sha256,
 )
 from tests.test_operator_export_v0_1 import build_export
 
@@ -209,15 +212,34 @@ class XlsxDeliveryV01Tests(unittest.TestCase):
         self.assertEqual(
             snapshot_id, deterministic_id("xlsx-delivery-snapshot", identity)
         )
-        self.assertEqual(
-            self.snapshot.snapshot_id,
-            "xlsx-delivery-snapshot:2a316fc50778d888a450753a4ab1e1fa26567219246e8f8e5f1a467746e0eab4",
-        )
+        content = self.snapshot.to_xlsx_bytes()
         self.assertEqual(
             self.snapshot.workbook.content_sha256,
-            "5003d07e7c6172291338c01a0a71a80ce9fef36949cfc5040f4793eeb9659657",
+            __import__("hashlib").sha256(content).hexdigest(),
         )
-        self.assertEqual(self.snapshot.workbook.size_bytes, 52267)
+        self.assertEqual(self.snapshot.workbook.size_bytes, len(content))
+        self.assertEqual(
+            ooxml_package_content_sha256(content),
+            "89ffe16d58928ea3b00e0efac32980bb766a905e9ecbc9a524ba562fa1f6e6f5",
+        )
+
+    def test_ooxml_content_fingerprint_ignores_zip_compression(self):
+        original = self.snapshot.to_xlsx_bytes()
+        repacked_stream = BytesIO()
+        with ZipFile(BytesIO(original)) as source, ZipFile(
+            repacked_stream, "w", compression=ZIP_STORED
+        ) as target:
+            for name in source.namelist():
+                target.writestr(name, source.read(name))
+        repacked = repacked_stream.getvalue()
+        self.assertNotEqual(
+            __import__("hashlib").sha256(original).hexdigest(),
+            __import__("hashlib").sha256(repacked).hexdigest(),
+        )
+        self.assertEqual(
+            ooxml_package_content_sha256(original),
+            ooxml_package_content_sha256(repacked),
+        )
 
     def test_real_xlsx_is_an_open_packaging_convention_zip(self):
         content = self.snapshot.to_xlsx_bytes()

@@ -65,6 +65,11 @@ from amazon_product_intelligence.market_report import (
     validate_market_report_payload,
 )
 from amazon_product_intelligence.market_report.delivery import OperatorReportDelivery
+from amazon_product_intelligence.market_report.v0_2 import market_report_v0_2_from_dict
+from amazon_product_intelligence.market_report.v0_2.delivery import OperatorReportDeliveryV0_2
+from amazon_product_intelligence.market_report.v0_2.production_adapter import (
+    ProductionMarketReportV0_2Adapter,
+)
 from amazon_product_intelligence.normalization import CanonicalNormalizationPipeline
 from amazon_product_intelligence.opportunity_intelligence import (
     OpportunityIntelligenceBuilderV0_1,
@@ -221,10 +226,12 @@ class ProductionPipelineOrchestrator:
         *,
         provider_runtime_factory: ProviderRuntimeFactory | None = None,
         delivery: OperatorReportDelivery | None = None,
+        delivery_v0_2: OperatorReportDeliveryV0_2 | None = None,
         report_validator: ReportValidator = validate_market_report_payload,
     ) -> None:
         self._provider_runtime_factory = provider_runtime_factory or self._default_provider_runtime
         self._delivery = delivery or OperatorReportDelivery()
+        self._delivery_v0_2 = delivery_v0_2 or OperatorReportDeliveryV0_2()
         self._report_validator = report_validator
 
     def run(self, request: ProductionRunRequest) -> ProductionRunResult:
@@ -241,6 +248,8 @@ class ProductionPipelineOrchestrator:
         resolved_count = 0
         warnings: set[str] = set()
         unavailable: set[str] = set()
+        produced_report_id: str | None = None
+        delivery_status: str | None = None
         request_fingerprint = run_request_fingerprint(request)
         checkpoint_store = CheckpointStore(
             request.output_directory,
@@ -525,7 +534,7 @@ class ProductionPipelineOrchestrator:
             current = PipelineStage.MARKET_REPORT
             tracker.start(current)
             category_name = request.category_name or str(runtime.metadata["category_name"])
-            report = MarketReportBuilderV0_1().build(
+            source_report = MarketReportBuilderV0_1().build(
                 MarketReportBuildRequest(
                     category_name=category_name,
                     marketplace=request.marketplace,
@@ -562,21 +571,46 @@ class ProductionPipelineOrchestrator:
                     limitations=tuple(sorted({*warnings, *unavailable})),
                 )
             )
-            MarketReportBuilderV0_1().write_json(report, layout.market_report)
+            if request.report_version == MARKET_REPORT_VERSION:
+                report = source_report
+                MarketReportBuilderV0_1().write_json(report, layout.market_report)
+                report_id = report.report_id
+            else:
+                report = ProductionMarketReportV0_2Adapter().adapt(
+                    source_report,
+                    operational_metadata={
+                        "run_id": run_id,
+                        "mode": request.mode.value,
+                        "provider_id": request.provider_preference,
+                        "request_fingerprint": request_fingerprint,
+                    },
+                )
+                write_json_atomic(layout.market_report, report.to_dict())
+                report_id = report.metadata.report_id
+            produced_report_id = report_id
             tracker.finish(
                 current,
-                "market-report-v0.1 JSON built and written",
-                evidence_ids=(report.report_id,),
+                f"{request.report_version} JSON built and written",
+                evidence_ids=(report_id,),
             )
 
             current = PipelineStage.SCHEMA_VALIDATION
             tracker.start(current)
             serialized = json.loads(layout.market_report.read_text(encoding="utf-8"))
-            validated = self._report_validator(serialized)
+            validated = (
+                self._report_validator(serialized)
+                if request.report_version == MARKET_REPORT_VERSION
+                else market_report_v0_2_from_dict(serialized)
+            )
+            validated_report_id = (
+                validated.report_id
+                if request.report_version == MARKET_REPORT_VERSION
+                else validated.metadata.report_id
+            )
             tracker.finish(
                 current,
                 "serialized market_report.json validated before delivery",
-                evidence_ids=(validated.report_id,),
+                evidence_ids=(validated_report_id,),
             )
 
             current = PipelineStage.DELIVERY
@@ -587,32 +621,35 @@ class ProductionPipelineOrchestrator:
                 resume_set,
                 logical_operations,
             )
-            workflow = OperatorWorkflowBuilderV0_1().build(
-                OperatorWorkflowRequest(
-                    report=validated,
-                    run_id=run_id,
-                    run_status=ProductionRunStatus.SUCCEEDED.value,
-                    provider_summary=(
-                        provider_summary.to_dict()
-                        if provider_summary is not None
-                        else None
-                    ),
-                    recovery=recovery_evidence,
+            workflow = None
+            if request.report_version == MARKET_REPORT_VERSION:
+                workflow = OperatorWorkflowBuilderV0_1().build(
+                    OperatorWorkflowRequest(
+                        report=validated,
+                        run_id=run_id,
+                        run_status=ProductionRunStatus.SUCCEEDED.value,
+                        provider_summary=(provider_summary.to_dict() if provider_summary is not None else None),
+                        recovery=recovery_evidence,
+                    )
                 )
-            )
-            delivered = self._delivery.deliver(
-                validated,
-                layout.output_directory,
-                operator_workflow=workflow,
-            )
+                delivered = self._delivery.deliver(
+                    validated, layout.output_directory, operator_workflow=workflow,
+                )
+                delivery_evidence = (
+                    workflow.snapshot_id, delivered.xlsx_sha256, delivered.markdown_sha256,
+                )
+            else:
+                delivered = self._delivery_v0_2.deliver(validated, layout.output_directory)
+                delivery_evidence = (
+                    delivered.xlsx_sha256,
+                    delivered.xlsx_package_content_sha256,
+                    delivered.markdown_sha256,
+                )
+            delivery_status = "SUCCEEDED"
             tracker.finish(
                 current,
-                "operator workflow, XLSX, and Markdown delivered from the validated report",
-                evidence_ids=(
-                    workflow.snapshot_id,
-                    delivered.xlsx_sha256,
-                    delivered.markdown_sha256,
-                ),
+                "XLSX and Markdown delivered from the same validated report snapshot",
+                evidence_ids=delivery_evidence,
             )
 
             current = PipelineStage.MANIFEST
@@ -625,12 +662,21 @@ class ProductionPipelineOrchestrator:
                 resolved_asin_count=resolved_count,
                 stages=tracker.records(),
                 artifact_paths=self._artifact_paths(layout, include_all=True),
-                market_report_version=MARKET_REPORT_VERSION,
+                market_report_version=request.report_version,
                 provider_summary=provider_summary,
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
                 recovery=recovery_evidence,
-                operator_workflow=workflow.to_dict(),
+                operator_workflow=workflow.to_dict() if workflow is not None else None,
+                requested_market_report_version=(
+                    request.report_version if request.report_version != MARKET_REPORT_VERSION else None
+                ),
+                market_report_id=(
+                    produced_report_id if request.report_version != MARKET_REPORT_VERSION else None
+                ),
+                delivery_status=(
+                    delivery_status if request.report_version != MARKET_REPORT_VERSION else None
+                ),
             )
             write_json_atomic(layout.manifest, result.to_dict())
             return result
@@ -665,7 +711,7 @@ class ProductionPipelineOrchestrator:
                 artifact_paths=(
                     {} if output_conflict else self._artifact_paths(layout, include_all=False)
                 ),
-                market_report_version=MARKET_REPORT_VERSION,
+                market_report_version=request.report_version,
                 provider_summary=provider_summary,
                 warnings=tuple(sorted(warnings)),
                 unavailable_evidence=tuple(sorted(unavailable)),
@@ -675,6 +721,15 @@ class ProductionPipelineOrchestrator:
                     checkpoint_store,
                     resume_set,
                     logical_operations,
+                ),
+                requested_market_report_version=(
+                    request.report_version if request.report_version != MARKET_REPORT_VERSION else None
+                ),
+                market_report_id=(
+                    produced_report_id if request.report_version != MARKET_REPORT_VERSION else None
+                ),
+                delivery_status=(
+                    "FAILED" if request.report_version != MARKET_REPORT_VERSION else None
                 ),
             )
             if not output_conflict:
