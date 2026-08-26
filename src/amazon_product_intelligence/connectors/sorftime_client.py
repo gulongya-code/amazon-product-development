@@ -14,10 +14,11 @@ from .sorftime_dtos_v0_1 import (
     SorftimeAsinRequestKeywordResponse,
     SorftimeProductRequest,
     SorftimeProductRequestResponse,
+    SorftimeProductRequestWireCapture,
     SorftimeProductVariationsRequest,
     SorftimeProductVariationsResponse,
     parse_asin_request_keyword_response,
-    parse_product_request_response,
+    parse_product_request_wire_response,
     parse_product_variations_response,
 )
 from .transport import (
@@ -130,13 +131,17 @@ class SorftimeOperationResult(Generic[_ResponseT]):
     operation: str
     response: _ResponseT = field(repr=False)
     usage: SorftimeUsageEvidence
+    wire_capture: SorftimeProductRequestWireCapture | None = field(default=None, repr=False)
 
     def to_safe_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "operation": self.operation,
             "response_type": type(self.response).__name__,
             "usage": self.usage.to_safe_dict(),
         }
+        if self.wire_capture is not None:
+            result["wire_capture"] = self.wire_capture.to_safe_dict()
+        return result
 
 
 class SorftimeClient:
@@ -216,7 +221,13 @@ class SorftimeClient:
         while True:
             try:
                 raw = self._transport.execute(transport_request)
-                response = self._parse(operation.operation, request, raw.payload, raw.status_code)
+                parsed = self._parse(operation.operation, request, raw.payload, raw.status_code)
+                if isinstance(parsed, SorftimeProductRequestWireCapture):
+                    response = parsed.semantic_response
+                    wire_capture = parsed
+                else:
+                    response = parsed
+                    wire_capture = None
             except ProviderConnectorError as exc:
                 error = exc
             except TimeoutError:
@@ -244,6 +255,7 @@ class SorftimeClient:
                         request_consumed=response.RequestConsumed,
                         request_left=response.RequestLeft,
                     ),
+                    wire_capture=wire_capture,
                 )
             if not self._retry_policy.should_retry(
                 error, attempt=attempt, max_attempts=configuration.max_attempts
@@ -306,7 +318,7 @@ class SorftimeClient:
     @staticmethod
     def _parse(operation: str, request: Any, payload: Any, status_code: int) -> Any:
         if operation == "ProductRequest":
-            return parse_product_request_response(payload, request, http_status=status_code)
+            return parse_product_request_wire_response(payload, request, http_status=status_code)
         if operation == "ProductVariations":
             return parse_product_variations_response(payload, request, http_status=status_code)
         if operation == "ASINRequestKeyword":

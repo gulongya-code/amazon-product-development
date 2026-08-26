@@ -8,11 +8,12 @@ or infer any provider semantics beyond the accepted SP-040A evidence.
 from __future__ import annotations
 
 from collections.abc import Mapping as MappingABC
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 import re
+from types import MappingProxyType
 from typing import Any, Mapping, TypeVar
 
 from amazon_product_intelligence.contracts import (
@@ -32,6 +33,18 @@ _ORGANIC_POSITION = re.compile(
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _LOCAL_DATETIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$")
 _VARIATION_PROPERTIES = frozenset({"Color", "Size"})
+_PRODUCT_REQUEST_WIRE_CAPTURE_VERSION = "sorftime-product-request-wire-v0.1"
+_UNSAFE_WIRE_FIELD_TOKENS = frozenset(
+    {
+        "apikey",
+        "authorization",
+        "cookie",
+        "credential",
+        "password",
+        "secret",
+        "token",
+    }
+)
 
 
 def _fail(message: str) -> None:
@@ -237,6 +250,7 @@ class SorftimeProductRequestData(JsonContract):
     DealTrend: Any
     PriceTrend: Any
     ListPriceTrend: Any
+    Title: str | None = None
 
     def __post_init__(self) -> None:
         _require_asin("ProductRequest.Data.Asin", self.Asin)
@@ -288,6 +302,9 @@ class SorftimeProductRequestData(JsonContract):
         ):
             if getattr(self, name) is not None:
                 _fail(f"ProductRequest.Data.{name} is unavailable in the accepted Trend=2 DTO slice")
+        if self.Title is not None:
+            if type(self.Title) is not str or not self.Title.strip():
+                _fail("ProductRequest.Data.Title must be a non-empty string when present")
 
     @property
     def has_distinct_parent(self) -> bool:
@@ -526,6 +543,38 @@ class SorftimeProductRequestResponse(JsonContract):
             _fail("only the accepted ProductRequest Trend=2 response slice is available")
 
 
+class SorftimeWireFieldStatus(StrEnum):
+    PROMOTED = "PROMOTED"
+    CAPTURED_UNVERIFIED = "CAPTURED_UNVERIFIED"
+    IGNORED_UNSAFE = "IGNORED_UNSAFE"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeWireFieldInventory(JsonContract):
+    field_name: str
+    json_type: str
+    nullable: bool
+    status: SorftimeWireFieldStatus
+    source_operation: str = "ProductRequest"
+    source_version: str = _PRODUCT_REQUEST_WIRE_CAPTURE_VERSION
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeProductRequestWireCapture:
+    """Runtime-only ProductRequest extensions kept outside semantic DTOs and fingerprints."""
+
+    semantic_response: SorftimeProductRequestResponse = field(repr=False)
+    extensions: Mapping[str, Any] = field(repr=False)
+    field_inventory: tuple[SorftimeWireFieldInventory, ...]
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            "source_operation": "ProductRequest",
+            "source_version": _PRODUCT_REQUEST_WIRE_CAPTURE_VERSION,
+            "field_inventory": [item.to_dict() for item in self.field_inventory],
+        }
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SorftimeProductVariationsResponse(JsonContract):
     RequestLeft: int
@@ -700,15 +749,142 @@ def _decode_success(
         ) from exc
 
 
-def parse_product_request_response(
+def _wire_json_type(value: Any) -> str:
+    if value is None:
+        return "NULL"
+    if type(value) is bool:
+        return "BOOLEAN"
+    if type(value) in {int, float}:
+        return "NUMBER"
+    if type(value) is str:
+        return "STRING"
+    if isinstance(value, MappingABC):
+        return "OBJECT"
+    if isinstance(value, (list, tuple)):
+        return "ARRAY"
+    return "UNSUPPORTED"
+
+
+def _unsafe_wire_field_name(name: str) -> bool:
+    normalized = "".join(character for character in name.casefold() if character.isalnum())
+    return any(token in normalized for token in _UNSAFE_WIRE_FIELD_TOKENS)
+
+
+def _contains_unsafe_wire_field(value: Any) -> bool:
+    if isinstance(value, MappingABC):
+        return any(
+            type(name) is not str
+            or _unsafe_wire_field_name(name)
+            or _contains_unsafe_wire_field(child)
+            for name, child in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_unsafe_wire_field(child) for child in value)
+    return False
+
+
+def _freeze_captured_json(value: Any) -> Any:
+    canonical_json(value)
+    if isinstance(value, MappingABC):
+        return MappingProxyType(
+            {name: _freeze_captured_json(child) for name, child in value.items()}
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_captured_json(child) for child in value)
+    return value
+
+
+def _product_request_schema_mismatch(
+    message: str,
+    *,
+    payload: Any,
+    http_status: int,
+    field_path: str,
+) -> ProviderConnectorError:
+    return ProviderConnectorError(
+        ProviderErrorCode.SCHEMA_MISMATCH,
+        message,
+        provider_id="sorftime",
+        operation="ProductRequest",
+        details={
+            "data_state": _data_state(payload),
+            "field_path": field_path,
+            "http_status": http_status,
+        },
+    )
+
+
+def parse_product_request_wire_response(
     payload: Any,
     request: SorftimeProductRequest,
     *,
     http_status: int = 200,
-) -> SorftimeProductRequestResponse:
+) -> SorftimeProductRequestWireCapture:
+    """Split a rich ProductRequest wire payload from its strict semantic slice."""
+
+    _require_http_success(http_status, "ProductRequest")
+    if not isinstance(payload, MappingABC) or not isinstance(payload.get("Data"), MappingABC):
+        _decode_success(
+            SorftimeProductRequestResponse,
+            payload,
+            operation="ProductRequest",
+            http_status=http_status,
+        )
+        raise AssertionError("strict ProductRequest decoding unexpectedly accepted malformed Data")
+
+    data = payload["Data"]
+    semantic_names = frozenset(item.name for item in fields(SorftimeProductRequestData))
+    semantic_names_by_case = {name.casefold(): name for name in semantic_names}
+    semantic_data: dict[str, Any] = {}
+    extensions: dict[str, Any] = {}
+    inventory: list[SorftimeWireFieldInventory] = []
+
+    for name, value in data.items():
+        if type(name) is not str:
+            raise _product_request_schema_mismatch(
+                "Sorftime ProductRequest Data field names must be strings",
+                payload=payload,
+                http_status=http_status,
+                field_path="Data",
+            )
+        if name in semantic_names:
+            semantic_data[name] = value
+            status = SorftimeWireFieldStatus.PROMOTED
+        elif name.casefold() in semantic_names_by_case:
+            expected = semantic_names_by_case[name.casefold()]
+            raise _product_request_schema_mismatch(
+                "Sorftime ProductRequest semantic field casing is invalid",
+                payload=payload,
+                http_status=http_status,
+                field_path=f"Data.{name};expected={expected}",
+            )
+        elif _unsafe_wire_field_name(name) or _contains_unsafe_wire_field(value):
+            status = SorftimeWireFieldStatus.IGNORED_UNSAFE
+        else:
+            try:
+                extensions[name] = _freeze_captured_json(value)
+            except (ContractValidationError, TypeError, ValueError) as exc:
+                raise _product_request_schema_mismatch(
+                    "Sorftime ProductRequest extension is not JSON-safe",
+                    payload=payload,
+                    http_status=http_status,
+                    field_path=f"Data.{name}",
+                ) from exc
+            status = SorftimeWireFieldStatus.CAPTURED_UNVERIFIED
+        inventory.append(
+            SorftimeWireFieldInventory(
+                field_name=name,
+                json_type=_wire_json_type(value),
+                nullable=value is None,
+                status=status,
+            )
+        )
+
+    semantic_payload = dict(payload)
+    semantic_payload["Data"] = semantic_data
     response = _decode_success(
         SorftimeProductRequestResponse,
-        payload,
+        semantic_payload,
         operation="ProductRequest",
         http_status=http_status,
     )
@@ -722,7 +898,24 @@ def parse_product_request_response(
             operation="ProductRequest",
             details={"mismatch": "REQUEST_RESPONSE"},
         ) from exc
-    return response
+    return SorftimeProductRequestWireCapture(
+        semantic_response=response,
+        extensions=MappingProxyType(dict(sorted(extensions.items()))),
+        field_inventory=tuple(sorted(inventory, key=lambda item: item.field_name)),
+    )
+
+
+def parse_product_request_response(
+    payload: Any,
+    request: SorftimeProductRequest,
+    *,
+    http_status: int = 200,
+) -> SorftimeProductRequestResponse:
+    return parse_product_request_wire_response(
+        payload,
+        request,
+        http_status=http_status,
+    ).semantic_response
 
 
 def parse_product_variations_response(
@@ -793,12 +986,16 @@ __all__ = (
     "SorftimeProductRequest",
     "SorftimeProductRequestData",
     "SorftimeProductRequestResponse",
+    "SorftimeProductRequestWireCapture",
     "SorftimeProductVariationRow",
     "SorftimeProductVariationsRequest",
     "SorftimeProductVariationsResponse",
     "SorftimeSalesState",
+    "SorftimeWireFieldInventory",
+    "SorftimeWireFieldStatus",
     "parse_asin_request_keyword_response",
     "parse_product_request_response",
+    "parse_product_request_wire_response",
     "parse_product_variations_response",
     "resolve_sorftime_domain",
     "sorftime_dto_json",

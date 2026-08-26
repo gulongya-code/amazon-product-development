@@ -464,6 +464,7 @@ def test_capabilities_are_only_dto_first_proven_slice() -> None:
     fields = {item.canonical_field for item in SorftimeProvider(RecordingTransport({})).capabilities}
     assert fields == {
         "product.asin",
+        "product.title",
         "product.parent_asin",
         "product.attributes",
         "product.variation",

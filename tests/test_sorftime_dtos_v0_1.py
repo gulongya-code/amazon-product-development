@@ -21,11 +21,13 @@ from amazon_product_intelligence.connectors import (
     SorftimePageState,
     SorftimeProductRequest,
     SorftimeProductRequestResponse,
+    SorftimeWireFieldStatus,
     SorftimeProductVariationsRequest,
     SorftimeProductVariationsResponse,
     SorftimeSalesState,
     parse_asin_request_keyword_response,
     parse_product_request_response,
+    parse_product_request_wire_response,
     parse_product_variations_response,
     resolve_sorftime_domain,
     sorftime_dto_json,
@@ -219,15 +221,21 @@ class TestEnvelopeAndProductRequestDto:
         assert caught.value.details["http_status"] == 401
         assert caught.value.details["provider_envelope_accepted"] is False
 
-    def test_unknown_envelope_or_product_field_is_rejected(self) -> None:
-        for path in ("envelope", "data"):
-            payload = load_fixture("product_request_success.json")
-            target = payload if path == "envelope" else payload["Data"]
-            target["Unexpected"] = "value"  # type: ignore[index]
-            error = assert_schema_mismatch(
-                lambda payload=payload: parse_product_request_response(payload, product_request())
-            )
-            assert error.details["data_state"] == "PRESENT"
+    def test_unknown_envelope_is_rejected_but_safe_data_root_extension_is_captured(self) -> None:
+        payload = load_fixture("product_request_success.json")
+        payload["Unexpected"] = "value"
+        error = assert_schema_mismatch(
+            lambda: parse_product_request_response(payload, product_request())
+        )
+        assert error.details["data_state"] == "PRESENT"
+
+        payload = load_fixture("product_request_success.json")
+        payload["Data"]["Unexpected"] = "value"  # type: ignore[index]
+        capture = parse_product_request_wire_response(payload, product_request())
+        assert capture.extensions == {"Unexpected": "value"}
+        assert next(
+            item for item in capture.field_inventory if item.field_name == "Unexpected"
+        ).status is SorftimeWireFieldStatus.CAPTURED_UNVERIFIED
 
     def test_variation_count_mismatch_and_malformed_attribute_fail(self) -> None:
         payload = load_fixture("product_request_success.json")
@@ -424,6 +432,7 @@ class TestDeterminismAndOfflineSafety:
         files = sorted(FIXTURES.glob("*.json"))
         assert {path.name for path in files} == {
             "asin_request_keyword_success.json",
+            "product_request_rich_wire.json",
             "product_request_success.json",
             "product_variations_success.json",
         }

@@ -73,6 +73,15 @@ def _capability(
 
 SORFTIME_CAPABILITIES = (
     _capability(
+        "product.title",
+        CapabilityStatus.AVAILABLE,
+        source_field="Data.Title",
+        operation="ProductRequest",
+        kind=ObservationKind.PRODUCT_FACT,
+        names=("title",),
+        notes="Exact requested-ASIN listing title only; no title NLP or variation-title inference.",
+    ),
+    _capability(
         "product.asin",
         CapabilityStatus.AVAILABLE,
         source_field="Data.Asin / Data.VariationASIN",

@@ -1,0 +1,42 @@
+{
+  "RequestLeft": 1348,
+  "RequestConsumed": 1,
+  "Code": 0,
+  "Message": "Success",
+  "Data": {
+    "Asin": "B09265WXY5",
+    "ParentAsin": "B0GS2MHR8Z",
+    "VariationASIN": [
+      "B09265WXY5",
+      "B09TSGDJLD",
+      "B09VH1X6VN",
+      "B09VH2JWML",
+      "B0B6344C53",
+      "B0B637GHT3",
+      "B0FFGZG7H9",
+      "B0FFH2G8RD",
+      "B0GSW77CMQ",
+      "B0GSWBK2V3"
+    ],
+    "VariationASINCount": 10,
+    "Attribute": [
+      ["B09265WXY5", "Color", "Pink", "Size", "12oz"],
+      ["B09TSGDJLD", "Color", "Blue", "Size", "12oz"]
+    ],
+    "ListingSalesVolumeOfDaily": null,
+    "ListingSalesOfDaily": null,
+    "ListingSalesVolumeOfMonthTrend": null,
+    "ListingSalesOfMonthTrend": null,
+    "RankTrend": null,
+    "BsrRankTrend": null,
+    "DealTrend": null,
+    "PriceTrend": null,
+    "ListPriceTrend": null,
+    "Title": "Synthetic Insulated Water Bottle",
+    "Price": 1999,
+    "Brand": "CAPTURE ONLY",
+    "Rating": 4.8,
+    "Sales": {"Month": 500},
+    "Image": ["https://example.invalid/synthetic.jpg"]
+  }
+}

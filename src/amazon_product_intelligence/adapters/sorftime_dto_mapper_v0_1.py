@@ -225,6 +225,7 @@ def _product_request_projection(response: SorftimeProductRequestResponse) -> dic
             ),
             "VariationASINCount": data.VariationASINCount,
             "Attribute": attributes,
+            "Title": data.Title,
             "ListingSalesVolumeOfDaily": data.ListingSalesVolumeOfDaily,
             "ListingSalesOfDaily": data.ListingSalesOfDaily,
             "ListingSalesVolumeOfMonthTrend": data.ListingSalesVolumeOfMonthTrend,
@@ -378,6 +379,18 @@ class SorftimeDtoMapperV0_1:
             scope_type=ScopeType.ASIN,
             discriminator="requested-product-identity",
         )
+        if data.Title is not None:
+            session.add_product_fact(
+                product=requested_product,
+                dimension="title",
+                fact_group=FactGroup.IDENTITY_RELATED,
+                value=_string_value(data.Title),
+                source_field="Data.Title",
+                source_record_identity=f"US:{data.Asin}:ProductRequest",
+                provider_semantic="ProductRequest exact listing title",
+                scope_type=ScopeType.ASIN,
+                discriminator="requested-product-title",
+            )
         if parent_asin is not None:
             session.add_product_fact(
                 product=requested_product,
