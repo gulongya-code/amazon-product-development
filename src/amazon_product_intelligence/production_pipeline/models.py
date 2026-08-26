@@ -114,10 +114,11 @@ class ProductionRunRequest:
             raise ProductionRunValidationError("mode must be fixture or live")
         if (
             self.report_version == "market-report-v0.2"
-            and self.mode is not ProductionRunMode.FIXTURE
+            and self.mode is ProductionRunMode.LIVE
+            and self.provider_preference != "sorftime"
         ):
             raise ProductionRunValidationError(
-                "market-report-v0.2 is offline fixture-only until SP-039G"
+                "market-report-v0.2 live is accepted only for explicit Sorftime selection"
             )
         market = self.marketplace.strip().upper() if isinstance(self.marketplace, str) else ""
         if not market or market != self.marketplace:

@@ -136,9 +136,9 @@ def test_unknown_version_fails_at_request_boundary():
             request(Path(directory), version="market-report-v9")
 
 
-def test_v02_live_mode_is_rejected_before_pipeline_construction():
+def test_xiyou_v02_live_mode_is_rejected_at_request_boundary():
     with TemporaryDirectory(dir=ROOT / "outputs") as directory:
-        with pytest.raises(ProductionRunValidationError, match="SP-039G"):
+        with pytest.raises(ProductionRunValidationError, match="explicit Sorftime"):
             ProductionRunRequest(
                 marketplace="US",
                 asins=ASINS,

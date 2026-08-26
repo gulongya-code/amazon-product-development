@@ -157,6 +157,7 @@ _SAFE_RESOLVER_ATTEMPT_STATUSES = frozenset(
 )
 _SAFE_PROVIDER_ERROR_CODES = frozenset(item.value for item in ProviderErrorCode)
 _SORFTIME_V0_1_LIVE_RELEASE_ENABLED = True
+_SORFTIME_V0_2_LIVE_RELEASE_ENABLED = True
 
 
 @dataclass(slots=True)
@@ -748,17 +749,22 @@ class ProductionPipelineOrchestrator:
                 "Sorftime production acquisition is proven only for marketplace US"
             )
         if request.provider_preference == "sorftime" and request.mode is ProductionRunMode.LIVE:
-            if not _SORFTIME_V0_1_LIVE_RELEASE_ENABLED:
+            release_enabled = (
+                _SORFTIME_V0_1_LIVE_RELEASE_ENABLED
+                if request.report_version == MARKET_REPORT_VERSION
+                else _SORFTIME_V0_2_LIVE_RELEASE_ENABLED
+            )
+            if not release_enabled:
                 raise UnsupportedCapabilityError(
-                    "Sorftime live mode remains fixture-only after SP-040F provider contract validation"
+                    f"Sorftime {request.report_version} live release remains blocked"
                 )
             if request.asins != ("B09265WXY5",):
                 raise UnsupportedCapabilityError(
-                    "Sorftime V0.1 live release is limited to ASIN B09265WXY5"
+                    "Sorftime live release is limited to ASIN B09265WXY5"
                 )
             if request.resume_from is not None:
                 raise UnsupportedCapabilityError(
-                    "Sorftime V0.1 live resume is prohibited"
+                    "Sorftime live resume is prohibited"
                 )
         if request.provider_config_reference != "environment":
             raise UnsupportedCapabilityError(
@@ -948,11 +954,16 @@ class ProductionPipelineOrchestrator:
             or usage.consumed != 2
             or type(usage.remaining) is not int
         ):
+            release_gate = (
+                "SORFTIME_V0_1_LIVE_RELEASE"
+                if request.report_version == MARKET_REPORT_VERSION
+                else "SORFTIME_V0_2_LIVE_RELEASE"
+            )
             raise ProductionPipelineError(
                 ProductionPipelineErrorCode.PROVIDER_FAILURE,
-                "Sorftime V0.1 live release usage/attempt gate failed",
+                f"Sorftime {request.report_version} live release usage/attempt gate failed",
                 stage=PipelineStage.ACQUISITION.value,
-                details={"gate": "SORFTIME_V0_1_LIVE_RELEASE"},
+                details={"gate": release_gate},
             )
 
     @staticmethod

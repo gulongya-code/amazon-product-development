@@ -167,14 +167,8 @@ class SorftimeLiveRuntimeTests(unittest.TestCase):
                 self.assertEqual(result.status, ProductionRunStatus.FAILED)
                 self.assertEqual(calls, [])
 
-    def test_v0_2_live_and_unknown_provider_remain_blocked(self):
+    def test_unknown_provider_remains_blocked(self):
         with TemporaryDirectory() as directory:
-            with self.assertRaises(ProductionRunValidationError):
-                request(
-                    Path(directory),
-                    mode=ProductionRunMode.LIVE,
-                    report_version="market-report-v0.2",
-                )
             with self.assertRaises(ProductionRunValidationError):
                 request(Path(directory), provider_preference="other")
 
