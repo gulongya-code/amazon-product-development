@@ -1,0 +1,445 @@
+{
+  "schema_version": "category-rule-pack-v1.0",
+  "rule_pack_id": "shower-caddies",
+  "version": "1.0.0",
+  "category": "shower caddies",
+  "category_aliases": [
+    "shower caddy"
+  ],
+  "value_rules": [
+    {
+      "rule_id": "SC-PF-001",
+      "dimension": "product_form",
+      "result": "shower caddy",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "product type",
+        "item type"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "shower caddy",
+        "shower organizer"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-PF-002",
+      "dimension": "product_form",
+      "result": "shower caddy",
+      "sources": [
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "shower caddy",
+        "shower organizer"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MOUNT-ADH",
+      "dimension": "mounting_or_usage_mode",
+      "result": "adhesive",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "adhesive",
+        "self adhesive",
+        "stick on"
+      ],
+      "exclusions": [
+        "no drilling",
+        "wall mounted",
+        "wall mount"
+      ]
+    },
+    {
+      "rule_id": "SC-MOUNT-HANG",
+      "dimension": "mounting_or_usage_mode",
+      "result": "hanging",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "hanging",
+        "hang"
+      ],
+      "exclusions": [
+        "over shower head",
+        "over door"
+      ]
+    },
+    {
+      "rule_id": "SC-MOUNT-HEAD",
+      "dimension": "mounting_or_usage_mode",
+      "result": "over shower head",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "over shower head",
+        "shower head caddy"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MOUNT-DOOR",
+      "dimension": "mounting_or_usage_mode",
+      "result": "over door",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "over door"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MOUNT-TENSION",
+      "dimension": "mounting_or_usage_mode",
+      "result": "tension pole",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "SKU",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "sku",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "tension pole",
+        "tension"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MOUNT-FLOOR",
+      "dimension": "mounting_or_usage_mode",
+      "result": "floor standing",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "floor standing",
+        "freestanding"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MOUNT-WALL",
+      "dimension": "mounting_or_usage_mode",
+      "result": "wall mounted",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "mounting type",
+        "installation type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "wall mounted",
+        "wall mount"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MAT-METAL",
+      "dimension": "material_family",
+      "result": "metal",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "material"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "stainless steel",
+        "steel",
+        "aluminum",
+        "aluminium",
+        "metal"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MAT-PLASTIC",
+      "dimension": "material_family",
+      "result": "plastic",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "material"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "plastic",
+        "abs"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "SC-MAT-MESH",
+      "dimension": "material_family",
+      "result": "mesh",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "material",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "mesh"
+      ],
+      "exclusions": []
+    }
+  ],
+  "passthrough_rules": [
+    {
+      "rule_id": "SC-USE-OBS",
+      "dimension": "use_case",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "recommended uses for product",
+        "use case"
+      ],
+      "list_delimiter": ","
+    },
+    {
+      "rule_id": "SC-COMP-OBS",
+      "dimension": "compatibility",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "compatible with",
+        "compatibility"
+      ],
+      "list_delimiter": ","
+    },
+    {
+      "rule_id": "SC-OP-OBS",
+      "dimension": "operation_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "operation mode"
+      ],
+      "list_delimiter": null
+    },
+    {
+      "rule_id": "SC-POWER-OBS",
+      "dimension": "power_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "power source",
+        "power mode"
+      ],
+      "list_delimiter": null
+    },
+    {
+      "rule_id": "SC-FEAT-OBS",
+      "dimension": "special_features",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "special feature",
+        "special features"
+      ],
+      "list_delimiter": ","
+    },
+    {
+      "rule_id": "SC-COLOR-OBS",
+      "dimension": "color",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "color",
+        "colour"
+      ],
+      "list_delimiter": null
+    }
+  ],
+  "measurement_rules": [
+    {
+      "rule_id": "SC-CAPACITY",
+      "dimension": "size_or_capacity",
+      "quantity_kind": "VOLUME",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "capacity"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "SC-PACK",
+      "dimension": "pack_count",
+      "quantity_kind": "COUNT",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "number of items",
+        "unit count",
+        "pack count"
+      ],
+      "scope": "PACKAGE",
+      "allow_bare_count": true
+    },
+    {
+      "rule_id": "SC-ITEM-DIM",
+      "dimension": "dimensions",
+      "quantity_kind": "DIMENSIONS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5546\u54c1\u5c3a\u5bf8"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "SC-PACK-DIM",
+      "dimension": "dimensions",
+      "quantity_kind": "DIMENSIONS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5305\u88c5\u5c3a\u5bf8"
+      ],
+      "scope": "PACKAGE",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "SC-ITEM-WEIGHT",
+      "dimension": "weight",
+      "quantity_kind": "MASS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5546\u54c1\u91cd\u91cf"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "SC-PACK-WEIGHT",
+      "dimension": "weight",
+      "quantity_kind": "MASS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5305\u88c5\u91cd\u91cf"
+      ],
+      "scope": "PACKAGE",
+      "allow_bare_count": false
+    }
+  ],
+  "negative_rules": [
+    {
+      "rule_id": "SC-NEG-NODRILL",
+      "dimension": "mounting_or_usage_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "when_any": [
+        "no drilling",
+        "drill free"
+      ],
+      "unless_any": [
+        "adhesive"
+      ],
+      "blocked_values": [
+        "adhesive"
+      ],
+      "note": "No-drilling language alone is not evidence of adhesive mounting."
+    },
+    {
+      "rule_id": "SC-NEG-WALL",
+      "dimension": "mounting_or_usage_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "when_any": [
+        "wall mounted",
+        "wall mount"
+      ],
+      "unless_any": [
+        "adhesive"
+      ],
+      "blocked_values": [
+        "adhesive"
+      ],
+      "note": "Wall-mounted language alone is not evidence of adhesive mounting."
+    }
+  ]
+}

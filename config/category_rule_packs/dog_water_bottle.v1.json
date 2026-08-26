@@ -1,0 +1,293 @@
+{
+  "schema_version": "category-rule-pack-v1.0",
+  "rule_pack_id": "dog-water-bottles",
+  "version": "1.0.0",
+  "category": "dog water bottles",
+  "category_aliases": [
+    "dog water bottle",
+    "pet water bottles"
+  ],
+  "value_rules": [
+    {
+      "rule_id": "DWB-PF-001",
+      "dimension": "product_form",
+      "result": "dog water bottle",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "product type",
+        "item type",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "dog water bottle",
+        "pet water bottle"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-OP-SQUEEZE",
+      "dimension": "operation_mode",
+      "result": "squeeze",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "operation mode",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "squeeze",
+        "squeezable"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-OP-BUTTON",
+      "dimension": "operation_mode",
+      "result": "push button",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "operation mode",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "push button",
+        "one key"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-MAT-PLASTIC",
+      "dimension": "material_family",
+      "result": "plastic",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "material"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "plastic",
+        "abs",
+        "petg"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-MAT-METAL",
+      "dimension": "material_family",
+      "result": "metal",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "material"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "stainless steel",
+        "steel",
+        "metal"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-FEAT-LEAK",
+      "dimension": "special_features",
+      "result": "leakproof",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "special feature",
+        "special features",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "leakproof",
+        "leak proof"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-FEAT-FILTER",
+      "dimension": "special_features",
+      "result": "filter",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "special feature",
+        "special features",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "filter",
+        "filtered"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-FEAT-COMBO",
+      "dimension": "special_features",
+      "result": "food-water combo",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "special feature",
+        "special features",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "food water combo",
+        "food and water"
+      ],
+      "exclusions": []
+    },
+    {
+      "rule_id": "DWB-USE-PORT",
+      "dimension": "use_case",
+      "result": "portable hydration",
+      "sources": [
+        "STRUCTURED_PARAMETERS",
+        "TITLE"
+      ],
+      "keys_or_fields": [
+        "recommended uses for product",
+        "use case",
+        "\u5546\u54c1\u6807\u9898"
+      ],
+      "match_mode": "PHRASE",
+      "match_values": [
+        "portable",
+        "travel",
+        "walking"
+      ],
+      "exclusions": []
+    }
+  ],
+  "passthrough_rules": [
+    {
+      "rule_id": "DWB-COMP-OBS",
+      "dimension": "compatibility",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "compatible with",
+        "compatibility"
+      ],
+      "list_delimiter": ","
+    },
+    {
+      "rule_id": "DWB-MOUNT-OBS",
+      "dimension": "mounting_or_usage_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "usage mode"
+      ],
+      "list_delimiter": null
+    },
+    {
+      "rule_id": "DWB-POWER-OBS",
+      "dimension": "power_mode",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "power source",
+        "power mode"
+      ],
+      "list_delimiter": null
+    },
+    {
+      "rule_id": "DWB-COLOR-OBS",
+      "dimension": "color",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "color",
+        "colour"
+      ],
+      "list_delimiter": null
+    }
+  ],
+  "measurement_rules": [
+    {
+      "rule_id": "DWB-CAPACITY",
+      "dimension": "size_or_capacity",
+      "quantity_kind": "VOLUME",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "capacity"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "DWB-PACK",
+      "dimension": "pack_count",
+      "quantity_kind": "COUNT",
+      "sources": [
+        "STRUCTURED_PARAMETERS"
+      ],
+      "keys_or_fields": [
+        "number of items",
+        "unit count",
+        "pack count"
+      ],
+      "scope": "PACKAGE",
+      "allow_bare_count": true
+    },
+    {
+      "rule_id": "DWB-ITEM-DIM",
+      "dimension": "dimensions",
+      "quantity_kind": "DIMENSIONS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5546\u54c1\u5c3a\u5bf8"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    },
+    {
+      "rule_id": "DWB-ITEM-WEIGHT",
+      "dimension": "weight",
+      "quantity_kind": "MASS",
+      "sources": [
+        "DEDICATED_FIELD"
+      ],
+      "keys_or_fields": [
+        "\u5546\u54c1\u91cd\u91cf"
+      ],
+      "scope": "ITEM",
+      "allow_bare_count": false
+    }
+  ],
+  "negative_rules": []
+}
