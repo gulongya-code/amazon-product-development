@@ -37,6 +37,31 @@ class ProviderCreditSemantics(StrEnum):
     LIVE_PROVIDER_REPORTED = "LIVE_PROVIDER_REPORTED"
 
 
+class ProviderUsageUnit(StrEnum):
+    REQUEST = "REQUEST"
+
+
+class ProviderUsageSemantics(StrEnum):
+    FIXTURE_REFERENCE = "FIXTURE_REFERENCE"
+    LIVE_PROVIDER_REPORTED = "LIVE_PROVIDER_REPORTED"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ProviderUsageSummary:
+    unit: ProviderUsageUnit
+    consumed: int
+    remaining: int | None
+    semantics: ProviderUsageSemantics
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "unit": self.unit.value,
+            "consumed": self.consumed,
+            "remaining": self.remaining,
+            "semantics": self.semantics.value,
+        }
+
+
 class StageStatus(StrEnum):
     NOT_STARTED = "NOT_STARTED"
     RUNNING = "RUNNING"
@@ -104,8 +129,10 @@ class ProductionRunRequest:
             raise ProductionRunValidationError("at least one ASIN or a seed keyword is required")
         if not isinstance(self.output_directory, Path):
             raise ProductionRunValidationError("output_directory must be a pathlib.Path")
-        if not self.provider_preference.strip():
-            raise ProductionRunValidationError("provider_preference must be non-empty text")
+        if self.provider_preference not in {"xiyou", "sorftime"}:
+            raise ProductionRunValidationError(
+                "provider_preference must be exactly xiyou or sorftime"
+            )
         if not self.provider_config_reference.strip():
             raise ProductionRunValidationError("provider_config_reference must be non-empty text")
         if self.run_id is not None and _RUN_ID.fullmatch(self.run_id) is None:
@@ -203,8 +230,9 @@ class ProviderOperationSummary:
     operations: tuple[str, ...]
     operation_count: int
     credits: float | None
-    credit_semantics: ProviderCreditSemantics
+    credit_semantics: ProviderCreditSemantics | None
     provenance_ids: tuple[str, ...]
+    provider_usage: ProviderUsageSummary | None = None
     transport_attempt_count: int = 0
     executed_operation_count: int = 0
     replayed_operation_count: int = 0
@@ -212,12 +240,14 @@ class ProviderOperationSummary:
     transport_attempts: tuple[ProviderTransportAttemptSummary, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "provider_id": self.provider_id,
             "operations": list(self.operations),
             "operation_count": self.operation_count,
             "credits": self.credits,
-            "credit_semantics": self.credit_semantics.value,
+            "credit_semantics": (
+                self.credit_semantics.value if self.credit_semantics is not None else None
+            ),
             "provenance_ids": list(self.provenance_ids),
             "transport_attempt_count": self.transport_attempt_count,
             "executed_operation_count": self.executed_operation_count,
@@ -225,6 +255,9 @@ class ProviderOperationSummary:
             "logical_operations": [item.to_dict() for item in self.logical_operations],
             "transport_attempts": [item.to_dict() for item in self.transport_attempts],
         }
+        if self.provider_usage is not None:
+            payload["provider_usage"] = self.provider_usage.to_dict()
+        return payload
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -295,6 +328,9 @@ __all__ = (
     "ProviderLogicalOperationSummary",
     "ProviderOperationExecutionSource",
     "ProviderOperationSummary",
+    "ProviderUsageSummary",
+    "ProviderUsageSemantics",
+    "ProviderUsageUnit",
     "ProviderTransportAttemptStatus",
     "ProviderTransportAttemptSummary",
     "StageResult",

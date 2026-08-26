@@ -94,6 +94,13 @@ class FixtureTransport:
             if not isinstance(entry, dict):
                 raise self._missing(request)
             return self._response(entry)
+        if request.operation in {"ProductRequest", "ASINRequestKeyword"}:
+            asin = request.parameters.get("ASIN")
+            entries = operations.get(request.operation, {})
+            entry = deepcopy(entries.get(asin)) if isinstance(entries, Mapping) else None
+            if not isinstance(entry, dict):
+                raise self._missing(request)
+            return self._response(entry)
         raise self._missing(request)
 
     @staticmethod
@@ -123,6 +130,7 @@ class RecordingTransport:
         self.wrapped = wrapped
         self.safe_requests: list[dict[str, Any]] = []
         self.credit_values: list[float] = []
+        self.confirmed_request_usage: list[tuple[int, int]] = []
         self.attempt_records: list[RecordedTransportAttempt] = []
 
     def execute(self, request: TransportRequest) -> TransportResponse:
@@ -231,6 +239,22 @@ class RecordingTransport:
     @property
     def credits(self) -> float | None:
         return sum(self.credit_values) if self.credit_values else None
+
+    def confirm_request_usage(self, response: TransportResponse) -> None:
+        """Record counters only after the typed provider path accepted the response."""
+
+        payload = response.payload
+        if not isinstance(payload, Mapping):
+            return
+        consumed = payload.get("RequestConsumed")
+        remaining = payload.get("RequestLeft")
+        if (
+            type(consumed) is int
+            and consumed >= 0
+            and type(remaining) is int
+            and remaining >= 0
+        ):
+            self.confirmed_request_usage.append((consumed, remaining))
 
 
 @dataclass(frozen=True, slots=True)

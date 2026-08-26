@@ -1,0 +1,484 @@
+{
+  "fixture_id": "production-pipeline-fixture:sorftime-b09265wxy5-v0.1",
+  "category_name": "dog water bottle",
+  "category_scope": "Amazon US > Pet Supplies > Dog Travel Water Bottles",
+  "marketplace": "US",
+  "locale": "en-us",
+  "currency": "USD",
+  "retrieved_at": "2026-08-26T00:30:00Z",
+  "transformed_at": "2026-08-26T00:31:00Z",
+  "generated_at": "2026-08-26T00:35:00Z",
+  "fixture_asins": [
+    "B09265WXY5"
+  ],
+  "operations": {
+    "ProductRequest": {
+      "B09265WXY5": {
+        "status_code": 200,
+        "metadata": {},
+        "payload": {
+          "RequestLeft": 1348,
+          "RequestConsumed": 1,
+          "Code": 0,
+          "Message": "Success",
+          "Data": {
+            "Asin": "B09265WXY5",
+            "ParentAsin": "B0GS2MHR8Z",
+            "VariationASIN": [
+              "B09265WXY5",
+              "B09TSGDJLD",
+              "B09VH1X6VN",
+              "B09VH2JWML",
+              "B0B6344C53",
+              "B0B637GHT3",
+              "B0FFGZG7H9",
+              "B0FFH2G8RD",
+              "B0GSW77CMQ",
+              "B0GSWBK2V3"
+            ],
+            "VariationASINCount": 10,
+            "Attribute": [
+              [
+                "B09265WXY5",
+                "Color",
+                "Pink",
+                "Size",
+                "12oz"
+              ],
+              [
+                "B09TSGDJLD",
+                "Color",
+                "Blue",
+                "Size",
+                "12oz"
+              ]
+            ],
+            "ListingSalesVolumeOfDaily": null,
+            "ListingSalesOfDaily": null,
+            "ListingSalesVolumeOfMonthTrend": null,
+            "ListingSalesOfMonthTrend": null,
+            "RankTrend": null,
+            "BsrRankTrend": null,
+            "DealTrend": null,
+            "PriceTrend": null,
+            "ListPriceTrend": null
+          }
+        }
+      }
+    },
+    "ASINRequestKeyword": {
+      "B09265WXY5": {
+        "status_code": 200,
+        "metadata": {},
+        "payload": {
+          "RequestLeft": 1346,
+          "RequestConsumed": 1,
+          "Code": 0,
+          "Message": "Success",
+          "Data": [
+            {
+              "ShowType": "organic",
+              "ShowShare": 20,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第1/48位",
+              "SearchPositionDate": "2026-08-26 00:01",
+              "Keyword": {
+              "Keyword": "portable dog water bottle",
+                "SearchVolume": 1001,
+                "Cpc": 51,
+                "CpcRange": [
+                  41,
+                  61
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 19,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第2/48位",
+              "SearchPositionDate": "2026-08-26 00:02",
+              "Keyword": {
+              "Keyword": "leak proof dog water bottle",
+                "SearchVolume": 1002,
+                "Cpc": 52,
+                "CpcRange": [
+                  42,
+                  62
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 18,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第3/48位",
+              "SearchPositionDate": "2026-08-26 00:03",
+              "Keyword": {
+              "Keyword": "travel dog water bottle",
+                "SearchVolume": 1003,
+                "Cpc": 53,
+                "CpcRange": [
+                  43,
+                  63
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 17,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第4/48位",
+              "SearchPositionDate": "2026-08-26 00:04",
+              "Keyword": {
+                "Keyword": "fixture keyword 04",
+                "SearchVolume": 1004,
+                "Cpc": 54,
+                "CpcRange": [
+                  44,
+                  64
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 16,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第5/48位",
+              "SearchPositionDate": "2026-08-26 00:05",
+              "Keyword": {
+                "Keyword": "fixture keyword 05",
+                "SearchVolume": 1005,
+                "Cpc": 55,
+                "CpcRange": [
+                  45,
+                  65
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 15,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第6/48位",
+              "SearchPositionDate": "2026-08-26 00:06",
+              "Keyword": {
+                "Keyword": "fixture keyword 06",
+                "SearchVolume": 1006,
+                "Cpc": 56,
+                "CpcRange": [
+                  46,
+                  66
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 14,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第1页，第7/48位",
+              "SearchPositionDate": "2026-08-26 00:07",
+              "Keyword": {
+                "Keyword": "fixture keyword 07",
+                "SearchVolume": 1007,
+                "Cpc": 57,
+                "CpcRange": [
+                  47,
+                  67
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 13,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第1/48位",
+              "SearchPositionDate": "2026-08-26 00:08",
+              "Keyword": {
+                "Keyword": "fixture keyword 08",
+                "SearchVolume": 1008,
+                "Cpc": 58,
+                "CpcRange": [
+                  48,
+                  68
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 12,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第2/48位",
+              "SearchPositionDate": "2026-08-26 00:09",
+              "Keyword": {
+                "Keyword": "fixture keyword 09",
+                "SearchVolume": 1009,
+                "Cpc": 59,
+                "CpcRange": [
+                  49,
+                  69
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 11,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第3/48位",
+              "SearchPositionDate": "2026-08-26 00:10",
+              "Keyword": {
+                "Keyword": "fixture keyword 10",
+                "SearchVolume": 1010,
+                "Cpc": 60,
+                "CpcRange": [
+                  50,
+                  70
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 10,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第4/48位",
+              "SearchPositionDate": "2026-08-26 00:11",
+              "Keyword": {
+                "Keyword": "fixture keyword 11",
+                "SearchVolume": 1011,
+                "Cpc": 61,
+                "CpcRange": [
+                  51,
+                  71
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 9,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第5/48位",
+              "SearchPositionDate": "2026-08-26 00:12",
+              "Keyword": {
+                "Keyword": "fixture keyword 12",
+                "SearchVolume": 1012,
+                "Cpc": 62,
+                "CpcRange": [
+                  52,
+                  72
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 8,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第6/48位",
+              "SearchPositionDate": "2026-08-26 00:13",
+              "Keyword": {
+                "Keyword": "fixture keyword 13",
+                "SearchVolume": 1013,
+                "Cpc": 63,
+                "CpcRange": [
+                  53,
+                  73
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 7,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第2页，第7/48位",
+              "SearchPositionDate": "2026-08-26 00:14",
+              "Keyword": {
+                "Keyword": "fixture keyword 14",
+                "SearchVolume": 1014,
+                "Cpc": 64,
+                "CpcRange": [
+                  54,
+                  74
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 6,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第1/48位",
+              "SearchPositionDate": "2026-08-26 00:15",
+              "Keyword": {
+                "Keyword": "fixture keyword 15",
+                "SearchVolume": 1015,
+                "Cpc": 65,
+                "CpcRange": [
+                  55,
+                  75
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 5,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第2/48位",
+              "SearchPositionDate": "2026-08-26 00:16",
+              "Keyword": {
+                "Keyword": "fixture keyword 16",
+                "SearchVolume": 1016,
+                "Cpc": 66,
+                "CpcRange": [
+                  56,
+                  76
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 4,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第3/48位",
+              "SearchPositionDate": "2026-08-26 00:17",
+              "Keyword": {
+                "Keyword": "fixture keyword 17",
+                "SearchVolume": 1017,
+                "Cpc": 67,
+                "CpcRange": [
+                  57,
+                  77
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 3,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第4/48位",
+              "SearchPositionDate": "2026-08-26 00:18",
+              "Keyword": {
+                "Keyword": "fixture keyword 18",
+                "SearchVolume": 1018,
+                "Cpc": 68,
+                "CpcRange": [
+                  58,
+                  78
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 2,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第5/48位",
+              "SearchPositionDate": "2026-08-26 00:19",
+              "Keyword": {
+                "Keyword": "fixture keyword 19",
+                "SearchVolume": 1019,
+                "Cpc": 69,
+                "CpcRange": [
+                  59,
+                  79
+                ]
+              }
+            },
+            {
+              "ShowType": "organic",
+              "ShowShare": 1,
+              "PositionType": [
+                "organic"
+              ],
+              "AdPosition": null,
+              "AdPositionDate": null,
+              "SearchPosition": "第3页，第6/48位",
+              "SearchPositionDate": "2026-08-26 00:20",
+              "Keyword": {
+                "Keyword": "fixture keyword 20",
+                "SearchVolume": 1020,
+                "Cpc": 70,
+                "CpcRange": [
+                  60,
+                  80
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

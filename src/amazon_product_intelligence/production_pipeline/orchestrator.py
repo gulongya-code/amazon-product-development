@@ -33,6 +33,7 @@ from amazon_product_intelligence.competition_intelligence import (
 )
 from amazon_product_intelligence.connectors import (
     BoundedTransientRetryPolicy,
+    DataProvider,
     HttpJsonTransport,
     NoRetryPolicy,
     ProviderConfig,
@@ -42,6 +43,8 @@ from amazon_product_intelligence.connectors import (
     ProviderRegistry,
     ProviderRequest,
     ProviderResolver,
+    SORFTIME_CREDENTIAL_ENV,
+    SorftimeProvider,
     XiYouProvider,
 )
 from amazon_product_intelligence.contracts import (
@@ -122,6 +125,9 @@ from .models import (
     ProviderOperationSummary,
     ProviderTransportAttemptStatus,
     ProviderTransportAttemptSummary,
+    ProviderUsageSummary,
+    ProviderUsageSemantics,
+    ProviderUsageUnit,
     StageResult,
     StageStatus,
 )
@@ -129,8 +135,8 @@ from .providers import (
     AcquiredReplayProvider,
     FixtureTransport,
     RecordingTransport,
-    xiyou_reverse_keyword_parameters,
 )
+from .planner import AcquisitionRole, ProviderAcquisitionStep, build_acquisition_plan
 from .recovery import (
     RECOVERY_CONTRACT_VERSION,
     CheckpointReplayTransport,
@@ -143,6 +149,7 @@ from .recovery import (
 
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "dog_water_bottle_v0_1.json"
+_SORFTIME_FIXTURE = Path(__file__).parent / "fixtures" / "sorftime_b09265wxy5_v0_1.json"
 _SCORE_POLICY = Path(__file__).parent / "fixtures" / "opportunity_score_policy_v0_1.json"
 _SAFE_RESOLVER_ATTEMPT_STATUSES = frozenset(
     item.value for item in ProviderAttemptStatus
@@ -153,10 +160,10 @@ _SAFE_PROVIDER_ERROR_CODES = frozenset(item.value for item in ProviderErrorCode)
 @dataclass(slots=True)
 class ProviderRuntime:
     registry: ProviderRegistry
-    provider: XiYouProvider
+    provider: DataProvider
     recording_transport: RecordingTransport
     metadata: Mapping[str, Any]
-    credit_semantics: ProviderCreditSemantics
+    credit_semantics: ProviderCreditSemantics | None
 
 
 ProviderRuntimeFactory = Callable[[ProductionRunRequest], ProviderRuntime]
@@ -255,6 +262,7 @@ class ProductionPipelineOrchestrator:
             request.output_directory,
             run_id=run_id,
             request_fingerprint=request_fingerprint,
+            provider_id=request.provider_preference,
         )
         resume_set: ResumeCheckpointSet | None = None
         current = PipelineStage.INPUT_VALIDATION
@@ -270,10 +278,12 @@ class ProductionPipelineOrchestrator:
                 resume_set = load_resume_source(
                     request.resume_from,
                     expected_request_fingerprint=request_fingerprint,
+                    expected_provider_id=request.provider_preference,
                 )
             tracker.finish(current, "operator input validated before provider construction")
 
             runtime = self._provider_runtime_factory(request)
+            self._validate_provider_runtime(request, runtime)
             timestamps = self._timestamps(request, runtime.metadata)
             data_run_id = deterministic_id(
                 "production-data-run",
@@ -283,26 +293,25 @@ class ProductionPipelineOrchestrator:
             current = PipelineStage.PROVIDER_RESOLUTION
             tracker.start(current)
             resolver = ProviderResolver(runtime.registry)
-            product_request = ProviderRequest(
-                canonical_field="metric.price",
-                parameters={
-                    "entities": [
-                        {"country": request.marketplace, "asin": asin}
-                        for asin in request.asins
-                    ]
-                },
+            plan = build_acquisition_plan(
+                provider_id=request.provider_preference,
                 marketplace=request.marketplace,
+                asins=request.asins,
                 locale=str(runtime.metadata["locale"]),
-                retrieved_at=timestamps["retrieved_at"],
-                transformed_at=timestamps["transformed_at"],
-                collection_run_id=f"{data_run_id}:asin-info",
                 currency=str(runtime.metadata["currency"]),
+            )
+            first_product_step = plan.product_steps[0]
+            product_request = self._provider_request_for_step(
+                first_product_step,
+                runtime=runtime,
+                timestamps=timestamps,
+                data_run_id=data_run_id,
             )
             product_resolution = self._resolve_operation(
                 runtime=runtime,
                 resolver=resolver,
                 provider_request=product_request,
-                operation="asin_info",
+                operation=first_product_step.operation,
                 checkpoint_store=checkpoint_store,
                 resume_set=resume_set,
                 logical_operations=logical_operations,
@@ -325,39 +334,39 @@ class ProductionPipelineOrchestrator:
             current = PipelineStage.ACQUISITION
             tracker.start(current)
             acquisitions = [product_resolution.result]
-            for asin in request.asins:
-                keyword_request = ProviderRequest(
-                    canonical_field="relationship.product_to_keyword",
-                    parameters=xiyou_reverse_keyword_parameters(
-                        asin=asin,
-                        marketplace=request.marketplace,
-                    ),
-                    marketplace=request.marketplace,
-                    locale=str(runtime.metadata["locale"]),
-                    retrieved_at=timestamps["retrieved_at"],
-                    transformed_at=timestamps["transformed_at"],
-                    collection_run_id=f"{data_run_id}:asin-keywords:{asin}",
-                    currency=str(runtime.metadata["currency"]),
+            product_acquisitions = [product_resolution.result]
+            keyword_acquisitions: list[Any] = []
+            for step in plan.steps[1:]:
+                provider_request = self._provider_request_for_step(
+                    step,
+                    runtime=runtime,
+                    timestamps=timestamps,
+                    data_run_id=data_run_id,
                 )
-                keyword_resolution = self._resolve_operation(
+                resolution = self._resolve_operation(
                     runtime=runtime,
                     resolver=resolver,
-                    provider_request=keyword_request,
-                    operation="asin_keywords",
+                    provider_request=provider_request,
+                    operation=step.operation,
                     checkpoint_store=checkpoint_store,
                     resume_set=resume_set,
                     logical_operations=logical_operations,
                     transport_attempts=transport_attempts,
                 )
-                acquisitions.append(keyword_resolution.result)
-                if keyword_resolution.result.adaptation.raw_evidence is not None:
+                acquisitions.append(resolution.result)
+                if step.role is AcquisitionRole.PRODUCT:
+                    product_acquisitions.append(resolution.result)
+                else:
+                    keyword_acquisitions.append(resolution.result)
+                if resolution.result.adaptation.raw_evidence is not None:
                     provenance_seen.add(
-                        keyword_resolution.result.adaptation.raw_evidence.raw_evidence_id
+                        resolution.result.adaptation.raw_evidence.raw_evidence_id
                     )
             bundles = tuple(item.adaptation.bundle for item in acquisitions)
             resolved_asins = {
                 asin
-                for observation in product_resolution.result.adaptation.bundle.observations
+                for acquired in product_acquisitions
+                for observation in acquired.adaptation.bundle.observations
                 for asin in request.asins
                 if observation.subject.subject_id.endswith(f":{asin}")
             }
@@ -393,46 +402,28 @@ class ProductionPipelineOrchestrator:
 
             current = PipelineStage.DATA_CLEANING
             tracker.start(current)
-            replay = AcquiredReplayProvider(runtime.provider, product_resolution.result)
-            replay_registry = ProviderRegistry()
-            replay_registry.register(
-                replay,
-                ProviderConfig(
-                    provider_id=replay.provider_id,
-                    enabled=True,
-                    priority=1,
-                    credential_env=None,
-                    timeout_seconds=1.0,
-                    max_attempts=1,
-                ),
-            )
-            clean_result = DataCleaningService(
-                replay_registry, CanonicalNormalizationPipeline.with_defaults()
-            ).clean(
-                DataCleaningRequest(
-                    provider_id=replay.provider_id,
-                    operation="asin_info",
-                    parameters={
-                        "entities": [
-                            {"country": request.marketplace, "asin": asin}
-                            for asin in request.asins
-                        ]
-                    },
-                    marketplace=request.marketplace,
-                    locale=str(runtime.metadata["locale"]),
-                    retrieved_at=timestamps["retrieved_at"],
-                    transformed_at=timestamps["transformed_at"],
-                    collection_run_id=f"{data_run_id}:asin-info",
-                    normalization_run_id=f"{data_run_id}:normalization",
-                    normalized_at=timestamps["transformed_at"],
-                    currency=str(runtime.metadata["currency"]),
+            clean_results = tuple(
+                self._clean_acquired_product(
+                    runtime=runtime,
+                    acquired=acquired,
+                    step=step,
+                    request=request,
+                    timestamps=timestamps,
+                    data_run_id=data_run_id,
                 )
+                for step, acquired in zip(plan.product_steps, product_acquisitions, strict=True)
             )
+            clean_result = clean_results[0]
+            cleaning_partial = any(item.status.value != "SUCCESS" for item in clean_results)
             tracker.finish(
                 current,
-                f"canonical cleaning completed with status {clean_result.status.value}",
-                partial=clean_result.status.value != "SUCCESS",
-                evidence_ids=clean_result.raw_evidence_references,
+                f"canonical cleaning completed for {len(clean_results)} product payloads",
+                partial=cleaning_partial,
+                evidence_ids=tuple(
+                    evidence
+                    for item in clean_results
+                    for evidence in item.raw_evidence_references
+                ),
             )
 
             current = PipelineStage.CATEGORY_COMPETITION
@@ -440,13 +431,13 @@ class ProductionPipelineOrchestrator:
             competition = CompetitionAnalysisBuilderV0_1().build(
                 CompetitionAnalysisRequest(
                     marketplace=request.marketplace,
-                    clean_results=(clean_result,),
+                    clean_results=clean_results,
                 )
             )
             market_analysis = MarketAnalysisBuilderV0_1().build(
                 MarketAnalysisRequest(
                     marketplace=request.marketplace,
-                    clean_results=(clean_result,),
+                    clean_results=clean_results,
                 )
             )
             profiles = tuple(
@@ -461,7 +452,9 @@ class ProductionPipelineOrchestrator:
                                 identity_status="CONFIRMED",
                             ),
                             scope=ProductScope.EXACT_PRODUCT,
-                            canonical_bundles=(product_resolution.result.adaptation.bundle,),
+                            canonical_bundles=tuple(
+                                item.adaptation.bundle for item in product_acquisitions
+                            ),
                         )
                     )
                 )
@@ -497,7 +490,7 @@ class ProductionPipelineOrchestrator:
             current = PipelineStage.BUYER_NEED
             tracker.start(current)
             buyer_output = self._build_buyer_need_output(
-                acquisitions[1:], request.asins
+                keyword_acquisitions, request.asins
             )
             tracker.finish(
                 current,
@@ -555,7 +548,7 @@ class ProductionPipelineOrchestrator:
                         sorted(
                             {
                                 *provenance_ids,
-                                clean_result.run_id,
+                                *(item.run_id for item in clean_results),
                                 category_map.map_id,
                                 competition.analysis_id,
                                 str(buyer_output["analysis_id"]),
@@ -742,9 +735,17 @@ class ProductionPipelineOrchestrator:
             raise UnsupportedCapabilityError(
                 "seed-keyword cohort discovery is unsupported in SP-034; provide explicit ASINs"
             )
-        if request.provider_preference != "xiyou":
+        if request.provider_preference not in {"xiyou", "sorftime"}:
             raise UnsupportedCapabilityError(
-                "SP-034 production orchestration currently supports provider preference 'xiyou'"
+                "production provider must be exactly 'xiyou' or 'sorftime'"
+            )
+        if request.provider_preference == "sorftime" and request.mode is ProductionRunMode.LIVE:
+            raise UnsupportedCapabilityError(
+                "Sorftime live mode is fixture-only until SP-040F"
+            )
+        if request.provider_preference == "sorftime" and request.marketplace != "US":
+            raise UnsupportedCapabilityError(
+                "Sorftime production acquisition is proven only for marketplace US"
             )
         if request.provider_config_reference != "environment":
             raise UnsupportedCapabilityError(
@@ -761,6 +762,38 @@ class ProductionPipelineOrchestrator:
 
     @staticmethod
     def _default_provider_runtime(request: ProductionRunRequest) -> ProviderRuntime:
+        if request.provider_preference == "sorftime":
+            metadata = json.loads(_SORFTIME_FIXTURE.read_text(encoding="utf-8"))
+            fixture_asins = set(metadata["fixture_asins"])
+            if not set(request.asins) <= fixture_asins:
+                raise UnsupportedCapabilityError(
+                    "Sorftime fixture mode supports only the checked-in SP-040B ASIN cohort"
+                )
+            transport = RecordingTransport(FixtureTransport(metadata))
+            provider: DataProvider = SorftimeProvider(
+                transport,
+                environment={SORFTIME_CREDENTIAL_ENV: "offline-fixture-sentinel"},
+                retry_policy=NoRetryPolicy(),
+            )
+            registry = ProviderRegistry()
+            registry.register(
+                provider,
+                ProviderConfig(
+                    provider_id="sorftime",
+                    enabled=True,
+                    priority=1,
+                    credential_env=SORFTIME_CREDENTIAL_ENV,
+                    timeout_seconds=15.0,
+                    max_attempts=1,
+                ),
+            )
+            return ProviderRuntime(
+                registry=registry,
+                provider=provider,
+                recording_transport=transport,
+                metadata=metadata,
+                credit_semantics=None,
+            )
         if request.mode is ProductionRunMode.FIXTURE:
             metadata = json.loads(_FIXTURE.read_text(encoding="utf-8"))
             fixture_asins = {
@@ -833,6 +866,94 @@ class ProductionPipelineOrchestrator:
         )
 
     @staticmethod
+    def _validate_provider_runtime(
+        request: ProductionRunRequest, runtime: ProviderRuntime
+    ) -> None:
+        enabled = runtime.registry.enabled()
+        if (
+            runtime.provider.provider_id != request.provider_preference
+            or tuple(item.provider_id for item in enabled)
+            != (request.provider_preference,)
+        ):
+            raise ProductionPipelineError(
+                ProductionPipelineErrorCode.INVALID_INPUT,
+                "provider runtime must contain only the explicitly selected provider",
+                stage=PipelineStage.PROVIDER_RESOLUTION.value,
+            )
+
+    @staticmethod
+    def _collection_run_id(step: ProviderAcquisitionStep, data_run_id: str) -> str:
+        if step.provider_id == "xiyou" and step.operation == "asin_info":
+            return f"{data_run_id}:asin-info"
+        if step.provider_id == "xiyou" and step.operation == "asin_keywords":
+            return f"{data_run_id}:asin-keywords:{step.asin}"
+        return f"{data_run_id}:{step.operation}:{step.asin}"
+
+    @staticmethod
+    def _provider_request_for_step(
+        step: ProviderAcquisitionStep,
+        *,
+        runtime: ProviderRuntime,
+        timestamps: Mapping[str, str],
+        data_run_id: str,
+    ) -> ProviderRequest:
+        return ProviderRequest(
+            canonical_field=step.canonical_field,
+            parameters=step.parameters,
+            marketplace=step.marketplace,
+            locale=step.locale,
+            retrieved_at=timestamps["retrieved_at"],
+            transformed_at=timestamps["transformed_at"],
+            collection_run_id=ProductionPipelineOrchestrator._collection_run_id(
+                step, data_run_id
+            ),
+            currency=step.currency,
+        )
+
+    @staticmethod
+    def _clean_acquired_product(
+        *,
+        runtime: ProviderRuntime,
+        acquired: Any,
+        step: ProviderAcquisitionStep,
+        request: ProductionRunRequest,
+        timestamps: Mapping[str, str],
+        data_run_id: str,
+    ) -> Any:
+        replay = AcquiredReplayProvider(runtime.provider, acquired)
+        replay_registry = ProviderRegistry()
+        replay_registry.register(
+            replay,
+            ProviderConfig(
+                provider_id=replay.provider_id,
+                enabled=True,
+                priority=1,
+                credential_env=None,
+                timeout_seconds=1.0,
+                max_attempts=1,
+            ),
+        )
+        return DataCleaningService(
+            replay_registry, CanonicalNormalizationPipeline.with_defaults()
+        ).clean(
+            DataCleaningRequest(
+                provider_id=replay.provider_id,
+                operation=step.operation,
+                parameters=step.parameters,
+                marketplace=request.marketplace,
+                locale=str(runtime.metadata["locale"]),
+                retrieved_at=timestamps["retrieved_at"],
+                transformed_at=timestamps["transformed_at"],
+                collection_run_id=ProductionPipelineOrchestrator._collection_run_id(
+                    step, data_run_id
+                ),
+                normalization_run_id=f"{data_run_id}:normalization",
+                normalized_at=timestamps["transformed_at"],
+                currency=str(runtime.metadata["currency"]),
+            )
+        )
+
+    @staticmethod
     def _timestamps(
         request: ProductionRunRequest, metadata: Mapping[str, Any]
     ) -> dict[str, str]:
@@ -887,12 +1008,6 @@ class ProductionPipelineOrchestrator:
                     "source_need_ids": list(cluster.source_need_ids),
                 }
             )
-        if not rows:
-            raise ProductionPipelineError(
-                ProductionPipelineErrorCode.INTELLIGENCE_FAILURE,
-                "Buyer Need V0.3 produced no eligible semantic clusters",
-                stage=PipelineStage.BUYER_NEED.value,
-            )
         material = {
             "intent_result_ids": tuple(item.result_id for item in results),
             "semantic_clustering_result_id": clusters.result_id,
@@ -901,9 +1016,13 @@ class ProductionPipelineOrchestrator:
         return {
             "analysis_id": deterministic_id("production-buyer-need-analysis", material),
             "final_decision": {
-                "code": "A",
-                "label": "V0.3_STABLE",
-                "reason": "SP-034 executed frozen V0.3 intent and V0.2 taxonomy boundaries.",
+                "code": "A" if rows else "U",
+                "label": "V0.3_STABLE" if rows else "NO_ELIGIBLE_CLUSTERS",
+                "reason": (
+                    "SP-034 executed frozen V0.3 intent and V0.2 taxonomy boundaries."
+                    if rows
+                    else "The bounded provider relationship evidence produced no eligible V0.3 clusters; absence is not zero demand."
+                ),
             },
             "semantic_clusters": rows,
         }
@@ -974,27 +1093,37 @@ class ProductionPipelineOrchestrator:
         logical_operations: list[ProviderLogicalOperationSummary],
         transport_attempts: list[ProviderTransportAttemptSummary],
     ) -> Any:
-        operation_id = logical_operation_id(operation, provider_request)
+        provider_id = runtime.provider.provider_id
+        operation_id = logical_operation_id(operation, provider_request, provider_id)
         checkpoint = (
-            resume_set.find(operation, provider_request)
+            resume_set.find(operation, provider_request, provider_id)
             if resume_set is not None
             else None
         )
         if checkpoint is not None:
             replay_transport = CheckpointReplayTransport(checkpoint)
-            replay_provider = XiYouProvider(
-                replay_transport,
-                environment={"CHECKPOINT_REPLAY_SENTINEL": "offline-only"},
-                retry_policy=NoRetryPolicy(),
-            )
+            if provider_id == "xiyou":
+                replay_provider: DataProvider = XiYouProvider(
+                    replay_transport,
+                    environment={"CHECKPOINT_REPLAY_SENTINEL": "offline-only"},
+                    retry_policy=NoRetryPolicy(),
+                )
+                replay_credential_env = "CHECKPOINT_REPLAY_SENTINEL"
+            else:
+                replay_provider = SorftimeProvider(
+                    replay_transport,
+                    environment={SORFTIME_CREDENTIAL_ENV: "offline-only"},
+                    retry_policy=NoRetryPolicy(),
+                )
+                replay_credential_env = SORFTIME_CREDENTIAL_ENV
             replay_registry = ProviderRegistry()
             replay_registry.register(
                 replay_provider,
                 ProviderConfig(
-                    provider_id="xiyou",
+                    provider_id=provider_id,
                     enabled=True,
                     priority=1,
-                    credential_env="CHECKPOINT_REPLAY_SENTINEL",
+                    credential_env=replay_credential_env,
                     timeout_seconds=1.0,
                     max_attempts=1,
                 ),
@@ -1098,6 +1227,8 @@ class ProductionPipelineOrchestrator:
                 "successful provider operation lacked checkpointable audited evidence",
                 stage=PipelineStage.ACQUISITION.value,
             )
+        if provider_id == "sorftime":
+            runtime.recording_transport.confirm_request_usage(successful_response)
         checkpoint = checkpoint_store.write_success(
             operation=operation,
             request=provider_request,
@@ -1183,6 +1314,15 @@ class ProductionPipelineOrchestrator:
         transport_attempts: list[ProviderTransportAttemptSummary],
     ) -> ProviderOperationSummary:
         recording = runtime.recording_transport
+        provider_usage = None
+        if runtime.provider.provider_id == "sorftime":
+            usage = recording.confirmed_request_usage
+            provider_usage = ProviderUsageSummary(
+                unit=ProviderUsageUnit.REQUEST,
+                consumed=sum(item[0] for item in usage),
+                remaining=(usage[-1][1] if usage else None),
+                semantics=ProviderUsageSemantics.FIXTURE_REFERENCE,
+            )
         return ProviderOperationSummary(
             provider_id=runtime.provider.provider_id,
             operations=tuple(item.operation for item in logical_operations),
@@ -1190,6 +1330,7 @@ class ProductionPipelineOrchestrator:
             credits=recording.credits,
             credit_semantics=runtime.credit_semantics,
             provenance_ids=tuple(sorted(provenance_ids)),
+            provider_usage=provider_usage,
             transport_attempt_count=len(transport_attempts),
             executed_operation_count=sum(
                 item.execution_source is ProviderOperationExecutionSource.NEW_PROVIDER
@@ -1281,7 +1422,7 @@ class ProductionPipelineOrchestrator:
             provider_id = attempt.get("provider_id")
             status = attempt.get("status")
             error_code = attempt.get("error_code")
-            if provider_id != "xiyou":
+            if provider_id not in {"xiyou", "sorftime"}:
                 continue
             if status not in _SAFE_RESOLVER_ATTEMPT_STATUSES:
                 continue
@@ -1289,7 +1430,7 @@ class ProductionPipelineOrchestrator:
                 continue
             safe.append(
                 {
-                    "provider_id": "xiyou",
+                    "provider_id": str(provider_id),
                     "status": str(status),
                     "error_code": str(error_code) if error_code is not None else None,
                 }

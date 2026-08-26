@@ -22,18 +22,32 @@ from .models import (
     ProviderOperationSummary,
     ProviderTransportAttemptStatus,
     ProviderTransportAttemptSummary,
+    ProviderUsageSummary,
+    ProviderUsageSemantics,
+    ProviderUsageUnit,
     StageResult,
     StageStatus,
 )
 from .orchestrator import ProductionPipelineOrchestrator
+from .planner import (
+    ACQUISITION_PLAN_CONTRACT_VERSION,
+    AcquisitionRole,
+    ProviderAcquisitionPlan,
+    ProviderAcquisitionStep,
+    build_acquisition_plan,
+)
 
 
 __all__ = (
+    "ACQUISITION_PLAN_CONTRACT_VERSION",
+    "AcquisitionRole",
     "PRODUCTION_PIPELINE_VERSION",
     "PRODUCTION_RUN_CONTRACT_VERSION",
     "PipelineStage",
     "OutputArtifactConflictError",
     "ProviderCreditSemantics",
+    "ProviderAcquisitionPlan",
+    "ProviderAcquisitionStep",
     "ProductionPipelineError",
     "ProductionPipelineErrorCode",
     "ProductionPipelineOrchestrator",
@@ -48,7 +62,11 @@ __all__ = (
     "ProviderOperationSummary",
     "ProviderTransportAttemptStatus",
     "ProviderTransportAttemptSummary",
+    "ProviderUsageSummary",
+    "ProviderUsageSemantics",
+    "ProviderUsageUnit",
     "StageResult",
     "StageStatus",
     "UnsupportedCapabilityError",
+    "build_acquisition_plan",
 )

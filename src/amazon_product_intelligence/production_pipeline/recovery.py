@@ -13,12 +13,16 @@ import re
 from typing import Any, Mapping
 
 from amazon_product_intelligence.adapters.base import ADAPTER_RULESET_VERSION
+from amazon_product_intelligence.adapters.sorftime_dto_mapper_v0_1 import (
+    SORFTIME_DTO_MAPPER_RULESET_VERSION,
+)
 from amazon_product_intelligence.connectors import (
     ProviderRequest,
     TransportRequest,
     TransportResponse,
 )
 from amazon_product_intelligence.connectors.xiyou_v0_1 import XIYOU_OPERATIONS
+from amazon_product_intelligence.connectors.sorftime_client import SORFTIME_HTTP_OPERATIONS
 from amazon_product_intelligence.contracts import canonical_json, deterministic_id
 
 from .artifacts import write_json_atomic
@@ -46,7 +50,15 @@ _CREDENTIAL_KEY_SUFFIXES = (
 )
 _SAFE_METADATA_KEYS = frozenset({"cost_credits"})
 _XIYOU_OPERATION_INDEX = {item.operation: item for item in XIYOU_OPERATIONS}
-_RECOVERY_OPERATIONS = ("asin_info", "asin_keywords")
+_SORFTIME_OPERATION_INDEX = {
+    item.operation: item
+    for item in SORFTIME_HTTP_OPERATIONS
+    if item.operation in {"ProductRequest", "ASINRequestKeyword"}
+}
+_RECOVERY_OPERATIONS = {
+    "xiyou": ("asin_info", "asin_keywords"),
+    "sorftime": ("ProductRequest", "ASINRequestKeyword"),
+}
 
 
 def _hash(value: Mapping[str, Any]) -> str:
@@ -94,17 +106,27 @@ def _unsafe(path: str) -> RecoveryContractError:
     )
 
 
-def _operation_contract(operation: str) -> dict[str, Any]:
-    definition = _XIYOU_OPERATION_INDEX[operation]
-    return {
+def _operation_contract(operation: str, provider_id: str = "xiyou") -> dict[str, Any]:
+    index = (
+        _XIYOU_OPERATION_INDEX if provider_id == "xiyou" else _SORFTIME_OPERATION_INDEX
+    )
+    definition = index[operation]
+    contract = {
         "operation": definition.operation,
         "payload_kind": definition.payload_kind,
         "source_tool": definition.source_tool,
         "method": definition.method,
         "endpoint": definition.endpoint,
         "public_headers": dict(sorted(definition.public_headers.items())),
-        "adapter_ruleset_version": ADAPTER_RULESET_VERSION,
+        "adapter_ruleset_version": (
+            ADAPTER_RULESET_VERSION
+            if provider_id == "xiyou"
+            else SORFTIME_DTO_MAPPER_RULESET_VERSION
+        ),
     }
+    if provider_id == "sorftime":
+        contract["query_parameters"] = dict(sorted(definition.query_parameters.items()))
+    return contract
 
 
 def run_request_fingerprint(request: ProductionRunRequest) -> str:
@@ -118,16 +140,19 @@ def run_request_fingerprint(request: ProductionRunRequest) -> str:
         "report_version": request.report_version,
         "category_name": request.category_name,
         "provider_operations": [
-            _operation_contract(operation) for operation in _RECOVERY_OPERATIONS
+            _operation_contract(operation, request.provider_preference)
+            for operation in _RECOVERY_OPERATIONS[request.provider_preference]
         ],
     }
     return _hash(material)
 
 
-def logical_operation_id(operation: str, request: ProviderRequest) -> str:
+def logical_operation_id(
+    operation: str, request: ProviderRequest, provider_id: str = "xiyou"
+) -> str:
     material = {
-        "provider_id": "xiyou",
-        "operation_contract": _operation_contract(operation),
+        "provider_id": provider_id,
+        "operation_contract": _operation_contract(operation, provider_id),
         "canonical_field": request.canonical_field,
         "marketplace": request.marketplace,
         "parameters": dict(request.parameters),
@@ -151,6 +176,10 @@ class ProviderCheckpoint:
     @property
     def operation(self) -> str:
         return str(self.payload["operation"])
+
+    @property
+    def provider_id(self) -> str:
+        return str(self.payload["provider_id"])
 
     @property
     def response(self) -> TransportResponse:
@@ -184,7 +213,10 @@ class CheckpointReplayTransport:
         self.network_call_count = 0
 
     def execute(self, request: TransportRequest) -> TransportResponse:
-        if request.provider_id != "xiyou" or request.operation != self._checkpoint.operation:
+        if (
+            request.provider_id != self._checkpoint.provider_id
+            or request.operation != self._checkpoint.operation
+        ):
             raise RecoveryContractError(
                 ProductionPipelineErrorCode.INCOMPATIBLE_RESUME_SOURCE,
                 "checkpoint operation does not match the replay request",
@@ -200,10 +232,18 @@ class CheckpointReplayTransport:
 
 
 class CheckpointStore:
-    def __init__(self, output_directory: Path, *, run_id: str, request_fingerprint: str) -> None:
+    def __init__(
+        self,
+        output_directory: Path,
+        *,
+        run_id: str,
+        request_fingerprint: str,
+        provider_id: str = "xiyou",
+    ) -> None:
         self.directory = output_directory / "checkpoints"
         self.run_id = run_id
         self.request_fingerprint = request_fingerprint
+        self.provider_id = provider_id
         self._checkpoint_ids: list[str] = []
 
     @property
@@ -219,13 +259,13 @@ class CheckpointStore:
         provenance_id: str,
         replayed_from: str | None = None,
     ) -> ProviderCheckpoint:
-        operation_id = logical_operation_id(operation, request)
+        operation_id = logical_operation_id(operation, request, self.provider_id)
         identity = {
             "checkpoint_contract_version": CHECKPOINT_CONTRACT_VERSION,
-            "provider_id": "xiyou",
+            "provider_id": self.provider_id,
             "logical_operation_id": operation_id,
             "source_request_fingerprint": self.request_fingerprint,
-            "operation_contract": _operation_contract(operation),
+            "operation_contract": _operation_contract(operation, self.provider_id),
             "provenance_raw_evidence_id": provenance_id,
         }
         checkpoint_id = deterministic_id("production-provider-checkpoint", identity)
@@ -238,14 +278,14 @@ class CheckpointStore:
             "checkpoint_contract_version": CHECKPOINT_CONTRACT_VERSION,
             "checkpoint_id": checkpoint_id,
             "owner_run_id": self.run_id,
-            "provider_id": "xiyou",
+            "provider_id": self.provider_id,
             "operation": operation,
             "canonical_field": request.canonical_field,
             "logical_operation_id": operation_id,
             "normalized_request_parameters": _json_copy(request.parameters),
             "marketplace": request.marketplace,
             "source_request_fingerprint": self.request_fingerprint,
-            "operation_contract": _operation_contract(operation),
+            "operation_contract": _operation_contract(operation, self.provider_id),
             "adaptation_context": {
                 "locale": request.locale,
                 "retrieved_at": request.retrieved_at,
@@ -263,7 +303,11 @@ class CheckpointStore:
         }
         reject_unsafe_content(payload)
         payload["integrity_sha256"] = _hash(payload)
-        checkpoint = validate_checkpoint(payload, expected_request_fingerprint=self.request_fingerprint)
+        checkpoint = validate_checkpoint(
+            payload,
+            expected_request_fingerprint=self.request_fingerprint,
+            expected_provider_id=self.provider_id,
+        )
         self.directory.mkdir(parents=True, exist_ok=True)
         destination = self.directory / f"{checkpoint_id.split(':', 1)[-1]}.json"
         write_json_atomic(destination, payload)
@@ -279,13 +323,18 @@ class ResumeCheckpointSet:
     request_fingerprint: str
     checkpoints: Mapping[str, ProviderCheckpoint]
 
-    def find(self, operation: str, request: ProviderRequest) -> ProviderCheckpoint | None:
-        operation_id = logical_operation_id(operation, request)
+    def find(
+        self, operation: str, request: ProviderRequest, provider_id: str = "xiyou"
+    ) -> ProviderCheckpoint | None:
+        operation_id = logical_operation_id(operation, request, provider_id)
         return self.checkpoints.get(operation_id)
 
 
 def validate_checkpoint(
-    payload: Any, *, expected_request_fingerprint: str
+    payload: Any,
+    *,
+    expected_request_fingerprint: str,
+    expected_provider_id: str = "xiyou",
 ) -> ProviderCheckpoint:
     if not isinstance(payload, MappingABC):
         raise RecoveryContractError(
@@ -311,12 +360,14 @@ def validate_checkpoint(
             "checkpoint request fingerprint does not match the current run",
         )
     operation = payload.get("operation")
-    if operation not in _RECOVERY_OPERATIONS:
+    if operation not in _RECOVERY_OPERATIONS.get(expected_provider_id, ()):
         raise RecoveryContractError(
             ProductionPipelineErrorCode.INCOMPATIBLE_RESUME_SOURCE,
             "checkpoint operation is not part of the production recovery contract",
         )
-    if payload.get("operation_contract") != _operation_contract(str(operation)):
+    if payload.get("operation_contract") != _operation_contract(
+        str(operation), expected_provider_id
+    ):
         raise RecoveryContractError(
             ProductionPipelineErrorCode.INCOMPATIBLE_RESUME_SOURCE,
             "checkpoint provider/adaptation contract does not match the current runtime",
@@ -339,7 +390,7 @@ def validate_checkpoint(
     context = payload.get("adaptation_context")
     parameters = payload.get("normalized_request_parameters")
     if (
-        payload.get("provider_id") != "xiyou"
+        payload.get("provider_id") != expected_provider_id
         or not isinstance(response, MappingABC)
         or not isinstance(context, MappingABC)
         or not isinstance(parameters, MappingABC)
@@ -377,7 +428,9 @@ def validate_checkpoint(
             ProductionPipelineErrorCode.CHECKPOINT_INTEGRITY_FAILURE,
             "checkpoint adaptation context is invalid",
         ) from exc
-    expected_operation_id = logical_operation_id(str(operation), reconstructed)
+    expected_operation_id = logical_operation_id(
+        str(operation), reconstructed, expected_provider_id
+    )
     if payload["logical_operation_id"] != expected_operation_id:
         raise RecoveryContractError(
             ProductionPipelineErrorCode.CHECKPOINT_INTEGRITY_FAILURE,
@@ -385,10 +438,10 @@ def validate_checkpoint(
         )
     identity = {
         "checkpoint_contract_version": CHECKPOINT_CONTRACT_VERSION,
-        "provider_id": "xiyou",
+        "provider_id": expected_provider_id,
         "logical_operation_id": expected_operation_id,
         "source_request_fingerprint": expected_request_fingerprint,
-        "operation_contract": _operation_contract(str(operation)),
+        "operation_contract": _operation_contract(str(operation), expected_provider_id),
         "provenance_raw_evidence_id": payload["provenance_raw_evidence_id"],
     }
     if payload["checkpoint_id"] != deterministic_id("production-provider-checkpoint", identity):
@@ -400,7 +453,10 @@ def validate_checkpoint(
 
 
 def load_resume_source(
-    source_directory: Path, *, expected_request_fingerprint: str
+    source_directory: Path,
+    *,
+    expected_request_fingerprint: str,
+    expected_provider_id: str = "xiyou",
 ) -> ResumeCheckpointSet:
     manifest_path = source_directory / "run_manifest.json"
     try:
@@ -447,7 +503,9 @@ def load_resume_source(
                 details={"checkpoint_file": path.name},
             ) from exc
         checkpoint = validate_checkpoint(
-            payload, expected_request_fingerprint=expected_request_fingerprint
+            payload,
+            expected_request_fingerprint=expected_request_fingerprint,
+            expected_provider_id=expected_provider_id,
         )
         checkpoint = ProviderCheckpoint(payload=checkpoint.payload, source_path=path)
         if checkpoint.logical_operation_id in checkpoints:

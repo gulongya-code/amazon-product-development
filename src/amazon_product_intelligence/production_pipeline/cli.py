@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--asin", action="append", default=[])
     run.add_argument("--asin-file", type=Path)
     run.add_argument("--seed-keyword")
-    run.add_argument("--provider", default="xiyou")
+    run.add_argument("--provider", choices=("xiyou", "sorftime"), default="xiyou")
     run.add_argument("--provider-config-ref", default="environment")
     run.add_argument("--output-dir", required=True, type=Path)
     run.add_argument("--run-id")
@@ -164,6 +164,15 @@ def main(
     for name, path in sorted(result.artifact_paths.items()):
         print(f"{name}: {path}", file=stdout)
     if result.provider_summary is not None:
+        if result.provider_summary.provider_usage is not None:
+            usage = result.provider_summary.provider_usage
+            remaining = "unavailable" if usage.remaining is None else str(usage.remaining)
+            print(
+                f"provider requests consumed: {usage.consumed}; remaining: {remaining}; "
+                f"{usage.semantics.value}",
+                file=stdout,
+            )
+            return 0
         credits = (
             "unavailable"
             if result.provider_summary.credits is None
