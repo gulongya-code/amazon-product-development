@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 import zipfile
 
 from amazon_product_intelligence.market_report import (
@@ -20,6 +21,11 @@ from amazon_product_intelligence.market_report.delivery import (
     ExcelReportRenderer,
     MarkdownReportRenderer,
     OperatorReportDelivery,
+    OperatorReportExcelError,
+)
+from amazon_product_intelligence.operator_workflow import (
+    OperatorWorkflowBuilderV0_1,
+    OperatorWorkflowRequest,
 )
 
 
@@ -30,6 +36,12 @@ INPUT_FIXTURE = (
     / "fixtures"
     / "market_report"
     / "market_report_input_v0_1.json"
+)
+R7_WORKFLOW_FIXTURE = (
+    Path(__file__).parent
+    / "fixtures"
+    / "market_report"
+    / "r7_partial_live_shape.json"
 )
 
 
@@ -56,12 +68,61 @@ class OperatorReportDeliveryV01Tests(unittest.TestCase):
     def _excel_renderer(self) -> ExcelReportRenderer:
         node = os.environ.get("MARKET_REPORT_NODE_EXECUTABLE")
         modules = os.environ.get("MARKET_REPORT_NODE_MODULES")
-        if not node or not modules:
-            self.skipTest("artifact-tool runtime paths are not configured")
-        return ExcelReportRenderer(
+        renderer = ExcelReportRenderer(
             node_executable=node,
             node_modules_path=modules,
         )
+        try:
+            renderer._resolve_node()
+            renderer._resolve_node_modules()
+        except OperatorReportExcelError as exc:
+            self.skipTest(f"artifact-tool runtime is unavailable: {exc}")
+        return renderer
+
+    def test_bundled_runtime_is_discovered_without_environment_configuration(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            runtime = Path(directory) / "node"
+            executable = (
+                runtime / "bin" / ("node.exe" if os.name == "nt" else "node")
+            )
+            package = (
+                runtime
+                / "node_modules"
+                / "@oai"
+                / "artifact-tool"
+                / "package.json"
+            )
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+            package.parent.mkdir(parents=True)
+            package.write_text("{}", encoding="utf-8")
+            renderer = ExcelReportRenderer()
+            with mock.patch.object(
+                renderer, "_bundled_runtime_roots", return_value=(runtime,)
+            ):
+                self.assertEqual(renderer._resolve_node(), executable.resolve())
+                self.assertEqual(
+                    renderer._resolve_node_modules(),
+                    (runtime / "node_modules").resolve(),
+                )
+
+    def test_explicit_incomplete_node_modules_remain_a_hard_failure(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            node = root / "node.exe"
+            modules = root / "node_modules"
+            node.touch()
+            modules.mkdir()
+            renderer = ExcelReportRenderer(
+                node_executable=node,
+                node_modules_path=modules,
+            )
+            with self.assertRaisesRegex(
+                OperatorReportExcelError, "artifact-tool node_modules"
+            ):
+                renderer._resolve_node_modules()
 
     def _report_with_missing_competition_data(self):
         payload = json.loads(INPUT_FIXTURE.read_text(encoding="utf-8"))
@@ -130,6 +191,30 @@ class OperatorReportDeliveryV01Tests(unittest.TestCase):
             self.assertIn("Brand Count", package_text)
             self.assertIn("Rating Distribution", package_text)
             self.assertIn("UNAVAILABLE", package_text)
+
+    def test_r7_provider_neutral_partial_report_delivery_fixture(self) -> None:
+        report = self._report_with_missing_competition_data()
+        fixture = json.loads(R7_WORKFLOW_FIXTURE.read_text(encoding="utf-8"))
+        workflow = OperatorWorkflowBuilderV0_1().build(
+            OperatorWorkflowRequest(
+                report=report,
+                run_id=fixture["run_id"],
+                run_status=fixture["run_status"],
+                provider_summary=fixture["provider_summary"],
+                recovery=fixture["recovery"],
+            )
+        )
+        with TemporaryDirectory() as directory:
+            delivered = OperatorReportDelivery(
+                excel_renderer=self._excel_renderer()
+            ).deliver(report, directory, operator_workflow=workflow)
+            package_text = _xlsx_xml(delivered.xlsx_path)
+
+            self.assertTrue(delivered.xlsx_path.read_bytes().startswith(b"PK"))
+            self.assertIn('name="Operator Summary"', package_text)
+            self.assertIn("UNAVAILABLE", package_text)
+            self.assertEqual(workflow.run_health.executed_operation_count, 2)
+            self.assertEqual(workflow.run_health.replayed_operation_count, 0)
 
     def test_delivery_output_is_byte_deterministic(self) -> None:
         renderer = self._excel_renderer()

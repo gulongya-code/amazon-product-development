@@ -421,5 +421,5 @@ def test_offline_forensic_path_never_opens_a_socket() -> None:
     connect.assert_not_called()
 
 
-def test_sorftime_live_gate_remains_disabled() -> None:
-    assert orchestrator._SORFTIME_V0_1_LIVE_RELEASE_ENABLED is False
+def test_sorftime_v0_1_live_gate_is_enabled_after_r7_acceptance() -> None:
+    assert orchestrator._SORFTIME_V0_1_LIVE_RELEASE_ENABLED is True

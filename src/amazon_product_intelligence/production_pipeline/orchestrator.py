@@ -156,7 +156,7 @@ _SAFE_RESOLVER_ATTEMPT_STATUSES = frozenset(
     item.value for item in ProviderAttemptStatus
 )
 _SAFE_PROVIDER_ERROR_CODES = frozenset(item.value for item in ProviderErrorCode)
-_SORFTIME_V0_1_LIVE_RELEASE_ENABLED = False
+_SORFTIME_V0_1_LIVE_RELEASE_ENABLED = True
 
 
 @dataclass(slots=True)

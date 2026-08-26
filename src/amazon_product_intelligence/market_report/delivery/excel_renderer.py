@@ -148,6 +148,14 @@ class ExcelReportRenderer:
     def _resolve_node(self) -> Path:
         candidate = self.node_executable
         if candidate is None:
+            for runtime_root in self._bundled_runtime_roots():
+                bundled_modules = runtime_root / "node_modules"
+                if not self._contains_artifact_tool(bundled_modules):
+                    continue
+                for name in ("node.exe", "node"):
+                    bundled_node = runtime_root / "bin" / name
+                    if bundled_node.is_file():
+                        return bundled_node.resolve()
             discovered = shutil.which("node")
             candidate = Path(discovered) if discovered else None
         if candidate is None or not candidate.is_file():
@@ -157,12 +165,49 @@ class ExcelReportRenderer:
         return candidate.resolve()
 
     def _resolve_node_modules(self) -> Path:
-        if self.node_modules_path is None or not self.node_modules_path.is_dir():
+        if self.node_modules_path is not None:
+            if self._contains_artifact_tool(self.node_modules_path):
+                return self.node_modules_path.resolve()
             raise OperatorReportExcelError(
                 "artifact-tool node_modules is unavailable; configure "
                 "MARKET_REPORT_NODE_MODULES"
             )
-        return self.node_modules_path.resolve()
+
+        node = self._resolve_node()
+        candidates = (
+            node.parent / "node_modules",
+            node.parent.parent / "node_modules",
+            *(root / "node_modules" for root in self._bundled_runtime_roots()),
+        )
+        for candidate in candidates:
+            if self._contains_artifact_tool(candidate):
+                return candidate.resolve()
+        raise OperatorReportExcelError(
+            "artifact-tool node_modules is unavailable; configure "
+            "MARKET_REPORT_NODE_MODULES"
+        )
+
+    @staticmethod
+    def _contains_artifact_tool(node_modules: Path) -> bool:
+        return (
+            node_modules
+            / "@oai"
+            / "artifact-tool"
+            / "package.json"
+        ).is_file()
+
+    @staticmethod
+    def _bundled_runtime_roots() -> tuple[Path, ...]:
+        """Return bounded workspace runtime locations without scanning profiles."""
+
+        return (
+            Path.home()
+            / ".cache"
+            / "codex-runtimes"
+            / "codex-primary-runtime"
+            / "dependencies"
+            / "node",
+        )
 
     @staticmethod
     def _link_node_modules(link: Path, target: Path) -> None:

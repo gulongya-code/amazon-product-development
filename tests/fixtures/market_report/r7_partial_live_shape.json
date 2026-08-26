@@ -1,0 +1,17 @@
+{
+  "recovery": {
+    "checkpoint_count": 2,
+    "resume_source_run_id": null
+  },
+  "run_id": "sp040f-r7-synthetic",
+  "run_status": "SUCCEEDED",
+  "provider_summary": {
+    "credit_semantics": null,
+    "credits": null,
+    "executed_operation_count": 2,
+    "operation_count": 2,
+    "provider_id": "provider-neutral-fixture",
+    "replayed_operation_count": 0,
+    "transport_attempt_count": 2
+  }
+}

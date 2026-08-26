@@ -19,6 +19,7 @@ from amazon_product_intelligence.production_pipeline import (
     ProviderUsageSemantics,
     ProviderUsageUnit,
 )
+import amazon_product_intelligence.production_pipeline.orchestrator as orchestrator
 from amazon_product_intelligence.production_pipeline.orchestrator import (
     ProductionPipelineOrchestrator,
 )
@@ -177,16 +178,8 @@ class SorftimeLiveRuntimeTests(unittest.TestCase):
             with self.assertRaises(ProductionRunValidationError):
                 request(Path(directory), provider_preference="other")
 
-    def test_non_pass_restores_live_gate_before_runtime_construction(self):
-        calls: list[str] = []
-        with TemporaryDirectory() as directory:
-            result = ProductionPipelineOrchestrator(
-                provider_runtime_factory=lambda _: calls.append("constructed"),  # type: ignore[arg-type]
-                delivery=RecordingDelivery(),
-            ).run(request(Path(directory), mode=ProductionRunMode.LIVE))
-        self.assertEqual(result.status, ProductionRunStatus.FAILED)
-        self.assertEqual(calls, [])
-        self.assertIn("remains fixture-only", result.error["message"])
+    def test_r7_pass_keeps_sorftime_v0_1_live_gate_enabled(self):
+        self.assertIs(orchestrator._SORFTIME_V0_1_LIVE_RELEASE_ENABLED, True)
 
     def test_plan_remains_exactly_two_operations_without_variations(self):
         plan = build_acquisition_plan(

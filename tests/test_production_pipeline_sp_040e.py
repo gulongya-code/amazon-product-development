@@ -26,6 +26,7 @@ from amazon_product_intelligence.production_pipeline import (
     ProviderUsageUnit,
 )
 from amazon_product_intelligence.production_pipeline.cli import build_parser, main
+import amazon_product_intelligence.production_pipeline.orchestrator as orchestrator
 from amazon_product_intelligence.production_pipeline.orchestrator import (
     ProductionPipelineOrchestrator,
     ProviderRuntime,
@@ -243,20 +244,8 @@ class SorftimeFixturePipelineTests(unittest.TestCase):
         self.assertEqual(wrapped.network_call_count, 0)
         self.assertEqual(wrapped.execute_count, 2)
 
-    def test_live_gate_precedes_runtime_construction_and_credential_access(self):
-        calls: list[str] = []
-
-        def forbidden_factory(_request):
-            calls.append("constructed")
-            raise AssertionError("runtime must not be constructed")
-
-        with TemporaryDirectory() as directory:
-            result = ProductionPipelineOrchestrator(
-                provider_runtime_factory=forbidden_factory, delivery=RecordingDelivery()
-            ).run(request(Path(directory), mode=ProductionRunMode.LIVE))
-        self.assertEqual(result.status, ProductionRunStatus.FAILED)
-        self.assertEqual(calls, [])
-        self.assertIn("remains fixture-only", result.error["message"])
+    def test_sorftime_v0_1_live_gate_is_enabled_after_r7_acceptance(self):
+        self.assertIs(orchestrator._SORFTIME_V0_1_LIVE_RELEASE_ENABLED, True)
 
     def test_cli_reports_requests_not_credits(self):
         with TemporaryDirectory() as directory:
