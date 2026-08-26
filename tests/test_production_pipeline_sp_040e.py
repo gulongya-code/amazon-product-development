@@ -315,6 +315,17 @@ class SorftimeRecoveryTests(unittest.TestCase):
                     ProviderOperationExecutionSource.NEW_PROVIDER,
                 ),
             )
+            clean_dir = root / "clean"
+            clean = ProductionPipelineOrchestrator(
+                provider_runtime_factory=lambda _: sorftime_runtime(FixtureTransport(fixture)),
+                delivery=RecordingDelivery(),
+            ).run(request(clean_dir, run_id="sorftime-clean"))
+            self.assertEqual(clean.status, ProductionRunStatus.SUCCEEDED)
+            self.assertEqual(
+                json.loads((resumed_dir / "market_report.json").read_text(encoding="utf-8")),
+                json.loads((clean_dir / "market_report.json").read_text(encoding="utf-8")),
+            )
+            self.assertEqual(clean.provider_summary.provider_id, summary.provider_id)
 
     def test_cross_provider_resume_is_rejected_before_runtime_construction(self):
         fixture = json.loads(SORFTIME_FIXTURE.read_text(encoding="utf-8"))
