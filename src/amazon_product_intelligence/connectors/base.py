@@ -139,6 +139,7 @@ class AdapterBackedProvider:
             parameters=request.parameters,
             timeout_seconds=configuration.timeout_seconds,
             public_headers=operation.public_headers,
+            query_parameters=operation.query_parameters,
             credential=credential,
         )
         response = self._execute_transport(
@@ -238,6 +239,7 @@ class AdapterBackedProvider:
             environment_variable=configuration.credential_env,
             injection_name=operation.credential_injection_name or "provider_credential",
             value=value,
+            value_prefix=operation.credential_value_prefix,
         )
 
     def _execute_transport(

@@ -12,7 +12,7 @@ import socket
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, runtime_checkable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 from .errors import ProviderConnectorError, ProviderErrorCode
@@ -35,6 +35,7 @@ class ProviderCredential:
     environment_variable: str
     injection_name: str
     value: str = field(repr=False)
+    value_prefix: str = ""
 
     def __post_init__(self) -> None:
         for name in ("environment_variable", "injection_name", "value"):
@@ -43,8 +44,18 @@ class ProviderCredential:
                 raise ValueError(f"{name} must be non-empty text")
         if not _HTTP_HEADER_NAME.fullmatch(self.injection_name):
             raise ValueError("injection_name must be a valid HTTP-style header name")
-        if "\r" in self.value or "\n" in self.value:
+        if not isinstance(self.value_prefix, str):
+            raise ValueError("credential value_prefix must be text")
+        if any(ord(character) < 32 or ord(character) == 127 for character in self.value):
             raise ValueError("credential value must not contain header control characters")
+        if any(ord(character) < 32 or ord(character) == 127 for character in self.value_prefix):
+            raise ValueError("credential value_prefix must not contain header control characters")
+
+    @property
+    def header_value(self) -> str:
+        """Build the ephemeral header value only at the I/O boundary."""
+
+        return self.value_prefix + self.value
 
     def safe_summary(self) -> dict[str, str]:
         return {
@@ -63,7 +74,9 @@ class ProviderOperation:
     endpoint: str
     requires_credential: bool
     credential_injection_name: str | None = None
+    credential_value_prefix: str = ""
     public_headers: Mapping[str, str] = field(default_factory=dict)
+    query_parameters: Mapping[str, str | int | bool] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for name in ("operation", "payload_kind", "source_tool", "method", "endpoint"):
@@ -73,6 +86,11 @@ class ProviderOperation:
         if self.requires_credential:
             if not isinstance(self.credential_injection_name, str) or not self.credential_injection_name.strip():
                 raise ValueError("credential injection name is required")
+        if not isinstance(self.credential_value_prefix, str) or any(
+            ord(character) < 32 or ord(character) == 127
+            for character in self.credential_value_prefix
+        ):
+            raise ValueError("credential value prefix must be control-character-free text")
         headers = dict(self.public_headers)
         if any(not isinstance(key, str) or not isinstance(value, str) for key, value in headers.items()):
             raise ValueError("public headers must contain text keys and values")
@@ -80,11 +98,20 @@ class ProviderOperation:
         if forbidden:
             raise ValueError("credential headers must use ProviderCredential, not public_headers")
         if any(
-            not _HTTP_HEADER_NAME.fullmatch(key) or "\r" in value or "\n" in value
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not _HTTP_HEADER_NAME.fullmatch(key)
+            or "\r" in value
+            or "\n" in value
             for key, value in headers.items()
         ):
             raise ValueError("public headers must be valid and contain no control characters")
         object.__setattr__(self, "public_headers", MappingProxyType(headers))
+        object.__setattr__(
+            self,
+            "query_parameters",
+            MappingProxyType(_validate_query_parameters(self.query_parameters)),
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -96,11 +123,32 @@ class TransportRequest:
     parameters: Mapping[str, Any]
     timeout_seconds: float
     public_headers: Mapping[str, str]
+    query_parameters: Mapping[str, str | int | bool] = field(default_factory=dict)
     credential: ProviderCredential | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
-        object.__setattr__(self, "public_headers", MappingProxyType(dict(self.public_headers)))
+        headers = dict(self.public_headers)
+        forbidden = sorted(key for key in headers if key.strip().casefold() in _SECRET_HEADER_NAMES)
+        if forbidden:
+            raise ValueError("credential headers must use ProviderCredential, not public_headers")
+        if any(
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not _HTTP_HEADER_NAME.fullmatch(key)
+            or "\r" in value
+            or "\n" in value
+            for key, value in headers.items()
+        ):
+            raise ValueError("public headers must be valid and contain no control characters")
+        object.__setattr__(self, "public_headers", MappingProxyType(headers))
+        query_parameters = _validate_query_parameters(self.query_parameters)
+        if self.credential is not None and any(
+            str(value) in {self.credential.value, self.credential.header_value}
+            for value in query_parameters.values()
+        ):
+            raise ValueError("query parameters must not contain credential values")
+        object.__setattr__(self, "query_parameters", MappingProxyType(query_parameters))
 
     def to_safe_dict(self) -> dict[str, Any]:
         return {
@@ -111,8 +159,32 @@ class TransportRequest:
             "parameters": dict(self.parameters),
             "timeout_seconds": self.timeout_seconds,
             "public_headers": dict(self.public_headers),
+            "query_parameters": dict(self.query_parameters),
             "credential": self.credential.safe_summary() if self.credential is not None else None,
         }
+
+
+def _validate_query_parameters(
+    parameters: Mapping[str, str | int | bool],
+) -> dict[str, str | int | bool]:
+    if not isinstance(parameters, MappingABC):
+        raise ValueError("query_parameters must be a mapping")
+    validated: dict[str, str | int | bool] = {}
+    for key, value in parameters.items():
+        if not isinstance(key, str) or not key or any(
+            ord(character) < 33 or ord(character) == 127 for character in key
+        ):
+            raise ValueError("query parameter names must be non-empty control-free text")
+        if key.strip().casefold() in _SECRET_HEADER_NAMES:
+            raise ValueError("query parameters must not contain credential fields")
+        if type(value) not in {str, int, bool}:
+            raise ValueError("query parameter values must be scalar text, integer, or boolean")
+        if isinstance(value, str) and any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        ):
+            raise ValueError("query parameter values must not contain control characters")
+        validated[key] = value
+    return validated
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -229,6 +301,12 @@ class HttpJsonTransport:
         self._opener = opener
         self._max_response_bytes = max_response_bytes
 
+    def base_origin(self, provider_id: str) -> str | None:
+        """Return credential-free configured origin for provider security checks."""
+
+        value = self._base_urls.get(provider_id)
+        return value.rstrip("/") if value is not None else None
+
     def execute(self, request: TransportRequest) -> TransportResponse:
         if request.method not in {"GET", "POST"}:
             raise ProviderConnectorError(
@@ -264,7 +342,7 @@ class HttpJsonTransport:
         headers = {"Accept": "application/json", **dict(request.public_headers)}
         data: bytes | None = None
         if request.method == "POST":
-            headers["Content-Type"] = "application/json"
+            headers.setdefault("Content-Type", "application/json")
             try:
                 data = json.dumps(
                     _json_ready(request.parameters),
@@ -280,10 +358,26 @@ class HttpJsonTransport:
                     operation=request.operation,
                 ) from exc
         if request.credential is not None:
-            headers[request.credential.injection_name] = request.credential.value
+            if request.credential.injection_name.casefold() in {
+                key.casefold() for key in headers
+            }:
+                raise ProviderConnectorError(
+                    ProviderErrorCode.CONFIGURATION,
+                    "public headers cannot override the provider credential header",
+                    provider_id=request.provider_id,
+                    operation=request.operation,
+                )
+            headers[request.credential.injection_name] = request.credential.header_value
+
+        url = urljoin(base_url, request.endpoint.lstrip("/"))
+        if request.query_parameters:
+            url += "?" + urlencode(
+                sorted(request.query_parameters.items()),
+                doseq=False,
+            )
 
         http_request = Request(
-            urljoin(base_url, request.endpoint.lstrip("/")),
+            url,
             data=data,
             headers=headers,
             method=request.method,
@@ -291,12 +385,13 @@ class HttpJsonTransport:
         try:
             response = self._opener(http_request, timeout=request.timeout_seconds)
             with response as stream:
+                status_code = int(getattr(stream, "status", 200))
                 return self._response(
-                    status_code=int(getattr(stream, "status", 200)),
+                    status_code=status_code,
                     headers=getattr(stream, "headers", {}),
                     body=self._read_bounded(stream, request),
                     request=request,
-                    strict_json=True,
+                    strict_json=200 <= status_code <= 299,
                 )
         except HTTPError as exc:
             body = self._read_bounded(exc, request)

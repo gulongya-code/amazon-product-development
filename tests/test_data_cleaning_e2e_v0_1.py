@@ -23,7 +23,9 @@ from amazon_product_intelligence.connectors import (
     ProviderRequest,
     TransportRequest,
     XiYouProvider,
-    SorftimeProvider,
+)
+from amazon_product_intelligence.connectors.sorftime_legacy import (
+    LegacySorftimeFixtureProvider,
 )
 from amazon_product_intelligence.contracts import (
     NormalizationStatus,
@@ -127,7 +129,11 @@ def service_for(provider_id: str, operation: str, body: object) -> DataCleaningS
     provider = (
         XiYouProvider(transport, environment={environment_name: "fixture-only"})
         if provider_id == "xiyou"
-        else SorftimeProvider(transport, environment={environment_name: "fixture-only"})
+        else LegacySorftimeFixtureProvider(
+            transport,
+            fixture_only=True,
+            environment={environment_name: "fixture-only"},
+        )
     )
     registry = ProviderRegistry()
     registry.register(
@@ -157,6 +163,8 @@ class ProductionTransportTests(unittest.TestCase):
         self.assertEqual(response.metadata["trace_id"], "trace-safe")
         sent = opener.requests[0]
         headers = {key.casefold(): value for key, value in sent.header_items()}
+        self.assertEqual(sent.full_url, "https://openapi.xydc.com/v1/asins/info")
+        self.assertEqual(headers["content-type"], "application/json")
         self.assertEqual(headers["x-api-key"], SECRET)
         self.assertNotIn(SECRET, transport_request().to_safe_dict().__repr__())
 

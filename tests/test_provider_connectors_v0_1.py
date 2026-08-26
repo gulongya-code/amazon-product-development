@@ -30,6 +30,7 @@ from amazon_product_intelligence.contracts import CanonicalEvidenceBundle, Obser
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "provider_adapters" / "v0_1"
+SORFTIME_DTO_FIXTURES = Path(__file__).parent / "fixtures" / "sorftime_dtos" / "v0_1"
 RETRIEVED_AT = "2026-08-19T01:00:00Z"
 TRANSFORMED_AT = "2026-08-19T01:00:01Z"
 TEST_CREDENTIAL = "fixture-credential-not-real"
@@ -37,6 +38,11 @@ TEST_CREDENTIAL = "fixture-credential-not-real"
 
 def load_fixture(name: str) -> dict[str, object]:
     with (FIXTURES / name).open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def load_sorftime_dto_fixture(name: str) -> dict[str, object]:
+    with (SORFTIME_DTO_FIXTURES / name).open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
@@ -69,7 +75,11 @@ def configuration(
         provider_id=provider_id,
         enabled=enabled,
         priority=priority,
-        credential_env=f"TEST_{provider_id.upper()}_CREDENTIAL",
+        credential_env=(
+            "SORFTIME_API_KEY"
+            if provider_id == "sorftime"
+            else f"TEST_{provider_id.upper()}_CREDENTIAL"
+        ),
         timeout_seconds=2.0,
         max_attempts=max_attempts,
         field_priorities=field_priorities or {},
@@ -190,13 +200,11 @@ class ProviderContractAndCapabilityTests(unittest.TestCase):
         self.assertEqual(provider.capability("keyword.locale").capability_status, CapabilityStatus.UNAVAILABLE)
         self.assertEqual(provider.capability("product.seller").capability_status, CapabilityStatus.UNKNOWN)
 
-    def test_sorftime_unknown_fields_are_not_promoted(self) -> None:
+    def test_sorftime_exposes_only_dto_first_proven_fields(self) -> None:
         provider = SorftimeProvider(StubTransport({}), environment={})
-        self.assertEqual(provider.capability("product.seller").capability_status, CapabilityStatus.UNKNOWN)
-        self.assertEqual(
-            provider.capability("keyword.estimate_method_status").capability_status,
-            CapabilityStatus.UNKNOWN,
-        )
+        self.assertIsNone(provider.capability("product.seller"))
+        self.assertIsNone(provider.capability("keyword.estimate_method_status"))
+        self.assertIsNone(provider.capability("metric.price"))
         self.assertEqual(
             provider.capability("relationship.product_to_keyword").capability_status,
             CapabilityStatus.AVAILABLE,
@@ -251,7 +259,7 @@ class ProviderRegistryTests(unittest.TestCase):
         self.assertEqual(tuple(item.provider_id for item in registry.enabled()), ("sorftime", "xiyou"))
         self.assertEqual(
             tuple(item.provider.provider_id for item in registry.candidates("metric.price")),
-            ("sorftime", "xiyou"),
+            ("xiyou",),
         )
 
     def test_xiyou_only_mode_initializes_without_sorftime(self) -> None:
@@ -286,7 +294,7 @@ class ProviderRegistryTests(unittest.TestCase):
                 (self.sorftime, configuration("sorftime", priority=20)),
             )
         )
-        self.assertEqual(registry.candidates("metric.price")[0].provider.provider_id, "sorftime")
+        self.assertEqual(registry.candidates("metric.price")[0].provider.provider_id, "xiyou")
         registry.set_enabled("sorftime", False)
         self.assertEqual(tuple(item.provider_id for item in registry.enabled()), ("xiyou",))
         registry.set_enabled("sorftime", True)
@@ -344,27 +352,30 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
         self.assertNotIn(TEST_CREDENTIAL, repr(safe_request))
         self.assertEqual(safe_request["credential"]["value"], "<redacted>")
 
-    def test_sorftime_fetch_uses_existing_adapter_and_provenance(self) -> None:
+    def test_sorftime_fetch_uses_dto_mapper_and_provenance(self) -> None:
         provider = SorftimeProvider(
-            StubTransport({"product_detail": load_fixture("sorftime_product_detail.json")}),
-            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+            StubTransport({"ProductRequest": load_sorftime_dto_fixture("product_request_success.json")}),
+            environment={"SORFTIME_API_KEY": TEST_CREDENTIAL},
         )
         result = provider.fetch(
-            provider_request("product.brand"),
+            provider_request(
+                "product.asin",
+                parameters={"ASIN": "B09265WXY5", "Trend": 2},
+            ),
             configuration("sorftime"),
         )
         self.assertEqual(result.status, ProviderFetchStatus.RETURNED)
-        self.assertEqual(result.observations[0].value.normalized_value, "SKLSSVF")
+        self.assertEqual(result.observations[0].value.normalized_value, "B09265WXY5")
         self.assertEqual(result.observations[0].provenance.provider, "sorftime")
-        self.assertEqual(result.observations[0].provenance.source_field, "data.brand")
+        self.assertEqual(result.observations[0].provenance.source_field, "Data.Asin")
 
     def test_sorftime_reverse_keyword_fetch_is_bounded_and_credential_safe(self) -> None:
         transport = StubTransport(
-            {"asin_keywords": load_fixture("sorftime_asin_keywords.json")}
+            {"ASINRequestKeyword": load_sorftime_dto_fixture("asin_request_keyword_success.json")}
         )
         provider = SorftimeProvider(
             transport,
-            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+            environment={"SORFTIME_API_KEY": TEST_CREDENTIAL},
         )
         result = provider.fetch(
             provider_request(
@@ -374,8 +385,8 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
             configuration("sorftime"),
         )
         self.assertEqual(result.status, ProviderFetchStatus.RETURNED)
-        self.assertEqual(len(result.observations), 3)
-        self.assertEqual(result.capability.operation, "asin_keywords")
+        self.assertEqual(len(result.observations), 20)
+        self.assertEqual(result.capability.operation, "ASINRequestKeyword")
         self.assertEqual(result.adaptation.raw_evidence.pagination["request_page"], 1)
         safe_request = transport.requests[0].to_safe_dict()
         self.assertEqual(safe_request["credential"]["value"], "<redacted>")
@@ -396,14 +407,14 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, ProviderErrorCode.PROVIDER_UNAVAILABLE)
         self.assertFalse(transport.requests)
 
-    def test_fallback_uses_second_provider_after_primary_failure(self) -> None:
+    def test_unproven_sorftime_field_is_not_a_fallback_candidate(self) -> None:
         xiyou = XiYouProvider(
             StubTransport({"asin_info": TransportResponse(status_code=503, payload={})}),
             environment={"TEST_XIYOU_CREDENTIAL": TEST_CREDENTIAL},
         )
         sorftime = SorftimeProvider(
-            StubTransport({"product_detail": load_fixture("sorftime_product_detail.json")}),
-            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+            StubTransport({}),
+            environment={"SORFTIME_API_KEY": TEST_CREDENTIAL},
         )
         registry = build_registry(
             (
@@ -411,15 +422,12 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
                 (sorftime, configuration("sorftime", priority=20)),
             )
         )
-        resolution = ProviderResolver(registry).resolve(provider_request())
-        self.assertEqual(resolution.selected_provider_id, "sorftime")
-        self.assertEqual(
-            tuple(item.status for item in resolution.attempts),
-            (ProviderAttemptStatus.FAILED, ProviderAttemptStatus.SELECTED),
-        )
-        self.assertEqual(resolution.attempts[0].error_code, ProviderErrorCode.PROVIDER_UNAVAILABLE)
+        with self.assertRaises(ProviderConnectorError) as caught:
+            ProviderResolver(registry).resolve(provider_request())
+        self.assertEqual(caught.exception.code, ProviderErrorCode.RESOLUTION_EXHAUSTED)
+        self.assertEqual(len(caught.exception.details["attempts"]), 1)
 
-    def test_fallback_uses_second_provider_when_field_is_missing(self) -> None:
+    def test_unproven_sorftime_field_cannot_mask_xiyou_field_missing(self) -> None:
         xiyou_payload = load_fixture("xiyou_asin_info.json")
         del xiyou_payload["data"]["entities"][0]["price"]
         xiyou = XiYouProvider(
@@ -427,36 +435,40 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
             environment={"TEST_XIYOU_CREDENTIAL": TEST_CREDENTIAL},
         )
         sorftime = SorftimeProvider(
-            StubTransport({"product_detail": load_fixture("sorftime_product_detail.json")}),
-            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+            StubTransport({}),
+            environment={"SORFTIME_API_KEY": TEST_CREDENTIAL},
         )
-        resolution = ProviderResolver(
+        resolver = ProviderResolver(
             build_registry(
                 (
                     (xiyou, configuration("xiyou", priority=10)),
                     (sorftime, configuration("sorftime", priority=20)),
                 )
             )
-        ).resolve(provider_request())
-        self.assertEqual(resolution.selected_provider_id, "sorftime")
-        self.assertEqual(resolution.attempts[0].status, ProviderAttemptStatus.FIELD_MISSING)
+        )
+        with self.assertRaises(ProviderConnectorError) as caught:
+            resolver.resolve(provider_request())
+        self.assertEqual(caught.exception.code, ProviderErrorCode.RESOLUTION_EXHAUSTED)
+        self.assertEqual(caught.exception.details["attempts"][0]["status"], "FIELD_MISSING")
 
-    def test_disabled_primary_is_skipped_by_resolver(self) -> None:
+    def test_disabled_only_proven_provider_leaves_no_candidate(self) -> None:
         xiyou_transport = StubTransport({"asin_info": AssertionError("disabled provider was called")})
         xiyou = XiYouProvider(xiyou_transport, environment={})
         sorftime = SorftimeProvider(
-            StubTransport({"product_detail": load_fixture("sorftime_product_detail.json")}),
-            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+            StubTransport({}),
+            environment={"SORFTIME_API_KEY": TEST_CREDENTIAL},
         )
-        resolution = ProviderResolver(
+        resolver = ProviderResolver(
             build_registry(
                 (
                     (xiyou, configuration("xiyou", enabled=False, priority=1)),
                     (sorftime, configuration("sorftime", enabled=True, priority=2)),
                 )
             )
-        ).resolve(provider_request())
-        self.assertEqual(resolution.selected_provider_id, "sorftime")
+        )
+        with self.assertRaises(ProviderConnectorError) as caught:
+            resolver.resolve(provider_request())
+        self.assertEqual(caught.exception.code, ProviderErrorCode.FIELD_UNAVAILABLE)
         self.assertFalse(xiyou_transport.requests)
 
     def test_explicit_empty_query_is_selected_evidence_not_failure(self) -> None:

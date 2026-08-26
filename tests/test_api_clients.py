@@ -109,28 +109,17 @@ def test_base_client_normalizes_timeout_and_stops_at_max_attempts() -> None:
     assert len(transport.requests) == 2
 
 
-@pytest.mark.parametrize(
-    ("client_type", "key_name", "expected_source"),
-    (
-        (XiyouClient, "XIYOU_API_KEY", "xiyou"),
-        (SorftimeClient, "SORFTIME_API_KEY", "sorftime"),
-    ),
-)
-def test_provider_clients_support_successful_mock_calls(
-    client_type,
-    key_name: str,
-    expected_source: str,
-) -> None:
+def test_xiyou_client_supports_successful_mock_calls() -> None:
     transport = StubTransport()
     payload = {"data": [{"value": 1}], "total": 1}
-    with patch.dict(os.environ, {key_name: TEST_KEY}, clear=True):
-        response = client_type(transport=transport).mock_call(
+    with patch.dict(os.environ, {"XIYOU_API_KEY": TEST_KEY}, clear=True):
+        response = XiyouClient(transport=transport).mock_call(
             payload,
             operation="fixture_success",
             request_metadata={"fixture": "success"},
         )
 
-    assert response.source == expected_source
+    assert response.source == "xiyou"
     assert response.payload is payload
     assert response.request_metadata["fixture"] == "success"
     assert transport.requests == []
@@ -148,19 +137,22 @@ def test_mock_error_response_uses_shared_error_model_and_does_not_use_network() 
     assert transport.requests == []
 
 
-@pytest.mark.parametrize(
-    ("client_type", "provider_id"),
-    ((XiyouClient, "xiyou"), (SorftimeClient, "sorftime")),
-)
-def test_missing_api_key_fails_before_transport(client_type, provider_id: str) -> None:
+def test_xiyou_missing_api_key_fails_before_transport() -> None:
     transport = StubTransport()
     with patch.dict(os.environ, {}, clear=True):
         with pytest.raises(ProviderConnectorError) as caught:
-            client_type(transport=transport)
+            XiyouClient(transport=transport)
 
     assert caught.value.code is ProviderErrorCode.CONFIGURATION
-    assert caught.value.provider_id == provider_id
+    assert caught.value.provider_id == "xiyou"
     assert transport.requests == []
+
+
+def test_sorftime_stale_generic_client_surface_is_not_public() -> None:
+    client = SorftimeClient(transport=StubTransport())
+    assert not isinstance(client, BaseAPIClient)
+    assert not hasattr(client, "request")
+    assert not hasattr(client, "mock_call")
 
 
 def test_credentials_are_rejected_from_request_parameters() -> None:

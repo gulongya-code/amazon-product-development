@@ -17,10 +17,12 @@ from amazon_product_intelligence.connectors import (
     ProviderConnectorError,
     ProviderErrorCode,
     ProviderRegistry,
-    SorftimeProvider,
     TransportRequest,
     TransportResponse,
     XiYouProvider,
+)
+from amazon_product_intelligence.connectors.sorftime_legacy import (
+    LegacySorftimeFixtureProvider,
 )
 from amazon_product_intelligence.contracts import deterministic_id
 from amazon_product_intelligence.normalization import CanonicalNormalizationPipeline
@@ -131,8 +133,9 @@ def _provider(provider_id: str, transport: Any, environment: Mapping[str, str]) 
             environment=environment,
             retry_policy=BoundedTransientRetryPolicy(),
         ),
-        "sorftime": lambda: SorftimeProvider(
+        "sorftime": lambda: LegacySorftimeFixtureProvider(
             transport,
+            fixture_only=isinstance(transport, StaticJsonTransport),
             environment=environment,
             retry_policy=BoundedTransientRetryPolicy(),
         ),

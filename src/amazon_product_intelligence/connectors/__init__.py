@@ -20,7 +20,15 @@ from .resolver import (
     ProviderResolver,
 )
 from .sorftime_v0_1 import SORFTIME_CAPABILITIES, SORFTIME_OPERATIONS, SorftimeProvider
-from .sorftime_client import SorftimeClient
+from .sorftime_client import (
+    SORFTIME_CONTENT_TYPE,
+    SORFTIME_CREDENTIAL_ENV,
+    SORFTIME_ORIGIN,
+    SorftimeClient,
+    SorftimeOperationResult,
+    SorftimeUsageEvidence,
+    validate_sorftime_origin,
+)
 from .sorftime_dtos_v0_1 import (
     SORFTIME_AMAZON_US,
     SorftimeAsinKeywordRow,
@@ -89,6 +97,9 @@ __all__ = (
     "SORFTIME_CAPABILITIES",
     "SORFTIME_OPERATIONS",
     "SORFTIME_AMAZON_US",
+    "SORFTIME_CONTENT_TYPE",
+    "SORFTIME_CREDENTIAL_ENV",
+    "SORFTIME_ORIGIN",
     "SorftimeAsinKeywordRow",
     "SorftimeAsinRequestKeywordRequest",
     "SorftimeAsinRequestKeywordResponse",
@@ -106,7 +117,9 @@ __all__ = (
     "SorftimeProductVariationsResponse",
     "SorftimeProvider",
     "SorftimeClient",
+    "SorftimeOperationResult",
     "SorftimeSalesState",
+    "SorftimeUsageEvidence",
     "TransportRequest",
     "TransportResponse",
     "XIYOU_CAPABILITIES",
@@ -120,4 +133,5 @@ __all__ = (
     "parse_product_variations_response",
     "resolve_sorftime_domain",
     "sorftime_dto_json",
+    "validate_sorftime_origin",
 )
