@@ -3,18 +3,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping as MappingABC
+from dataclasses import replace
 import json
 import re
 from typing import Any, Mapping
 
 from amazon_product_intelligence.contracts import (
     BlockingScope,
+    Channel,
+    EstimateMethodStatus,
     EvidenceType,
     FactGroup,
     NormalizationStatus,
     OriginStage,
     PeriodType,
     PresenceStatus,
+    ProductKeywordRelationshipObservation,
+    QueryExecutionOutcome,
+    RelationshipDirection,
+    RelationshipType,
     ResultStatus,
     ScopeStatus,
     ScopeType,
@@ -36,6 +43,7 @@ from .base import (
     _collection_failure,
     _prepare_session,
     absent_value,
+    keyword_identity,
     normalized_asin,
     product_identity,
     product_subject,
@@ -73,6 +81,12 @@ _MAPPING_SPECIFICATIONS: Mapping[str, MappingSpecification] = {
     ),
     "product_reviews": _spec(
         "product_reviews", "product_reviews", "sorftime_reviews_mapping_v1"
+    ),
+    "asin_keywords": _spec(
+        "asin_keywords",
+        "ASINRequestKeyword",
+        "sorftime_asin_to_keyword_mapping_v1",
+        version="0.1.2",
     ),
 }
 
@@ -217,7 +231,12 @@ def _sorftime_envelope(
 
 
 def _request_asin(session: _AdapterSession) -> str | None:
-    return normalized_asin(session.context.sanitized_request.get("asin"))
+    candidates = {
+        candidate
+        for key in ("asin", "Asin", "ASIN")
+        if (candidate := normalized_asin(session.context.sanitized_request.get(key))) is not None
+    }
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _add_direct_string_fact(
@@ -860,6 +879,41 @@ def _product_variations(
         source_locator="context.sanitized_request.asin",
         disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
     )
+    valid_totals = {
+        row.get("ItemTotal")
+        for row in rows
+        if isinstance(row, MappingABC)
+        and type(row.get("ItemTotal")) is int
+        and row.get("ItemTotal") > 0
+    }
+    provider_total = next(iter(valid_totals)) if len(valid_totals) == 1 else None
+    returned_indexes = {
+        row.get("ItemIndex")
+        for row in rows
+        if isinstance(row, MappingABC)
+        and type(row.get("ItemIndex")) is int
+        and row.get("ItemIndex") > 0
+    }
+    complete_index_set = (
+        provider_total is not None
+        and len(rows) == provider_total
+        and returned_indexes == set(range(1, provider_total + 1))
+    )
+    session.raw_evidence = replace(
+        session.raw_evidence,
+        response_status=("SUCCESS" if complete_index_set else "PARTIAL"),
+        pagination={
+            "request_page": session.context.sanitized_request.get(
+                "PageIndex", session.context.sanitized_request.get("pageIndex")
+            ),
+            "request_page_size": None,
+            "returned_count": len(rows),
+            "provider_total": provider_total,
+            "collection_status": (
+                "COMPLETE_INDEX_SET" if complete_index_set else "PARTIAL_OR_INCONSISTENT_INDEX_SET"
+            ),
+        },
+    )
     sales_doc = doc.get("sales_amount")
     sales_semantics_confirmed = (
         isinstance(sales_doc, str)
@@ -1001,6 +1055,349 @@ def _product_variations(
         doc,
         locator="$.doc",
         mapped={"asin", "property", "sales_amount", "item_index", "item_total"},
+    )
+    return session.finish()
+
+
+def _asin_keywords(
+    session: _AdapterSession,
+    doc: Mapping[str, Any],
+    rows: Any,
+) -> AdaptationResult:
+    query_asin = _request_asin(session)
+    if query_asin is None:
+        return _fail(
+            session,
+            "MISSING_REQUEST_IDENTITY",
+            "sanitized_request ASIN is required for reverse relationship identity.",
+            "context.sanitized_request.ASIN",
+        )
+    relationship_doc = doc.get("relationship")
+    if not (
+        isinstance(relationship_doc, str)
+        and "last 30 days" in relationship_doc.casefold()
+        and "first 3 pages" in relationship_doc.casefold()
+    ):
+        return _fail(
+            session,
+            "MISSING_RELATIONSHIP_CONTRACT",
+            "ASINRequestKeyword requires audited first-3-pages and last-30-days documentation.",
+            "$.doc.relationship",
+        )
+
+    product = product_identity(session.context.marketplace, query_asin)
+    page_index = session.context.sanitized_request.get(
+        "PageIndex", session.context.sanitized_request.get("pageIndex")
+    )
+    page_size = session.context.sanitized_request.get(
+        "PageSize", session.context.sanitized_request.get("pageSize")
+    )
+    session.raw_evidence = replace(
+        session.raw_evidence,
+        response_status=("EMPTY" if not rows else "PARTIAL"),
+        pagination={
+            "request_page": page_index,
+            "request_page_size": page_size,
+            "returned_count": len(rows),
+            "provider_total": None,
+            "collection_status": "EXPLICIT_EMPTY" if not rows else "BOUNDED_PAGE_TOTAL_UNKNOWN",
+        },
+    )
+    if not rows:
+        session.add_query_execution(
+            query_product=product,
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+            outcome=QueryExecutionOutcome.EXPLICIT_EMPTY,
+            related_relationship_observation_ids=(),
+            source_field="data",
+            source_record_identity=product.product_id,
+        )
+        session.diagnostic(
+            code="QUERY_RETURNED_EMPTY",
+            message="A successful bounded ASINRequestKeyword query returned no rows; this is not zero demand.",
+            source_locator="$.data",
+            disposition=MappingDisposition.APPROVED_WITH_EXPLICIT_UNKNOWN,
+            affects_status=False,
+        )
+        return session.finish()
+
+    for index, row in enumerate(rows):
+        locator = f"$.data[{index}]"
+        if not isinstance(row, MappingABC):
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="product_keyword_relationship",
+                code="INVALID_RECORD_TYPE",
+                message="ASINRequestKeyword row must be an object.",
+                locator=locator,
+            )
+            continue
+        keyword_record = row.get("Keyword")
+        if not isinstance(keyword_record, MappingABC):
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="product_keyword_relationship",
+                code="INVALID_KEYWORD_RECORD",
+                message="Keyword must be an object.",
+                locator=f"{locator}.Keyword",
+            )
+            continue
+        keyword_text = keyword_record.get("Keyword")
+        if not isinstance(keyword_text, str) or not keyword_text.strip():
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="product_keyword_relationship",
+                code="INVALID_KEYWORD_IDENTITY",
+                message="Keyword.Keyword must be non-empty text.",
+                locator=f"{locator}.Keyword.Keyword",
+            )
+            continue
+
+        keyword = keyword_identity(session.context.marketplace, session.context.locale, keyword_text)
+        source_identity = (
+            f"{session.context.marketplace}:{query_asin}:{keyword.normalized_text}:"
+            f"{RelationshipDirection.PRODUCT_TO_KEYWORD.value}"
+        )
+        session.add_relationship(
+            product=product,
+            keyword=keyword,
+            direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+            relationship_type=RelationshipType.CANDIDATE_MEMBERSHIP,
+            channel=Channel.UNKNOWN,
+            value=value_envelope(
+                presence_status=PresenceStatus.PRESENT,
+                raw_value=True,
+                normalized_value=True,
+                value_type=ValueType.BOOLEAN,
+                normalization_status=NormalizationStatus.NOT_APPLICABLE,
+                semantic_status=SemanticStatus.CONFIRMED,
+            ),
+            source_field=f"data[{index}]",
+            source_record_identity=source_identity,
+            provider_semantic=(
+                "ASIN gained exposure for this keyword within the first three search-result pages "
+                "during the provider's last-30-day lookup window"
+            ),
+            evidence_type=EvidenceType.OBSERVED,
+            query_result_status=ResultStatus.POPULATED,
+            period_type=PeriodType.ROLLING_30_DAYS,
+            discriminator=f"row:{index}:membership",
+        )
+
+        search_position = row.get("SearchPosition")
+        search_position_date = row.get("SearchPositionDate")
+        position_type = row.get("PositionType")
+        if isinstance(search_position, str) and search_position.strip():
+            rank = {
+                "position": search_position,
+                "position_date": search_position_date,
+                "position_type": position_type,
+            }
+            session.add_relationship(
+                product=product,
+                keyword=keyword,
+                direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+                relationship_type=RelationshipType.RANK,
+                channel=Channel.ORGANIC,
+                value=value_envelope(
+                    presence_status=PresenceStatus.PRESENT,
+                    raw_value=rank,
+                    normalized_value=rank,
+                    value_type=ValueType.OBJECT,
+                    normalization_status=NormalizationStatus.NOT_APPLICABLE,
+                    semantic_status=SemanticStatus.CONFIRMED,
+                ),
+                source_field=f"data[{index}].SearchPosition",
+                source_record_identity=source_identity,
+                provider_semantic="Provider-documented organic exposure position; timestamp timezone is not inferred",
+                evidence_type=EvidenceType.OBSERVED,
+                query_result_status=ResultStatus.POPULATED,
+                rank=rank,
+                period_type=PeriodType.ROLLING_30_DAYS,
+                discriminator=f"row:{index}:organic-rank",
+            )
+
+        show_share_raw = row.get("ShowShare")
+        show_share = strict_number(show_share_raw)
+        if show_share is not None and 0 <= show_share <= 100:
+            traffic = value_envelope(
+                presence_status=PresenceStatus.PRESENT,
+                raw_value=show_share_raw,
+                normalized_value=show_share,
+                value_type=ValueType.NUMBER,
+                unit=Unit(dimension="RATIO", unit_code="percent", unit_system="PROVIDER"),
+                normalization_status=NormalizationStatus.NORMALIZED,
+                semantic_status=SemanticStatus.CONFIRMED,
+            )
+            session.add_relationship(
+                product=product,
+                keyword=keyword,
+                direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+                relationship_type=RelationshipType.TRAFFIC,
+                channel=Channel.UNKNOWN,
+                value=traffic,
+                traffic=traffic,
+                source_field=f"data[{index}].ShowShare",
+                source_record_identity=source_identity,
+                provider_semantic="Traffic share contributed by this keyword within the ASIN reverse-lookup result",
+                evidence_type=EvidenceType.PROVIDER_ESTIMATE,
+                query_result_status=ResultStatus.POPULATED,
+                period_type=PeriodType.ROLLING_30_DAYS,
+                discriminator=f"row:{index}:show-share",
+            )
+        elif "ShowShare" in row:
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="traffic",
+                code="INVALID_SHOW_SHARE",
+                message="ShowShare must be a finite percentage from 0 through 100.",
+                locator=f"{locator}.ShowShare",
+            )
+
+        keyword_source = f"data[{index}].Keyword"
+        search_volume_raw = keyword_record.get("SearchVolume")
+        search_volume = strict_number(search_volume_raw)
+        if search_volume is not None and search_volume >= 0:
+            observation = session.add_keyword_metric(
+                keyword=keyword,
+                metric="search_volume",
+                value=value_envelope(
+                    presence_status=PresenceStatus.PRESENT,
+                    raw_value=search_volume_raw,
+                    normalized_value=search_volume,
+                    value_type=ValueType.NUMBER,
+                    unit=Unit(dimension="COUNT", unit_code="searches_per_30_days", unit_system="PROVIDER"),
+                    normalization_status=NormalizationStatus.NORMALIZED,
+                    semantic_status=SemanticStatus.SEMANTICS_UNCONFIRMED,
+                ),
+                source_field=f"{keyword_source}.SearchVolume",
+                source_record_identity=source_identity,
+                metric_semantic="Provider 30-day search-volume estimate; derivation method is not documented",
+                evidence_type=EvidenceType.PROVIDER_ESTIMATE,
+                estimate_method_status=EstimateMethodStatus.PARTIALLY_DOCUMENTED,
+                period_type=PeriodType.ROLLING_30_DAYS,
+                result_status=ResultStatus.PARTIAL,
+            )
+            issue_id = _record_issue(
+                session,
+                subject=observation.subject,
+                dimension="search_volume",
+                code="SEARCH_VOLUME_METHOD_UNCONFIRMED",
+                message="The 30-day window is documented, but the provider estimate method is unavailable.",
+                locator=f"{locator}.Keyword.SearchVolume",
+            )
+            session.attach_issue((observation.observation_id,), issue_id)
+        elif "SearchVolume" in keyword_record:
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="search_volume",
+                code="INVALID_SEARCH_VOLUME_PRIMITIVE",
+                message="SearchVolume must be a finite non-negative number.",
+                locator=f"{locator}.Keyword.SearchVolume",
+            )
+
+        cpc_raw = keyword_record.get("Cpc")
+        cpc_range_raw = keyword_record.get("CpcRange")
+        cpc = strict_number(cpc_raw)
+        cpc_range = (
+            tuple(strict_number(item) for item in cpc_range_raw)
+            if isinstance(cpc_range_raw, (tuple, list)) and len(cpc_range_raw) == 2
+            else ()
+        )
+        if (
+            cpc is not None
+            and cpc >= 0
+            and len(cpc_range) == 2
+            and all(item is not None and item >= 0 for item in cpc_range)
+            and session.context.marketplace == "US"
+            and session.context.currency == "USD"
+        ):
+            session.add_keyword_metric(
+                keyword=keyword,
+                metric="cpc",
+                value=value_envelope(
+                    presence_status=PresenceStatus.PRESENT,
+                    raw_value=cpc_raw,
+                    normalized_value=cpc / 100,
+                    value_type=ValueType.NUMBER,
+                    unit=Unit(dimension="CURRENCY", unit_code="USD", unit_system="ISO_4217"),
+                    normalization_status=NormalizationStatus.NORMALIZED,
+                    semantic_status=SemanticStatus.CONFIRMED,
+                ),
+                source_field=f"{keyword_source}.Cpc",
+                source_record_identity=source_identity,
+                metric_semantic="Provider CPC precise bid converted from documented US local minor units",
+                evidence_type=EvidenceType.PROVIDER_ESTIMATE,
+                estimate_method_status=EstimateMethodStatus.PARTIALLY_DOCUMENTED,
+                range_value={
+                    "minimum": cpc_range[0] / 100,
+                    "maximum": cpc_range[1] / 100,
+                    "currency": "USD",
+                },
+            )
+        elif "Cpc" in keyword_record or "CpcRange" in keyword_record:
+            _record_issue(
+                session,
+                subject=product_subject(product),
+                dimension="cpc",
+                code="INVALID_CPC_VALUE_RANGE_OR_CONTEXT",
+                message="CPC requires non-negative values, a two-value range, US marketplace, and explicit USD context.",
+                locator=f"{locator}.Keyword.Cpc",
+            )
+
+        _report_fields(
+            session,
+            keyword_record,
+            locator=f"{locator}.Keyword",
+            mapped={"Keyword", "SearchVolume", "Cpc", "CpcRange"},
+            ignored={
+                key: "Captured keyword enrichment is retained but outside the minimum SP-040A executable mapping."
+                for key in keyword_record
+                if key not in {"Keyword", "SearchVolume", "Cpc", "CpcRange"}
+            },
+        )
+        _report_fields(
+            session,
+            row,
+            locator=locator,
+            mapped={"Keyword", "ShowShare", "SearchPosition", "SearchPositionDate", "PositionType"},
+            ignored={
+                "ShowType": "Display exposure label is retained; executable channel comes from documented position fields.",
+                "AdPosition": "Sponsored-position mapping is deferred because the live page contained no ad evidence.",
+                "AdPositionDate": "Sponsored-position mapping is deferred because the live page contained no ad evidence.",
+            },
+        )
+
+    related_ids = tuple(
+        item.observation_id
+        for item in session.observations
+        if isinstance(item, ProductKeywordRelationshipObservation)
+        and item.direction is RelationshipDirection.PRODUCT_TO_KEYWORD
+        and item.product == product
+    )
+    session.add_query_execution(
+        query_product=product,
+        direction=RelationshipDirection.PRODUCT_TO_KEYWORD,
+        outcome=(
+            QueryExecutionOutcome.RESULTS_RETURNED
+            if related_ids
+            else QueryExecutionOutcome.OUTCOME_UNKNOWN
+        ),
+        related_relationship_observation_ids=related_ids,
+        source_field="data",
+        source_record_identity=product.product_id,
+        quality_issue_ids=tuple(item.issue_id for item in session.issues),
+    )
+    _report_fields(
+        session,
+        doc,
+        locator="$.doc",
+        mapped={"relationship", "show_share", "search_position", "search_volume", "cpc"},
     )
     return session.finish()
 
@@ -1176,7 +1573,11 @@ class SorftimeAdapterV0_1:
             return prepared
         envelope = _sorftime_envelope(
             prepared,
-            data_must_be_list=context.payload_kind in {"product_variations", "product_reviews"},
+            data_must_be_list=context.payload_kind in {
+                "product_variations",
+                "product_reviews",
+                "asin_keywords",
+            },
         )
         if isinstance(envelope, AdaptationResult):
             return envelope
@@ -1185,6 +1586,8 @@ class SorftimeAdapterV0_1:
             return _product_detail(prepared, doc, data)
         if context.payload_kind == "product_variations":
             return _product_variations(prepared, doc, data)
+        if context.payload_kind == "asin_keywords":
+            return _asin_keywords(prepared, doc, data)
         return _product_reviews(prepared, doc, data)
 
 

@@ -1,21 +1,27 @@
 # Sorftime Provider Contract and Migration Audit V0.1
 
-Status: TASK-SP-040A complete; migration is blocked pending contract evidence
-Audit date: 2026-08-25
-Baseline: `d9e47579e6f9219b0747c7bba2914517a9892c35`
-Decision: `NOT YET PROVEN`
-Verdict: `BLOCKED — SORFTIME_CONTRACT_GAP`
+Status: TASK-SP-040A complete; minimum offline mapping slice accepted
+Audit date: 2026-08-26
+Baseline: `b007bd9cd8b0be2149e0f5297e914a0db63a8561`
+Decision: `MINIMUM LIVE CONTRACT SLICE PROVEN`
+Verdict: `PASS — SP-040A COMPLETE; SP-040B NOT STARTED`
 
-## 1. Scope and non-operation statement
+## 1. Scope and operation statement
 
-This is a contract-discovery, dependency-audit, and migration-design artifact. It does not implement, configure, authenticate, or execute a provider. No connector behavior, Canonical semantics, Intelligence behavior, scoring, report schema, renderer, secret handling, or default report version changed.
+This remains a contract-discovery, dependency-audit, and migration-design artifact. The recovery closure adds only the smallest evidence-backed offline Sorftime mapping slice, sanitized fixtures, connector capability declarations, and tests. It does not add the ordinary HTTP client, provider selection, production orchestration, retry behavior, Renderer, Pipeline Integration, Intelligence behavior, scoring, report schema, or default report version. Existing `provider-tool://sorftime/...` endpoints remain fixture/offline logical operations.
 
 Provider operation counts for this audit are:
 
-- Sorftime provider operations: `0`
+- successful operator `ProductRequest`: `1`
+- failed credential `ProductVariations`: `1` (`HTTP 401`)
+- successful recovery `ProductVariations`: `1`
+- successful recovery `ASINRequestKeyword`: `1`
+- total transmitted Sorftime operations: `4`
+- retries: `0`
 - XiYou provider operations: `0`
+- Sorftime CLI live operations: `0`
 
-The answer to the completion question is **NOT YET PROVEN**. Sorftime's current official public pages establish a broad capability catalogue, 14 named Amazon marketplaces, usage-based pricing, and API/CLI contract correspondence. They do not publicly establish enough field-level response schema, grain, pagination/completeness, history, domain-ID, missingness, or per-interface cost semantics to prove a safe migration of the critical Canonical requirements. This audit therefore fails closed.
+The minimum live contract slice is proven for: bounded product/variation identity and Size/Color properties; the `SalesAmount=-1` unknown sentinel; ASIN-to-keyword exposure within the documented last-30-day, first-three-search-pages window; organic position; reverse-result traffic share; 30-day search-volume evidence with unconfirmed estimation method; and US CPC in documented local minor units under explicit USD context. Parent-edge direction, full keyword totals/completeness, further pages, sponsored mappings, timestamp timezone, trend semantics, category universes, BSR equivalence, and broad migration remain unavailable or partial.
 
 ## 2. Evidence boundary
 
@@ -23,8 +29,10 @@ The answer to the completion question is **NOT YET PROVEN**. Sorftime's current 
 
 - [Sorftime official API/CLI service catalogue](https://www.sorftime.com/en-US/api): names the Amazon category, product, review, keyword, monitoring, and account interfaces; describes `CategoryRequest` as Best Sellers with history, `CategoryProducts` as all hot-selling category products, `AsinSalesVolume` as officially disclosed child sales, and identifies usage-based billing.
 - [Sorftime official CLI page](https://www.sorftime.com/zh-CN/cli): states that CLI method names, request parameters, and returned structures correspond to the API; shows JSON output with `Code`, `Data`, and `RequestLeft`; and demonstrates a `ProductRequest` with a numeric `domain` argument.
+- authenticated first-party Sorftime Enterprise Solutions API documentation for `ProductRequest`, `ProductVariations`, and `ASINRequestKeyword`, including request parameters, response-field semantics, the reverse-keyword 30-day/first-three-pages boundary, US CPC minor units, and the variation-sales `-1` sentinel;
+- sanitized live HTTP evidence for the four accounted operations above. No Authorization value or Account-SK was retained.
 
-The CLI is a legitimate future contract-discovery option because Sorftime states that it mirrors the API. SP-040A did not install, configure, authenticate, or execute it.
+The CLI remains a legitimate future contract-discovery option because Sorftime states that it mirrors the API, but SP-040A did not execute it.
 
 ### 2.2 Repository evidence reviewed
 
@@ -36,11 +44,11 @@ The audit traced the production flow and contracts through:
 - checked-in sanitized XiYou and Sorftime fixtures and all related tests;
 - existing provider, Canonical, provenance, field-coverage, and V0.2 contract documentation.
 
-Checked-in Sorftime fixtures prove how the existing offline adapter behaves against those fixtures. They do **not** prove the current live Sorftime API contract. Existing `provider-tool://sorftime/...` operations are logical placeholders, not documented production HTTP endpoints.
+Checked-in Sorftime fixtures are sanitized deterministic excerpts derived from the live evidence and authenticated documentation. They prove the accepted offline mapping behavior, not a production HTTP client. Existing `provider-tool://sorftime/...` operations remain logical placeholders rather than production HTTP endpoints.
 
 ### 2.3 Evidence limits
 
-The official public pages do not expose a complete unauthenticated field catalogue or a versioned schema for the audited interfaces. The official page's labels and illustrative JSON are capability evidence, not proof of every response field. Third-party wrappers, mirrors, GitHub repositories, and search snippets were not promoted to authoritative contract evidence.
+The provider still does not expose a versioned schema covering every audited interface. Only fields observed live and supported by authenticated first-party documentation are executable. Third-party wrappers, mirrors, GitHub repositories, search snippets, field-name inference, and XiYou semantic transfer were not promoted to authoritative evidence.
 
 ## 3. Repository dependency inventory
 
@@ -157,11 +165,11 @@ Totals: 42 concepts; 12 CURRENT, 25 TARGET, and 5 FUTURE. The unresolved semanti
 | `CategorySearchFromName` | find category by name | operator category resolution | PARTIAL |
 | `CategoryProducts` | all hot-selling category products | category universe candidate | UNPROVEN |
 | `CategoryTrend` | market historical trend | category trend candidate | PARTIAL |
-| `ProductRequest` | product details including product trend | current product facts/history candidate | PARTIAL |
+| `ProductRequest` | product details including product trend | current product facts/history candidate | PARTIAL — bounded identity/variation fields proven; trend semantics unavailable |
 | `ProductSearchFromName` | search product by name | future discovery only | PARTIAL |
 | `ProductSearch` | product search | future discovery only | PARTIAL |
 | `AsinSalesVolume` | officially disclosed child sales | separate child-sales metric | PARTIAL |
-| `ProductVariations` | product child data | family topology candidate | PARTIAL |
+| `ProductVariations` | product child data | family topology candidate | PARTIAL — row identity/count/properties/sentinel proven; parent edge unavailable |
 | `ProductRealtimeRequest` | realtime product query | future refresh | PARTIAL |
 | `ProductRealtimeRequestStatusQuery` | realtime product-query status | future async workflow | PARTIAL |
 | `ProductReviewsQuery` | product reviews | raw-review candidate | PARTIAL |
@@ -174,7 +182,7 @@ Totals: 42 concepts; 12 CURRENT, 25 TARGET, and 5 FUTURE. The unresolved semanti
 | `KeywordRequest` | keyword detail including volume/CPC trend | keyword metrics candidate | PARTIAL |
 | `KeywordSearchResultTrend` | keyword result-product trend | result trend candidate | PARTIAL |
 | `CategoryRequestKeyword` | category reverse keywords | future category-keyword evidence | PARTIAL |
-| `ASINRequestKeyword` | ASIN reverse keywords | current Buyer Need input candidate | PARTIAL |
+| `ASINRequestKeyword` | ASIN reverse keywords | current Buyer Need input candidate | PARTIAL — bounded relationship/organic position/selected metrics proven; totals unavailable |
 | `KeywordProductRanking` | historical keyword result products | historical product-ranking candidate | PARTIAL |
 | `ASINKeywordRanking` | ASIN rank trend under keyword | ASIN-keyword rank history candidate | PARTIAL |
 | `KeywordExtends` | extended keywords | future discovery only | PARTIAL |
@@ -185,13 +193,13 @@ The audit also reviewed `ProductSearch`, realtime product/status, collection/sta
 
 | Canonical requirement(s) | Sorftime candidate / public semantic | Status | Required transform and match finding | Blocking? |
 |---|---|---|---|---|
-| C01 ASIN | `ProductRequest` request `asin` in official CLI example | PARTIAL | normalize and verify observed identity; response identity/schema unproven | YES |
+| C01 ASIN | live `ProductRequest` and `ProductVariations` | PROVEN | normalize the observed 10-character identity; retain requested and returned identity separately | NO for accepted slice |
 | C02 marketplace | numeric `domain`; 14 named sites | PARTIAL | explicit offline marketplace↔domain map; only example context for US/domain 1 | YES |
 | C03 title | `ProductRequest` product detail | PARTIAL | map only versioned response field; nullability unproven | YES |
 | C04 brand | `ProductRequest` candidate | UNPROVEN | no authoritative public field/schema | NO for current; YES for target |
 | C05 category identity | `CategoryTree`, `CategorySearchFromName`, `ProductRequest` | PARTIAL | node/name/path normalization; identity and hierarchy schema unproven | YES |
 | C06-C07 category universe/denominator | `CategoryProducts`, `CategoryRequest` | UNPROVEN | prove ranked-vs-complete set, limits, pagination, totals, history, product grain | YES |
-| C08-C10 parent/child/variations | `ProductVariations`, `AsinSalesVolume` | PARTIAL | explicit edges, child identity, self-parent, count, property, sentinel policies unproven | YES |
+| C08-C10 parent/child/variations | live `ProductRequest` + `ProductVariations` | PARTIAL | ten returned identities, `ItemIndex=1..10`, `ItemTotal=10`, and Size/Color properties are proven; `ProductVariations` does not prove a directed parent edge | YES for parent topology only |
 | C11 attributes | `ProductRequest` candidate | UNPROVEN | approved field-by-field mapper only | YES for target |
 | C12 fulfillment | `ProductRequest` candidate | UNPROVEN | offer/listing scope and enum semantics unproven | YES for target |
 | C13 seller | no specifically documented field/interface | NO_MATCH | keep unavailable; do not substitute brand | NO for initial |
@@ -205,9 +213,9 @@ The audit also reviewed `ProductSearch`, realtime product/status, collection/sta
 | C28 category trend | `CategoryTrend` | PARTIAL | metric contents, denominator, time grain, lookback unproven | YES |
 | C29 keyword identity | keyword interfaces accept/query keywords by name | PARTIAL | verify response identity and normalization source | YES for target |
 | C30 keyword locale | no public locale field | NO_MATCH | operator policy may supply locale, but provider cannot be credited | YES for keyword identity |
-| C31 ASIN reverse keywords | `ASINRequestKeyword` | PARTIAL | result fields, direction, rank/channel, period, totals and pagination unproven | YES |
+| C31 ASIN reverse keywords | live `ASINRequestKeyword` page 1 size 20 | PROVEN | product-to-keyword exposure is bounded to the documented last 30 days and first three search-result pages; 20 rows returned; total and later-page completeness remain unavailable | NO for bounded input; YES for universe claims |
 | C32 category reverse keywords | `CategoryRequestKeyword` | PARTIAL | category identity, result semantics, period and pagination unproven | NO for initial |
-| C33-C35 search volume/trend/CPC | `KeywordRequest` explicitly names search-volume/CPC trend | PARTIAL | values, units, currency, estimate method, period, series schema unproven | YES for target |
+| C33-C35 search volume/trend/CPC | live nested `Keyword.SearchVolume`, `Cpc`, `CpcRange` | PARTIAL | 30-day search-volume values and US CPC minor-unit conversion are proven; search-volume estimate method and trend-series semantics remain unavailable | YES for method/trend; NO for bounded CPC value |
 | C36 difficulty | `KeywordQuery`/`KeywordRequest` possible candidates | UNPROVEN | scale and method not documented | NO for current; YES for target |
 | C37 result products | `KeywordSearchResults` explicitly limited to recent 15 days | PARTIAL | retain bounded window; totals, pages, completeness, rank schema unproven | YES for target |
 | C38-C39 rank/channel/history | `KeywordProductRanking`, `ASINKeywordRanking`, `KeywordSearchResultTrend` | PARTIAL | rank basis, channel codes, time grain, lookback, list completeness unproven | YES for target |
@@ -220,33 +228,33 @@ The audit also reviewed `ProductSearch`, realtime product/status, collection/sta
 | Capability | Current Need | Current Provider | Sorftime Candidate | Mapping | Blocking? |
 |---|---|---|---|---|---|
 | Product details | identity/current facts | XiYou | `ProductRequest` | PARTIAL | YES |
-| Variations | family grain/topology | XiYou + offline fixture | `ProductVariations` | PARTIAL | YES |
+| Variations | family grain/topology | XiYou + offline fixture | `ProductVariations` | PARTIAL — child facts proven, parent edge unavailable | YES for parent topology |
 | Category products | universe/denominator | explicit input cohort only | `CategoryProducts`, `CategoryRequest` | UNPROVEN | YES |
 | Category trends | historical market context | unavailable live | `CategoryTrend` | PARTIAL | YES |
 | Sales | distinct estimate/official child metrics | limited/unavailable report projection | `ProductRequest`, `AsinSalesVolume` | PARTIAL | YES |
 | Price history | dated product metric | XiYou trend capability | `ProductRequest` | PARTIAL | YES |
 | Rating/reviews | current counts/ratings | XiYou | `ProductRequest` | PARTIAL | YES |
 | BSR/rank history | contextual rank series | XiYou | no proven exact candidate | UNPROVEN | YES |
-| ASIN keywords | current Buyer Need input | XiYou | `ASINRequestKeyword` | PARTIAL | YES |
+| ASIN keywords | current Buyer Need input | XiYou | `ASINRequestKeyword` | PROVEN for bounded page/window | NO for bounded use; YES for completeness claims |
 | Category keywords | future/category demand | unavailable live | `CategoryRequestKeyword` | PARTIAL | NO initial / YES target |
-| Search volume | keyword estimate with period/method | XiYou | `KeywordRequest` | PARTIAL | YES target |
-| CPC | keyword currency metric | XiYou | `KeywordRequest` | PARTIAL | YES target |
+| Search volume | keyword estimate with period/method | XiYou | `ASINRequestKeyword` nested keyword summary | PARTIAL — 30-day window proven, method unavailable | YES target |
+| CPC | keyword currency metric | XiYou | `ASINRequestKeyword` nested keyword summary | PROVEN for US cents + explicit USD context | NO for accepted US slice |
 | Keyword ranking | contextual current/history | XiYou | `KeywordProductRanking`, `ASINKeywordRanking` | PARTIAL | YES target |
 | Raw reviews | direct Buyer Need evidence option | offline fixture only | `ProductReviewsQuery` | PARTIAL | NO initial |
 
-No critical field is classified `EXACT` because the public official contract does not establish all required field, grain, time, parent-child, nullability, and completeness semantics. Similar interface names are not sufficient.
+No broad provider equivalence is claimed. `PROVEN` applies only to the exact bounded live slice described above; it does not establish category universes, full pagination, parent topology, or XiYou equivalence.
 
 ## 7. Critical semantic findings and blocker register
 
 | Gap | Status | Finding / required proof | Risk |
 |---|---|---|---|
-| SG-01 product identity | PARTIAL | Request ASIN is shown, but observed response identity and mismatch behavior are not publicly specified. | cross-product contamination |
-| SG-02 parent/child | PARTIAL | `ProductVariations` exists, but edge direction, parent identity, self-parent, child completeness, and count semantics are not public. | mixed grain / double count |
+| SG-01 product identity | PROVEN | Live ProductRequest and ProductVariations returned the requested ASIN and valid variation identities; mismatch behavior remains a future negative-test requirement. | cross-product contamination |
+| SG-02 parent/child | PARTIAL | ProductRequest returned a parent and variation list; ProductVariations returned ten indexed variation rows, but did not itself state a directed parent edge. The mapper therefore publishes child-scoped properties without a parent relationship. | mixed grain / double count |
 | SG-03 marketplace/domain | PARTIAL | 14 sites are named; the complete numeric domain mapping is absent. Only an illustrative US request uses domain 1. | cross-market data |
-| SG-04 sales | PARTIAL | Official child sales and estimated/product trend concepts are distinct; response fields, periods, methods, and grains are not public. | false equivalence |
+| SG-04 sales | PARTIAL | Live `SalesAmount=-1` plus first-party documentation proves UNKNOWN/no recent capture, never zero. Positive-value method and broader product/official-child equivalence remain unavailable. | false equivalence |
 | SG-05 category universe | UNPROVEN | “all hot-selling products” does not prove a complete category universe, ranking limit, page coverage, total semantics, or history. | invalid denominator and competitor population |
 | SG-06 history | PARTIAL | Product/category/keyword trend interfaces exist, but series schema, time grain, timezone, lookback, and missing periods are unspecified publicly. | invalid trend comparison |
-| SG-07 keyword relationships | PARTIAL | Reverse/query/ranking interfaces exist; pagination, result totals, rank basis, channels, period and empty semantics are unspecified. | Buyer Need evidence drift |
+| SG-07 keyword relationships | PARTIAL | Direction, last-30-day window, first-three-pages boundary, organic position, and a bounded page of 20 are proven. Provider total, additional pages, sponsored examples, timestamp timezone, and full-universe completeness remain unavailable. | Buyer Need evidence drift |
 | SG-08 reviews | PARTIAL | Query/collection/summary capabilities exist; raw text fields, review identity, variant grain, pagination, and summary method are not proven. | summary substituted for evidence |
 | SG-09 BSR/rank | UNPROVEN | No official public contract proves BSR value with category/root/date context or equivalence to any named trend. | incomparable ranks |
 | SG-10 locale | NO_MATCH | No public response locale mapping was established. | unstable keyword identity |
@@ -340,7 +348,7 @@ The current production V0.2 path receives an explicit ASIN cohort and explicit c
 1. `ProductRequest` — product identity/current title/price/rating/review-count candidates.
 2. `ASINRequestKeyword` — product-to-keyword relationships used by Buyer Need V0.3.
 
-This set is not approved for implementation/live acceptance until the blockers for fields, marketplace, pagination, empty/error behavior, and provenance are resolved. `CategoryProducts` is not added merely to make the list look complete: it becomes mandatory only when the Category Product Map/competitor universe is promoted from today's explicit input cohort to a provider category universe. At that point SG-05 must be resolved first.
+The bounded offline mapping slice is approved for these two interfaces. That approval does not authorize a production HTTP client or claim complete pagination, empty/error coverage, category-universe coverage, or provider equivalence. `ProductVariations` is accepted only as auxiliary child-scoped variation evidence. `CategoryProducts` is not added merely to make the list look complete: it becomes mandatory only when the Category Product Map/competitor universe is promoted from today's explicit input cohort to a provider category universe. At that point SG-05 must be resolved first.
 
 ### 11.2 Future Enrichment Set
 
@@ -411,7 +419,7 @@ Recommended XiYou state: **LEGACY**. It remains installed and fixture-tested for
 
 ## 14. Proposed implementation sequence
 
-1. **SP-040B — Official Contract Evidence + Sanitized Fixtures + Provider DTOs.** Obtain versioned official schema evidence without business integration; resolve minimum-interface domain, envelope, field, missingness, pagination, and cost contracts. If evidence remains unavailable, stop blocked.
+1. **SP-040B — Provider DTOs and negative-contract expansion.** If separately authorized, resolve authentication/rate-limit envelopes, missing/null/malformed cases, provider totals, later-page behavior, and explicit request/response mismatch cases. SP-040A did not start this work.
 2. **SP-040C — Sorftime Mapper to Existing Canonical Model.** Implement only proven minimum fields, grain/provenance/missingness rules, fixture tests, and provider parity contracts.
 3. **SP-040D — Sorftime Client/Connector.** Replace logical placeholder operations with documented transport contracts, strict DTO validation, sanitized errors, bounded retry, cost evidence, and no downstream changes.
 4. **SP-040E — Explicit Provider Selection + Pipeline/Recovery Integration.** Remove XiYou-only composition/request planners, add provider-qualified checkpoints, keep XiYou LEGACY and explicitly selectable, and preserve fixture-only default safety.
@@ -423,15 +431,24 @@ No later task is started by this audit.
 
 ## 15. Acceptance decision
 
-The repository already has the correct provider-neutral Canonical and downstream boundaries, so a migration need not fork the Intelligence Model or Market Report. However, the public official Sorftime contract is insufficient to prove critical field semantics, category-universe completeness, historical grains, BSR context, marketplace mappings, or missingness/cost behavior.
+The repository already has the correct provider-neutral Canonical and downstream boundaries, so a migration need not fork the Intelligence Model or Market Report. Authenticated documentation and bounded live evidence now prove the minimum offline mapping slice described in Sections 1, 5, 6, and 7. The same evidence does not prove a production client, full migration, category-universe completeness, historical grains, BSR context, complete marketplace mappings, all error/missingness behavior, or broad cost semantics.
 
-Safe answer: **NOT YET PROVEN**.
-Final verdict: **BLOCKED — SORFTIME_CONTRACT_GAP**.
+Safe answer: **MINIMUM LIVE CONTRACT SLICE PROVEN**.
+Final verdict: **PASS — SP-040A COMPLETE; SP-040B NOT STARTED**.
+
+The SP-040A delta adds no repository-suite regression. One pre-existing XLSX
+Renderer logical-fingerprint assertion remains red on the required baseline
+under the current Python 3.12.10/openpyxl 3.1.5 runtime. The same targeted
+assertion fails at `b007bd9cd8b0be2149e0f5297e914a0db63a8561`; Renderer was therefore
+left untouched as required and this baseline exception is not counted as an
+SP-040A acceptance failure.
 
 ## 16. Offline validation record
 
 All provider credential and base-URL environment variables were removed from the test subprocesses. No live flag was passed, pytest cache creation was disabled, and the test-created temporary directories were removed after completion.
 
-- focused provider/Canonical/Cleaning/V0.1/V0.2 report boundaries: `355 passed, 124 subtests passed`;
-- full repository suite: `1113 passed, 16 skipped, 497 subtests passed`;
-- accidental-network protection: `PASS` — live entrypoints require explicit gates, relevant fixture tests mock or reject HTTP, no provider configuration was supplied, and provider operations remained zero.
+- focused SP-040A adapter/connector and downstream V0.2 boundary tests: `125 passed, 91 subtests passed`;
+- relevant provider-neutral tests: `170 passed, 44 subtests passed`;
+- full repository suite after the compatibility correction: `1117 passed, 16 skipped, 506 subtests passed, 1 failed`;
+- baseline comparison for the remaining failure: the exact XLSX Renderer fingerprint assertion also failed on baseline `b007bd9cd8b0be2149e0f5297e914a0db63a8561`, while the Market Report V0.2 exact round-trip passed on both baseline and the final SP-040A tree;
+- accidental-network protection: `PASS` — live entrypoints require explicit gates, relevant fixture tests mock or reject HTTP, no provider configuration was supplied, and provider operations during offline validation remained zero.

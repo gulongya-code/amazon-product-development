@@ -19,6 +19,18 @@
       "source": "research/sorftime_product_intelligence_audit_v0_1/raw/variation/B0G2VV4RBW_product_variations.json",
       "source_sha256": "9bdeba10751e2a8a216bbccb0db255cd2b4cdb6ed07b937fcae875559dde8663"
     },
+    "sorftime_product_variations_sp040a.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "9b3399d8bacdbd1477d232fd759271d7b18b4111d0bb4c52fcd421ce10027330",
+      "source": "operator_live_sp040a/recovery_product_variations_sanitized.json",
+      "source_sha256": "9b3399d8bacdbd1477d232fd759271d7b18b4111d0bb4c52fcd421ce10027330"
+    },
+    "sorftime_asin_keywords.json": {
+      "classification": "CAPTURED_AND_SANITIZED",
+      "fixture_sha256": "73b2807e748d0d1e252963cbc445f346e2a4a6777f608c2ef8f3ebaa3beeb97f",
+      "source": "operator_live_sp040a/recovery_asin_request_keyword_sanitized_excerpt.json",
+      "source_sha256": "73b2807e748d0d1e252963cbc445f346e2a4a6777f608c2ef8f3ebaa3beeb97f"
+    },
     "xiyou_asin_bsr.json": {
       "classification": "CAPTURED_AND_SANITIZED",
       "fixture_sha256": "01f31922445800142b0851c63f3533200ba6f961f08989e027c0e9d2d492e48c",

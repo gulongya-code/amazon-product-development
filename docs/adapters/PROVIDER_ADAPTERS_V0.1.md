@@ -207,6 +207,7 @@ Numeric zero remains `PRESENT`. XiYou title text is not used to infer Brand. No 
 | `product_detail` | `product_detail` | `sorftime_product_detail_mapping_v1` |
 | `product_variations` | `product_variations` | `sorftime_variations_mapping_v1_1` |
 | `product_reviews` | `product_reviews` | `sorftime_reviews_mapping_v1` |
+| `asin_keywords` | `ASINRequestKeyword` | `sorftime_asin_to_keyword_mapping_v1` |
 
 ## 13. Sorftime mapping coverage
 
@@ -223,6 +224,13 @@ Numeric zero remains `PRESENT`. XiYou title text is not used to infer Brand. No 
 | variation row `Asin` + approved `Property` | child Size/Color facts | `APPROVED_EXECUTABLE`; child ASIN scope, exact source row, and query context in source identity are retained without setting `parent_asin`. |
 | `SalesAmount` with returned `doc.sales_amount` | metric `estimated_sales_volume` | `APPROVED_EXECUTABLE`; sales volume, not revenue; period remains unknown. `-1` maps to `UNKNOWN`, not negative or zero. |
 | `SalesAmount` without confirming documentation | no sales/revenue metric | `SEMANTICS_UNCONFIRMED`; raw retained with issue. |
+| reverse row `Keyword.Keyword` | product-to-keyword candidate membership | `APPROVED_EXECUTABLE`; bounded to the documented last-30-day, first-three-search-pages lookup window. |
+| `SearchPosition` + `SearchPositionDate` | organic rank relationship | `APPROVED_EXECUTABLE`; localized raw position/date retained, but no RFC 3339 observation timestamp is invented because timezone is absent. |
+| `ShowShare` | traffic-share relationship | `APPROVED_EXECUTABLE`; provider percentage within the ASIN reverse-result set, not market share. |
+| `Keyword.SearchVolume` | keyword metric `search_volume` | `APPROVED_WITH_EXPLICIT_UNKNOWN`; rolling-30-day provider estimate with unconfirmed derivation method. |
+| `Keyword.Cpc` + `Keyword.CpcRange` | keyword metric `cpc` and range | `APPROVED_EXECUTABLE` only for US request scope with explicit USD context; documented cents are converted to USD. |
+| reverse-result total / later pages | no completeness claim | `UNAVAILABLE`; page 1 size 20 was observed, but provider total and later-page coverage were not returned or queried. |
+| sponsored fields with null live evidence | no sponsored relationship | `UNAVAILABLE`; no channel semantics are transferred from field names or XiYou. |
 | review rating/title/body/date/variant | `ReviewObservation` | `APPROVED_EXECUTABLE`; source identity is a deterministic adapter identity over ASIN, record index, and immutable review content. |
 | review helpful votes | `MISSING` envelope | `APPROVED_WITH_EXPLICIT_UNKNOWN`; never zero. |
 
@@ -246,7 +254,7 @@ A successful XiYou forward query with `data.list=[]` produces:
 
 Canonical `ProductKeywordRelationshipObservation` requires a concrete product, so the adapter does not invent a placeholder product for an empty set. The empty query is fully auditable inside the canonical bundle through raw evidence, mapping, run, and the query execution record. It never emits `market_size`, `competitor_count`, `demand`, or any zero metric. Independent reverse evidence remains valid and populated.
 
-Populated forward and reverse queries publish `RESULTS_RETURNED` records containing the safely emitted relationship observation IDs. If a provider returns non-empty rows but none can safely become a canonical relationship, the outcome is `OUTCOME_UNKNOWN`, not `EXPLICIT_EMPTY`. Reverse explicit-empty behavior is supported without inventing a keyword, although the V0.1 fixture set contains only a captured forward empty response.
+Populated forward and reverse queries publish `RESULTS_RETURNED` records containing the safely emitted relationship observation IDs. If a provider returns non-empty rows but none can safely become a canonical relationship, the outcome is `OUTCOME_UNKNOWN`, not `EXPLICIT_EMPTY`. Reverse explicit-empty behavior is supported without inventing a keyword. Sorftime reverse-query pagination records the requested page/page size and returned excerpt count while leaving provider total unavailable.
 
 ## 16. Unit safety
 
@@ -271,7 +279,9 @@ All provider fixtures are classified `CAPTURED_AND_SANITIZED`. They are minimal 
 | `xiyou_keyword_forward_empty.json` | XiYou `1/2 Ball Valve` empty forward response |
 | `xiyou_asin_keywords_reverse.json` | XiYou B0G2VV4RBW reverse-keyword response |
 | `sorftime_product_detail.json` | Sorftime B0G2VV4RBW product detail |
-| `sorftime_product_variations.json` | Sorftime B0G2VV4RBW variation response |
+| `sorftime_product_variations.json` | Legacy Sorftime B0G2VV4RBW regression excerpt retained for downstream compatibility |
+| `sorftime_product_variations_sp040a.json` | Sorftime B09265WXY5 recovery ProductVariations response; all ten rows retained |
+| `sorftime_asin_keywords.json` | Sanitized three-row excerpt of the 20-row B09265WXY5 recovery ASINRequestKeyword page |
 | `sorftime_product_reviews.json` | Sorftime B0G2VV4RBW review response, with review text minimized |
 
 `fixture_manifest.json` records each LF-normalized UTF-8 fixture content hash, source path, source hash, and classification. Audit envelopes, unrelated rows, URLs, user task text, and sensitive authentication material were removed. These excerpts are not described as complete provider responses. Raw audit artifacts are verified during acceptance but remain local evidence, so committed unit tests do not require those ignored files to exist after a clean checkout.

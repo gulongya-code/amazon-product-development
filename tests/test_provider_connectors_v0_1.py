@@ -197,6 +197,14 @@ class ProviderContractAndCapabilityTests(unittest.TestCase):
             provider.capability("keyword.estimate_method_status").capability_status,
             CapabilityStatus.UNKNOWN,
         )
+        self.assertEqual(
+            provider.capability("relationship.product_to_keyword").capability_status,
+            CapabilityStatus.AVAILABLE,
+        )
+        self.assertEqual(
+            provider.capability("keyword.search_volume").capability_status,
+            CapabilityStatus.PARTIAL,
+        )
 
     def test_request_rejects_embedded_credentials(self) -> None:
         with self.assertRaisesRegex(ValueError, "credential field"):
@@ -349,6 +357,29 @@ class ProviderFetchAndResolutionTests(unittest.TestCase):
         self.assertEqual(result.observations[0].value.normalized_value, "SKLSSVF")
         self.assertEqual(result.observations[0].provenance.provider, "sorftime")
         self.assertEqual(result.observations[0].provenance.source_field, "data.brand")
+
+    def test_sorftime_reverse_keyword_fetch_is_bounded_and_credential_safe(self) -> None:
+        transport = StubTransport(
+            {"asin_keywords": load_fixture("sorftime_asin_keywords.json")}
+        )
+        provider = SorftimeProvider(
+            transport,
+            environment={"TEST_SORFTIME_CREDENTIAL": TEST_CREDENTIAL},
+        )
+        result = provider.fetch(
+            provider_request(
+                "relationship.product_to_keyword",
+                parameters={"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20},
+            ),
+            configuration("sorftime"),
+        )
+        self.assertEqual(result.status, ProviderFetchStatus.RETURNED)
+        self.assertEqual(len(result.observations), 3)
+        self.assertEqual(result.capability.operation, "asin_keywords")
+        self.assertEqual(result.adaptation.raw_evidence.pagination["request_page"], 1)
+        safe_request = transport.requests[0].to_safe_dict()
+        self.assertEqual(safe_request["credential"]["value"], "<redacted>")
+        self.assertNotIn(TEST_CREDENTIAL, repr(transport.requests[0]))
 
     def test_missing_credentials_is_recognizable_configuration_error(self) -> None:
         provider = XiYouProvider(StubTransport({"asin_info": {}}), environment={})

@@ -1,0 +1,41 @@
+{
+  "doc": {
+    "relationship": "Keywords in whose search-result first 3 pages this ASIN gained exposure in the last 30 days.",
+    "show_share": "Traffic share contributed by this keyword in this ASIN's reverse-lookup keywords.",
+    "search_position": "Organic exposure position; SearchPositionDate is the latest organic exposure time.",
+    "search_volume": "30-day search volume.",
+    "cpc": "CPC precise bid and range in local minor units; US values are cents."
+  },
+  "data": [
+    {
+      "ShowType": "自然位",
+      "ShowShare": 25.42,
+      "PositionType": ["自然流量"],
+      "AdPosition": null,
+      "AdPositionDate": null,
+      "SearchPosition": "第1页，第15/48位",
+      "SearchPositionDate": "2026-08-26 00:40",
+      "Keyword": {"Keyword": "dog water bottle", "KeywordCNName": "狗水瓶", "Rank": 14763, "SearchVolume": 112929, "ProductCount": 132058, "Cpc": 110, "CpcRange": [83, 138]}
+    },
+    {
+      "ShowType": "自然位",
+      "ShowShare": 22.21,
+      "PositionType": ["自然流量"],
+      "AdPosition": null,
+      "AdPositionDate": null,
+      "SearchPosition": "第1页，第11/48位",
+      "SearchPositionDate": "2026-08-26 00:58",
+      "Keyword": {"Keyword": "dog water bottle portable", "KeywordCNName": "狗水瓶便携式", "Rank": 22643, "SearchVolume": 95965, "ProductCount": 60515, "Cpc": 64, "CpcRange": [48, 80]}
+    },
+    {
+      "ShowType": "自然位",
+      "ShowShare": 7.89,
+      "PositionType": ["自然流量"],
+      "AdPosition": null,
+      "AdPositionDate": null,
+      "SearchPosition": "第2页，第15/48位",
+      "SearchPositionDate": "2026-08-26 02:00",
+      "Keyword": {"Keyword": "portable dog water bowl", "KeywordCNName": "便携式狗水碗", "Rank": 46571, "SearchVolume": 51190, "ProductCount": 41693, "Cpc": 116, "CpcRange": [87, 159]}
+    }
+  ]
+}

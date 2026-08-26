@@ -1,0 +1,21 @@
+{
+  "doc": {
+    "asin": "Child variation ASIN.",
+    "item_index": "Position index starting from 1.",
+    "item_total": "Total number of child variations.",
+    "property": "Variation property string with key:value pairs.",
+    "sales_amount": "Variation sales volume. Uses the most recently captured page-published sales figure for this child ASIN within the last 15 days; returns -1 if no update has been captured beyond 15 days, which does not indicate zero sales."
+  },
+  "data": [
+    {"Asin": "B09265WXY5", "ItemIndex": 1, "ItemTotal": 10, "Property": "Color:Pink,Size:12oz", "SalesAmount": -1},
+    {"Asin": "B09TSGDJLD", "ItemIndex": 2, "ItemTotal": 10, "Property": "Color:Blue,Size:12oz", "SalesAmount": -1},
+    {"Asin": "B09VH1X6VN", "ItemIndex": 3, "ItemTotal": 10, "Property": "Color:Blue,Size:19oz", "SalesAmount": -1},
+    {"Asin": "B09VH2JWML", "ItemIndex": 4, "ItemTotal": 10, "Property": "Color:Pink,Size:19oz", "SalesAmount": -1},
+    {"Asin": "B0B6344C53", "ItemIndex": 5, "ItemTotal": 10, "Property": "Color:SkyBlue,Size:19oz", "SalesAmount": -1},
+    {"Asin": "B0B637GHT3", "ItemIndex": 6, "ItemTotal": 10, "Property": "Color:SkyBlue,Size:12oz", "SalesAmount": -1},
+    {"Asin": "B0FFGZG7H9", "ItemIndex": 7, "ItemTotal": 10, "Property": "Color:White,Size:19oz", "SalesAmount": -1},
+    {"Asin": "B0FFH2G8RD", "ItemIndex": 8, "ItemTotal": 10, "Property": "Color:White,Size:12oz", "SalesAmount": -1},
+    {"Asin": "B0GSW77CMQ", "ItemIndex": 9, "ItemTotal": 10, "Property": "Color:Black,Size:12oz", "SalesAmount": -1},
+    {"Asin": "B0GSWBK2V3", "ItemIndex": 10, "ItemTotal": 10, "Property": "Color:Black,Size:19oz", "SalesAmount": -1}
+  ]
+}

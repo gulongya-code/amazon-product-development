@@ -28,6 +28,7 @@ SORFTIME_OPERATIONS = (
     _operation("product_detail", "product_detail"),
     _operation("product_variations", "product_variations"),
     _operation("product_reviews", "product_reviews"),
+    _operation("asin_keywords", "ASINRequestKeyword"),
 )
 
 _ENDPOINTS = {item.operation: item.endpoint for item in SORFTIME_OPERATIONS}
@@ -42,6 +43,7 @@ def _capability(
     kind: ObservationKind | None = None,
     names: tuple[str, ...] = (),
     notes: str = "",
+    accepts_empty_query: bool = False,
 ) -> ProviderCapability:
     return ProviderCapability(
         provider_id="sorftime",
@@ -57,6 +59,7 @@ def _capability(
             else None
         ),
         notes=notes,
+        accepts_empty_query=accepts_empty_query,
     )
 
 
@@ -200,6 +203,43 @@ SORFTIME_CAPABILITIES = (
         operation="product_reviews",
         kind=ObservationKind.REVIEW,
         notes="P1 capability; helpful votes remain MISSING when absent.",
+    ),
+    _capability(
+        "relationship.product_to_keyword",
+        CapabilityStatus.AVAILABLE,
+        source_field="data[].Keyword.Keyword / data[].SearchPosition",
+        operation="asin_keywords",
+        kind=ObservationKind.PRODUCT_KEYWORD_RELATIONSHIP,
+        names=("CANDIDATE_MEMBERSHIP",),
+        notes="Bounded to the documented last-30-day, first-three-search-pages lookup window.",
+        accepts_empty_query=True,
+    ),
+    _capability(
+        "keyword.channel",
+        CapabilityStatus.PARTIAL,
+        source_field="data[].SearchPosition / data[].PositionType / data[].ShowShare",
+        operation="asin_keywords",
+        kind=ObservationKind.PRODUCT_KEYWORD_RELATIONSHIP,
+        names=("RANK", "TRAFFIC"),
+        notes="Organic rank is proven; sponsored mapping remains unavailable from the captured page.",
+    ),
+    _capability(
+        "keyword.search_volume",
+        CapabilityStatus.PARTIAL,
+        source_field="data[].Keyword.SearchVolume",
+        operation="asin_keywords",
+        kind=ObservationKind.KEYWORD_METRIC,
+        names=("search_volume",),
+        notes="The 30-day window is documented; provider estimate methodology remains unconfirmed.",
+    ),
+    _capability(
+        "keyword.cpc",
+        CapabilityStatus.AVAILABLE,
+        source_field="data[].Keyword.Cpc / data[].Keyword.CpcRange",
+        operation="asin_keywords",
+        kind=ObservationKind.KEYWORD_METRIC,
+        names=("cpc",),
+        notes="US values are documented local minor units and require explicit USD request context.",
     ),
     _capability("keyword.locale", CapabilityStatus.UNAVAILABLE),
     _capability("workflow.manual_review_status", CapabilityStatus.UNAVAILABLE),

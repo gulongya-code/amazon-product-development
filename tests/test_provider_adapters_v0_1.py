@@ -4,6 +4,7 @@ from copy import deepcopy
 from hashlib import sha256
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -27,6 +28,7 @@ from amazon_product_intelligence.contracts import (
     PresenceStatus,
     QueryExecutionOutcome,
     RelationshipDirection,
+    RelationshipType,
     ScopeType,
     ScopeStatus,
     SemanticStatus,
@@ -51,6 +53,7 @@ SOURCE_TOOLS = {
     ("sorftime", "product_detail"): "product_detail",
     ("sorftime", "product_variations"): "product_variations",
     ("sorftime", "product_reviews"): "product_reviews",
+    ("sorftime", "asin_keywords"): "ASINRequestKeyword",
 }
 
 FIXTURE_BY_KIND = {
@@ -62,8 +65,9 @@ FIXTURE_BY_KIND = {
     ("xiyou", "keyword_asin_analysis"): "xiyou_keyword_forward_populated.json",
     ("xiyou", "asin_keywords"): "xiyou_asin_keywords_reverse.json",
     ("sorftime", "product_detail"): "sorftime_product_detail.json",
-    ("sorftime", "product_variations"): "sorftime_product_variations.json",
+    ("sorftime", "product_variations"): "sorftime_product_variations_sp040a.json",
     ("sorftime", "product_reviews"): "sorftime_product_reviews.json",
+    ("sorftime", "asin_keywords"): "sorftime_asin_keywords.json",
 }
 
 
@@ -82,8 +86,16 @@ def context(
 ) -> AdaptationContext:
     if request is None:
         request = {}
-        if payload_kind in {"product_detail", "product_variations", "product_reviews", "asin_keywords"}:
-            request["asin"] = "B0G2VV4RBW"
+        if provider == "sorftime" and payload_kind == "product_variations":
+            request.update({"Asin": "B09265WXY5", "PageIndex": 1})
+        elif provider == "sorftime" and payload_kind == "asin_keywords":
+            request.update({"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20})
+        elif payload_kind in {"product_detail", "product_variations", "product_reviews", "asin_keywords"}:
+            request["asin"] = (
+                "B09265WXY5"
+                if provider == "sorftime" and payload_kind in {"product_variations", "asin_keywords"}
+                else "B0G2VV4RBW"
+            )
         if payload_kind == "keyword_asin_analysis":
             request["keyword"] = "plastic spoons"
     return AdaptationContext(
@@ -165,7 +177,11 @@ context = AdaptationContext(
     transformed_at="2026-08-14T09:01:00Z",
     collection_run_id=f"collection:{provider}:{payload_kind}:fixture",
     sanitized_request=(
-        {"asin": "B0G2VV4RBW"}
+        ({"Asin": "B09265WXY5", "PageIndex": 1}
+        if provider == "sorftime" and payload_kind == "product_variations"
+        else ({"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20}
+        if provider == "sorftime" and payload_kind == "asin_keywords"
+        else {"asin": "B0G2VV4RBW"}))
         if payload_kind in {"product_detail", "product_variations", "product_reviews", "asin_keywords"}
         else (
             {
@@ -191,6 +207,7 @@ print(canonical_json(adapter.adapt(payload, context).to_dict()))
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     return completed.stdout.strip()
 
@@ -274,6 +291,11 @@ class PublicApiAndBoundaryTests(unittest.TestCase):
             "sorftime_variations_mapping_v1_1",
         )
         self.assertEqual(sorftime_specs["product_detail"].version, "0.1")
+        self.assertEqual(sorftime_specs["asin_keywords"].version, "0.1.2")
+        self.assertEqual(
+            sorftime_specs["asin_keywords"].mapping_version,
+            "sorftime_asin_to_keyword_mapping_v1",
+        )
 
     def test_invalid_required_context_is_rejected(self) -> None:
         with self.assertRaises(AdapterContextError):
@@ -400,6 +422,7 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
             ("sorftime", "product_detail"),
             ("xiyou", "asin_variations"),
             ("sorftime", "product_variations"),
+            ("sorftime", "asin_keywords"),
         ):
             with self.subTest(provider=provider):
                 first = fresh_process_serialization(provider, kind)
@@ -443,6 +466,25 @@ class ImmutabilityDeterminismAndLineageTests(unittest.TestCase):
                     fresh_process_serialization("xiyou", kind, fixture_name),
                     fresh_process_serialization("xiyou", kind, fixture_name),
                 )
+
+        sorftime_payload = load_fixture("sorftime_asin_keywords.json")
+        first = SorftimeAdapterV0_1().adapt(
+            sorftime_payload,
+            context(
+                "sorftime",
+                "asin_keywords",
+                request={"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20},
+            ),
+        )
+        second = SorftimeAdapterV0_1().adapt(
+            reverse_mapping_order(sorftime_payload),
+            context(
+                "sorftime",
+                "asin_keywords",
+                request={"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20},
+            ),
+        )
+        self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
 
     def test_variation_adaptation_does_not_mutate_inputs(self) -> None:
         for provider, kind in (
@@ -560,7 +602,7 @@ class PresenceAndPrimitiveTests(unittest.TestCase):
             for item in metric_observations(variation, "estimated_sales_volume")
             if item.value.presence_status is PresenceStatus.UNKNOWN
         ]
-        self.assertEqual(len(unknown), 1)
+        self.assertEqual(len(unknown), 10)
         self.assertIsNone(unknown[0].value.normalized_value)
 
     def test_generic_numeric_string_is_not_accepted_for_sorftime_number(self) -> None:
@@ -1061,19 +1103,19 @@ class SorftimeMappingTests(unittest.TestCase):
         self.assertFalse(fact_observations(result, "parent_product_relationship"))
         self.assertFalse(fact_observations(result, "child_product_relationship"))
         size = fact_observations(result, "size")
-        self.assertEqual(len(size), 2)
-        self.assertIn("product:US:B0G2VV4RBW", {item.subject.subject_id for item in size})
+        color = fact_observations(result, "color")
+        self.assertEqual(len(size), 10)
+        self.assertEqual(len(color), 10)
+        self.assertIn("product:US:B09265WXY5", {item.subject.subject_id for item in size})
         sales = metric_observations(result, "estimated_sales_volume")
-        self.assertEqual(len(sales), 2)
+        self.assertEqual(len(sales), 10)
         self.assertFalse(metric_observations(result, "revenue"))
         self.assertEqual(
             {item.value.presence_status for item in sales},
-            {PresenceStatus.PRESENT, PresenceStatus.UNKNOWN},
+            {PresenceStatus.UNKNOWN},
         )
-        present = [item for item in sales if item.value.presence_status is PresenceStatus.PRESENT][0]
-        self.assertIn("not revenue", present.metric_semantic)
-        self.assertEqual(present.scope.scope_type, ScopeType.CHILD_ASIN)
-        self.assertIn("product:US:B0G2VV4RBW", {item.subject.subject_id for item in sales})
+        self.assertTrue(all(item.scope.scope_type is ScopeType.CHILD_ASIN for item in sales))
+        self.assertIn("product:US:B09265WXY5", {item.subject.subject_id for item in sales})
         self.assertIn(
             "VARIATION_PARENT_SEMANTICS_UNCONFIRMED",
             {item.code for item in result.diagnostics},
@@ -1083,11 +1125,17 @@ class SorftimeMappingTests(unittest.TestCase):
             result.mapping_specification.mapping_version,
             "sorftime_variations_mapping_v1_1",
         )
-        self.assertEqual(result.raw_snapshot["data"][1]["Asin"], "B0G2VV4RBW")
+        self.assertEqual(result.raw_snapshot["data"][1]["Asin"], "B09TSGDJLD")
+        self.assertEqual(result.raw_evidence.pagination["provider_total"], 10)
+        self.assertEqual(result.raw_evidence.pagination["returned_count"], 10)
+        self.assertEqual(
+            result.raw_evidence.pagination["collection_status"],
+            "COMPLETE_INDEX_SET",
+        )
 
     def test_request_asin_is_query_context_even_when_it_is_a_returned_child(self) -> None:
         result = adapt_fixture("sorftime", "product_variations")
-        query_subject = "product:US:B0G2VV4RBW"
+        query_subject = "product:US:B09265WXY5"
         query_facts = [
             item
             for item in result.bundle.observations
@@ -1104,16 +1152,108 @@ class SorftimeMappingTests(unittest.TestCase):
         )
 
     def test_sales_amount_without_returned_semantics_is_not_published(self) -> None:
-        payload = load_fixture("sorftime_product_variations.json")
+        payload = load_fixture("sorftime_product_variations_sp040a.json")
         payload["doc"]["sales_amount"] = "Unconfirmed amount field."
         result = SorftimeAdapterV0_1().adapt(payload, context("sorftime", "product_variations"))
         self.assertFalse(metric_observations(result, "estimated_sales_volume"))
         self.assertFalse(metric_observations(result, "revenue"))
         self.assertEqual(
             sum(item.issue_code == "SALES_AMOUNT_SEMANTICS_UNCONFIRMED" for item in result.bundle.quality_issues),
-            2,
+            10,
         )
-        self.assertEqual(result.raw_snapshot["data"][1]["SalesAmount"], 100)
+        self.assertEqual(result.raw_snapshot["data"][1]["SalesAmount"], -1)
+
+    def test_documented_nonnegative_variation_sales_remains_volume_not_revenue(self) -> None:
+        payload = load_fixture("sorftime_product_variations_sp040a.json")
+        payload["data"][0]["SalesAmount"] = 100
+        result = SorftimeAdapterV0_1().adapt(
+            payload,
+            context("sorftime", "product_variations", request={"Asin": "B09265WXY5"}),
+        )
+        present = [
+            item
+            for item in metric_observations(result, "estimated_sales_volume")
+            if item.value.presence_status is PresenceStatus.PRESENT
+        ]
+        self.assertEqual(len(present), 1)
+        self.assertEqual(present[0].value.normalized_value, 100)
+        self.assertIn("not revenue", present[0].metric_semantic)
+        self.assertFalse(metric_observations(result, "revenue"))
+
+    def test_asin_keyword_contract_maps_bounded_relationships_and_proven_metrics(self) -> None:
+        result = adapt_fixture("sorftime", "asin_keywords")
+        memberships = relationship_observations(result, RelationshipType.CANDIDATE_MEMBERSHIP)
+        ranks = relationship_observations(result, RelationshipType.RANK)
+        traffic = relationship_observations(result, RelationshipType.TRAFFIC)
+        self.assertEqual(len(memberships), 3)
+        self.assertEqual(len(ranks), 3)
+        self.assertEqual(len(traffic), 3)
+        self.assertEqual(
+            {item.direction for item in memberships},
+            {RelationshipDirection.PRODUCT_TO_KEYWORD},
+        )
+        self.assertEqual({item.channel for item in ranks}, {Channel.ORGANIC})
+        self.assertEqual(
+            {item.time.period_type for item in memberships + ranks + traffic},
+            {PeriodType.ROLLING_30_DAYS},
+        )
+        self.assertEqual(traffic[0].value.normalized_value, 25.42)
+        self.assertEqual(traffic[0].value.unit.unit_code, "percent")
+        self.assertEqual(len(result.bundle.query_execution_records), 1)
+        self.assertEqual(
+            result.bundle.query_execution_records[0].outcome,
+            QueryExecutionOutcome.RESULTS_RETURNED,
+        )
+        self.assertEqual(result.raw_evidence.pagination["request_page"], 1)
+        self.assertEqual(result.raw_evidence.pagination["returned_count"], 3)
+        self.assertEqual(
+            result.raw_evidence.pagination["collection_status"],
+            "BOUNDED_PAGE_TOTAL_UNKNOWN",
+        )
+
+        volumes = metric_observations(result, "search_volume")
+        self.assertEqual(len(volumes), 3)
+        self.assertEqual(volumes[0].value.normalized_value, 112929)
+        self.assertEqual(volumes[0].time.period_type, PeriodType.ROLLING_30_DAYS)
+        self.assertEqual(volumes[0].value.semantic_status, SemanticStatus.SEMANTICS_UNCONFIRMED)
+        cpc = metric_observations(result, "cpc")
+        self.assertEqual(len(cpc), 3)
+        self.assertEqual(cpc[0].value.normalized_value, 1.1)
+        self.assertEqual(cpc[0].range, {"minimum": 0.83, "maximum": 1.38, "currency": "USD"})
+
+    def test_asin_keyword_explicit_empty_is_query_evidence_not_zero_demand(self) -> None:
+        payload = load_fixture("sorftime_asin_keywords.json")
+        payload["data"] = []
+        result = SorftimeAdapterV0_1().adapt(
+            payload,
+            context(
+                "sorftime",
+                "asin_keywords",
+                request={"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20},
+            ),
+        )
+        self.assertFalse(result.bundle.observations)
+        self.assertEqual(result.raw_evidence.response_status, "EMPTY")
+        self.assertEqual(
+            result.bundle.query_execution_records[0].outcome,
+            QueryExecutionOutcome.EXPLICIT_EMPTY,
+        )
+
+    def test_asin_keyword_cpc_requires_explicit_usd_context(self) -> None:
+        result = SorftimeAdapterV0_1().adapt(
+            load_fixture("sorftime_asin_keywords.json"),
+            context(
+                "sorftime",
+                "asin_keywords",
+                request={"ASIN": "B09265WXY5", "PageIndex": 1, "PageSize": 20},
+                currency=None,
+            ),
+        )
+        self.assertFalse(metric_observations(result, "cpc"))
+        self.assertEqual(
+            sum(item.issue_code == "INVALID_CPC_VALUE_RANGE_OR_CONTEXT" for item in result.bundle.quality_issues),
+            3,
+        )
 
 
 class FixturePolicyTests(unittest.TestCase):
@@ -1176,7 +1316,7 @@ class FixturePolicyTests(unittest.TestCase):
                 second = adapt_fixture(provider, kind)
                 self.assertEqual(canonical_json(first.to_dict()), canonical_json(second.to_dict()))
 
-    def test_all_eleven_provider_fixtures_produce_valid_non_orphan_bundles(self) -> None:
+    def test_all_twelve_provider_fixtures_produce_valid_non_orphan_bundles(self) -> None:
         cases = [
             (provider, kind, fixture_name)
             for (provider, kind), fixture_name in FIXTURE_BY_KIND.items()
@@ -1184,7 +1324,7 @@ class FixturePolicyTests(unittest.TestCase):
         cases.append(
             ("xiyou", "keyword_asin_analysis", "xiyou_keyword_forward_empty.json")
         )
-        self.assertEqual(len(cases), 11)
+        self.assertEqual(len(cases), 12)
         query_ids: set[str] = set()
         for provider, kind, fixture_name in cases:
             with self.subTest(provider=provider, kind=kind, fixture=fixture_name):
@@ -1216,7 +1356,7 @@ class FixturePolicyTests(unittest.TestCase):
                 for record in result.bundle.query_execution_records:
                     self.assertNotIn(record.query_execution_id, query_ids)
                     query_ids.add(record.query_execution_id)
-        self.assertEqual(len(query_ids), 3)
+        self.assertEqual(len(query_ids), 4)
 
 
 if __name__ == "__main__":
