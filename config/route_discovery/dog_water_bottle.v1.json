@@ -1,0 +1,32 @@
+{
+  "schema_version": "product-route-config-v1.0",
+  "config_id": "dog-water-bottle-product-routes",
+  "version": "1.0.0",
+  "category": "dog water bottles",
+  "category_aliases": ["dog water bottle", "pet water bottles"],
+  "core_dimensions": [
+    "product_form",
+    "operation_mode",
+    "material_family",
+    "size_or_capacity",
+    "special_features"
+  ],
+  "secondary_dimensions": ["use_case", "compatibility", "mounting_or_usage_mode"],
+  "cosmetic_dimensions": ["color"],
+  "adoption_dimensions": [
+    "operation_mode",
+    "material_family",
+    "size_or_capacity",
+    "special_features"
+  ],
+  "min_known_core_dimensions": 2,
+  "min_route_size": 2,
+  "singleton_policy": "UNCLASSIFIED",
+  "new_product_max_age_days": 180,
+  "new_product_threshold_source": "SP-041D_CONFIG_V1_REPOSITORY_AUTHORITATIVE_THRESHOLD_UNAVAILABLE",
+  "percentile_method": "NEAREST_RANK",
+  "candidate_min_count": 3,
+  "candidate_max_count": 5,
+  "candidate_min_reason_count": 2,
+  "candidate_min_structural_distance": "0.20"
+}

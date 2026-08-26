@@ -1,0 +1,32 @@
+{
+  "schema_version": "product-route-config-v1.0",
+  "config_id": "shower-caddies-product-routes",
+  "version": "1.0.0",
+  "category": "shower caddies",
+  "category_aliases": ["shower caddy"],
+  "core_dimensions": [
+    "product_form",
+    "mounting_or_usage_mode",
+    "material_family",
+    "pack_count",
+    "special_features"
+  ],
+  "secondary_dimensions": ["use_case", "compatibility", "size_or_capacity"],
+  "cosmetic_dimensions": ["color"],
+  "adoption_dimensions": [
+    "mounting_or_usage_mode",
+    "material_family",
+    "special_features",
+    "pack_count"
+  ],
+  "min_known_core_dimensions": 2,
+  "min_route_size": 2,
+  "singleton_policy": "UNCLASSIFIED",
+  "new_product_max_age_days": 180,
+  "new_product_threshold_source": "SP-041D_CONFIG_V1_REPOSITORY_AUTHORITATIVE_THRESHOLD_UNAVAILABLE",
+  "percentile_method": "NEAREST_RANK",
+  "candidate_min_count": 3,
+  "candidate_max_count": 5,
+  "candidate_min_reason_count": 2,
+  "candidate_min_structural_distance": "0.20"
+}
