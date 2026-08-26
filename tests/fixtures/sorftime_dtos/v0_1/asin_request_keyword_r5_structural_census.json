@@ -1,0 +1,67 @@
+{
+  "contract": "sorftime.asin-request-keyword.structural-diagnostic.v0.1",
+  "http_status": 200,
+  "envelope_keys": [
+    "Code",
+    "Data",
+    "Message",
+    "RequestConsumed",
+    "RequestLeft"
+  ],
+  "provider_code": 0,
+  "request_consumed": 1,
+  "request_left": 1340,
+  "row_count": 20,
+  "row_fields": {
+    "ARRAY": ["PositionType"],
+    "NULL": ["AdPosition", "AdPositionDate"],
+    "NUMBER": ["ShowShare"],
+    "OBJECT": ["Keyword"],
+    "STRING": ["SearchPosition", "SearchPositionDate", "ShowType"]
+  },
+  "nested_semantic_fields": {
+    "ARRAY": ["CpcRange"],
+    "NUMBER": ["Cpc", "SearchVolume"],
+    "STRING": ["Keyword"]
+  },
+  "nested_capture_only_fields": {
+    "ARRAY": [
+      "Images",
+      "ImagesFromAsin",
+      "SearchRankTrend",
+      "SearchVolumeGrowthRateTrend",
+      "SearchVolumeTrend",
+      "Top3Brand",
+      "Top3Category",
+      "Top3asin"
+    ],
+    "NULL": ["Department"],
+    "NUMBER": [
+      "ClickConversionRateD90",
+      "ClickOf90D",
+      "ProductCount",
+      "Rank",
+      "RankChangeOfWeekly",
+      "SalesVolumeOf90D",
+      "SearchConversionRate",
+      "SearchConversionRateD90",
+      "ShareClickRate",
+      "ShareConversionRate",
+      "WordCount"
+    ],
+    "STRING": ["KeywordCNName", "Season", "Update"]
+  },
+  "observed_classes": {
+    "ad_position": ["NULL"],
+    "ad_position_date": ["NULL"],
+    "cpc_range": ["ARRAY", "LEN_2"],
+    "position_type": ["ARRAY", "ELEMENT_TYPES:STRING", "LEN_1"],
+    "search_position": ["CHINESE_PAGE_1_3"],
+    "search_position_date": ["LOCAL_MINUTE_TIMEZONE_UNKNOWN"]
+  },
+  "pre_repair_failure": {
+    "kind": "NESTED_KEYWORD_EXTRA_FIELDS",
+    "path": "Data[].Keyword.ClickConversionRateD90"
+  },
+  "raw_response_persisted": false
+}

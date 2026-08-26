@@ -431,6 +431,7 @@ class TestDeterminismAndOfflineSafety:
         }
         files = sorted(FIXTURES.glob("*.json"))
         assert {path.name for path in files} == {
+            "asin_request_keyword_r5_structural_census.json",
             "asin_request_keyword_success.json",
             "product_request_r3_structural_census.json",
             "product_request_rich_wire.json",

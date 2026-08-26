@@ -34,6 +34,9 @@ _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _LOCAL_DATETIME = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$")
 _VARIATION_PROPERTIES = frozenset({"Color", "Size"})
 _PRODUCT_REQUEST_WIRE_CAPTURE_VERSION = "sorftime-product-request-wire-v0.1"
+_ASIN_KEYWORD_STRUCTURAL_DIAGNOSTIC_VERSION = (
+    "sorftime-asin-request-keyword-structural-diagnostic-v0.1"
+)
 _UNSAFE_WIRE_FIELD_TOKENS = frozenset(
     {
         "apikey",
@@ -606,6 +609,49 @@ class SorftimeProductRequestStructuralDiagnostic(JsonContract):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeKeywordFieldStructuralDiagnostic(JsonContract):
+    field_name: str
+    json_types: tuple[str, ...]
+    present_count: int
+    missing_count: int
+    null_count: int
+    status: str
+    expected_semantic_field: str | None = None
+    expected_json_types: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeAsinRequestKeywordStructuralDiagnostic(JsonContract):
+    """Scalar-free ASINRequestKeyword schema evidence safe for persistence."""
+
+    contract_version: str
+    http_status: int
+    envelope_keys: tuple[str, ...]
+    data_json_type: str
+    row_count: int | None
+    row_json_types: tuple[str, ...]
+    row_fields: tuple[SorftimeKeywordFieldStructuralDiagnostic, ...]
+    nested_keyword_fields: tuple[SorftimeKeywordFieldStructuralDiagnostic, ...]
+    casing_aliases: tuple[str, ...]
+    position_type_container_types: tuple[str, ...]
+    position_type_element_classes: tuple[str, ...]
+    position_type_cardinality_classes: tuple[str, ...]
+    ad_position_presence_classes: tuple[str, ...]
+    ad_position_date_presence_classes: tuple[str, ...]
+    search_position_format_classes: tuple[str, ...]
+    search_position_date_format_classes: tuple[str, ...]
+    cpc_range_container_types: tuple[str, ...]
+    cpc_range_length_classes: tuple[str, ...]
+    unsafe_field_count: int
+    provider_code: int | None
+    request_consumed: int | None
+    request_left: int | None
+    parser_accepted: bool
+    parser_failure_kind: str | None
+    parser_failure_path: str | None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SorftimeProductRequestWireCapture:
     """Runtime-only ProductRequest extensions kept outside semantic DTOs and fingerprints."""
 
@@ -618,6 +664,24 @@ class SorftimeProductRequestWireCapture:
             "source_operation": "ProductRequest",
             "source_version": _PRODUCT_REQUEST_WIRE_CAPTURE_VERSION,
             "field_inventory": [item.to_dict() for item in self.field_inventory],
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeAsinRequestKeywordWireCapture:
+    """Runtime-only nested Keyword extensions kept outside the semantic DTO."""
+
+    semantic_response: SorftimeAsinRequestKeywordResponse = field(repr=False)
+    nested_keyword_extensions: tuple[Mapping[str, Any], ...] = field(repr=False)
+    nested_keyword_inventory: tuple[SorftimeKeywordFieldStructuralDiagnostic, ...]
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            "source_operation": "ASINRequestKeyword",
+            "source_version": _ASIN_KEYWORD_STRUCTURAL_DIAGNOSTIC_VERSION,
+            "nested_keyword_inventory": [
+                item.to_dict() for item in self.nested_keyword_inventory
+            ],
         }
 
 
@@ -1222,6 +1286,440 @@ def diagnose_product_request_wire_structure(
     )
 
 
+_KEYWORD_ROW_DIAGNOSTIC_TYPES: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "ShowType": ("STRING",),
+        "ShowShare": ("NUMBER",),
+        "PositionType": ("ARRAY",),
+        "AdPosition": ("NULL", "STRING"),
+        "AdPositionDate": ("NULL", "STRING"),
+        "SearchPosition": ("STRING",),
+        "SearchPositionDate": ("STRING",),
+        "Keyword": ("OBJECT",),
+    }
+)
+_KEYWORD_NESTED_DIAGNOSTIC_TYPES: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "Keyword": ("STRING",),
+        "SearchVolume": ("NUMBER",),
+        "Cpc": ("NUMBER",),
+        "CpcRange": ("ARRAY",),
+    }
+)
+_ASIN_KEYWORD_PROVEN_NESTED_EXTENSION_TYPES: Mapping[str, tuple[str, ...]] = (
+    MappingProxyType(
+        {
+            "ClickConversionRateD90": ("NUMBER",),
+            "ClickOf90D": ("NUMBER",),
+            "Department": ("NULL",),
+            "Images": ("ARRAY",),
+            "ImagesFromAsin": ("ARRAY",),
+            "KeywordCNName": ("STRING",),
+            "ProductCount": ("NUMBER",),
+            "Rank": ("NUMBER",),
+            "RankChangeOfWeekly": ("NUMBER",),
+            "SalesVolumeOf90D": ("NUMBER",),
+            "SearchConversionRate": ("NUMBER",),
+            "SearchConversionRateD90": ("NUMBER",),
+            "SearchRankTrend": ("ARRAY",),
+            "SearchVolumeGrowthRateTrend": ("ARRAY",),
+            "SearchVolumeTrend": ("ARRAY",),
+            "Season": ("STRING",),
+            "ShareClickRate": ("NUMBER",),
+            "ShareConversionRate": ("NUMBER",),
+            "Top3Brand": ("ARRAY",),
+            "Top3Category": ("ARRAY",),
+            "Top3asin": ("ARRAY",),
+            "Update": ("STRING",),
+            "WordCount": ("NUMBER",),
+        }
+    )
+)
+
+
+def _keyword_structure_presence(value: Any, *, present: bool) -> str:
+    if not present:
+        return "MISSING"
+    if value is None:
+        return "NULL"
+    if type(value) is str:
+        return "EMPTY_STRING" if value == "" else "NONEMPTY_STRING"
+    if isinstance(value, (list, tuple)):
+        return "EMPTY_ARRAY" if not value else "NONEMPTY_ARRAY"
+    return _wire_json_type(value)
+
+
+def _keyword_position_format(value: Any) -> str:
+    if type(value) is not str:
+        return _wire_json_type(value)
+    match = _ORGANIC_POSITION.fullmatch(value)
+    if match is None:
+        return "OTHER_STRING"
+    page = int(match.group("page"))
+    position = int(match.group("position"))
+    slots = int(match.group("slots"))
+    if position < 1 or slots < 1 or position > slots:
+        return "CHINESE_POSITION_OUT_OF_BOUNDS"
+    return "CHINESE_PAGE_1_3" if page in {1, 2, 3} else "CHINESE_PAGE_OUT_OF_BOUND"
+
+
+def _keyword_datetime_format(value: Any) -> str:
+    if type(value) is not str:
+        return _wire_json_type(value)
+    if not _LOCAL_DATETIME.fullmatch(value):
+        return "OTHER_STRING"
+    try:
+        datetime.strptime(value, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return "INVALID_LOCAL_MINUTE"
+    return "LOCAL_MINUTE_TIMEZONE_UNKNOWN"
+
+
+def _keyword_position_element_class(value: Any) -> str:
+    if not isinstance(value, (list, tuple)):
+        return "NOT_ARRAY"
+    if not value:
+        return "EMPTY"
+    types = tuple(sorted({_wire_json_type(item) for item in value}))
+    return "ELEMENT_TYPES:" + "+".join(types)
+
+
+def _keyword_cardinality_class(value: Any) -> str:
+    if not isinstance(value, (list, tuple)):
+        return "NOT_ARRAY"
+    if not value:
+        return "LEN_0"
+    if len(value) == 1:
+        return "LEN_1"
+    return "LEN_GT_1"
+
+
+def _keyword_range_length_class(value: Any) -> str:
+    if not isinstance(value, (list, tuple)):
+        return "NOT_ARRAY"
+    if len(value) == 2:
+        return "LEN_2"
+    return "LEN_0" if not value else "LEN_NOT_2"
+
+
+def _keyword_field_structure(
+    containers: tuple[Mapping[str, Any], ...],
+    *,
+    expected_types: Mapping[str, tuple[str, ...]],
+    path_prefix: str,
+    preserve_nested_for: frozenset[str] = frozenset(),
+) -> tuple[
+    tuple[SorftimeKeywordFieldStructuralDiagnostic, ...],
+    tuple[str, ...],
+    int,
+]:
+    expected_by_case = {name.casefold(): name for name in expected_types}
+    observed_names = {
+        name
+        for container in containers
+        for name in container
+        if type(name) is str
+    }
+    casing_aliases = tuple(
+        sorted(
+            f"{path_prefix}.{name}->{expected}"
+            for name in observed_names
+            for expected in (expected_by_case.get(name.casefold()),)
+            if expected is not None and name != expected
+        )
+    )
+    diagnostics: list[SorftimeKeywordFieldStructuralDiagnostic] = []
+    unsafe_count = 0
+    for name in sorted(observed_names | set(expected_types)):
+        values = tuple(container[name] for container in containers if name in container)
+        expected = expected_by_case.get(name.casefold())
+        unsafe = _unsafe_wire_field_name(name) or (
+            name not in preserve_nested_for
+            and any(_contains_unsafe_wire_field(value) for value in values)
+        )
+        if unsafe:
+            unsafe_count += len(values)
+            diagnostics.append(
+                SorftimeKeywordFieldStructuralDiagnostic(
+                    field_name="[REDACTED_UNSAFE]",
+                    json_types=tuple(sorted({_wire_json_type(value) for value in values})),
+                    present_count=len(values),
+                    missing_count=len(containers) - len(values),
+                    null_count=sum(value is None for value in values),
+                    status="IGNORED_UNSAFE",
+                )
+            )
+            continue
+        diagnostics.append(
+            SorftimeKeywordFieldStructuralDiagnostic(
+                field_name=name,
+                json_types=tuple(sorted({_wire_json_type(value) for value in values})),
+                present_count=len(values),
+                missing_count=len(containers) - len(values),
+                null_count=sum(value is None for value in values),
+                status=(
+                    "SEMANTIC_EXACT"
+                    if name in expected_types
+                    else "CASING_ALIAS_CANDIDATE"
+                    if expected is not None
+                    else "CAPTURED_UNVERIFIED"
+                ),
+                expected_semantic_field=expected,
+                expected_json_types=(expected_types[expected] if expected is not None else ()),
+            )
+        )
+    return (
+        tuple(
+            sorted(
+                diagnostics,
+                key=lambda item: (item.field_name, item.status, item.json_types),
+            )
+        ),
+        casing_aliases,
+        unsafe_count,
+    )
+
+
+def diagnose_asin_request_keyword_wire_structure(
+    payload: Any,
+    request: SorftimeAsinRequestKeywordRequest,
+    *,
+    http_status: int = 200,
+) -> SorftimeAsinRequestKeywordStructuralDiagnostic:
+    """Describe keyword wire structure without retaining any business scalar."""
+
+    envelope_keys: tuple[str, ...] = ()
+    data: Any = None
+    mapping_payload: Mapping[str, Any] = MappingProxyType({})
+    if isinstance(payload, MappingABC):
+        mapping_payload = payload
+        envelope_keys = tuple(
+            sorted(
+                _diagnostic_safe_field_name(name)
+                for name in payload
+                if type(name) is str
+            )
+        )
+        data = payload.get("Data")
+
+    rows = tuple(data) if isinstance(data, (list, tuple)) else ()
+    row_mappings = tuple(row for row in rows if isinstance(row, MappingABC))
+    row_fields, row_aliases, row_unsafe = _keyword_field_structure(
+        row_mappings,
+        expected_types=_KEYWORD_ROW_DIAGNOSTIC_TYPES,
+        path_prefix="Data[]",
+        preserve_nested_for=frozenset({"Keyword"}),
+    )
+    nested_keyword_mappings = tuple(
+        row["Keyword"]
+        for row in row_mappings
+        if isinstance(row.get("Keyword"), MappingABC)
+    )
+    nested_fields, nested_aliases, nested_unsafe = _keyword_field_structure(
+        nested_keyword_mappings,
+        expected_types=_KEYWORD_NESTED_DIAGNOSTIC_TYPES,
+        path_prefix="Data[].Keyword",
+    )
+
+    position_types = tuple(row.get("PositionType") for row in row_mappings)
+    ad_positions = tuple(
+        _keyword_structure_presence(row.get("AdPosition"), present="AdPosition" in row)
+        for row in row_mappings
+    )
+    ad_position_dates = tuple(
+        _keyword_structure_presence(
+            row.get("AdPositionDate"), present="AdPositionDate" in row
+        )
+        for row in row_mappings
+    )
+    search_positions = tuple(
+        _keyword_position_format(row.get("SearchPosition")) for row in row_mappings
+    )
+    search_position_dates = tuple(
+        _keyword_datetime_format(row.get("SearchPositionDate")) for row in row_mappings
+    )
+    cpc_ranges = tuple(row.get("CpcRange") for row in nested_keyword_mappings)
+
+    failure_kind: str | None = None
+    failure_path: str | None = None
+    expected_envelope = {"RequestLeft", "RequestConsumed", "Code", "Message", "Data"}
+    if not isinstance(payload, MappingABC):
+        failure_kind, failure_path = "ENVELOPE_OR_DATA_SHAPE", "$"
+    elif {name for name in payload if type(name) is str} != expected_envelope:
+        failure_kind, failure_path = "ENVELOPE_OR_DATA_SHAPE", "$"
+    elif not isinstance(data, (list, tuple)):
+        failure_kind, failure_path = "ENVELOPE_OR_DATA_SHAPE", "Data"
+    elif len(row_mappings) != len(rows):
+        failure_kind, failure_path = "ENVELOPE_OR_DATA_SHAPE", "Data[]"
+    else:
+        aliases = tuple(sorted((*row_aliases, *nested_aliases)))
+        if aliases:
+            failure_kind = "WIRE_FIELD_CASING"
+            failure_path = aliases[0].split("->", 1)[0]
+        else:
+            extra_row = next(
+                (
+                    name
+                    for row in row_mappings
+                    for name in sorted(item for item in row if type(item) is str)
+                    if name not in _KEYWORD_ROW_DIAGNOSTIC_TYPES
+                    and name.casefold()
+                    not in {item.casefold() for item in _KEYWORD_ROW_DIAGNOSTIC_TYPES}
+                ),
+                None,
+            )
+            extra_nested = next(
+                (
+                    name
+                    for nested in nested_keyword_mappings
+                    for name in sorted(item for item in nested if type(item) is str)
+                    if name not in _KEYWORD_NESTED_DIAGNOSTIC_TYPES
+                    and name.casefold()
+                    not in {
+                        item.casefold() for item in _KEYWORD_NESTED_DIAGNOSTIC_TYPES
+                    }
+                ),
+                None,
+            )
+            if extra_row is not None:
+                failure_kind, failure_path = "ROW_EXTRA_FIELDS", f"Data[].{_diagnostic_safe_field_name(extra_row)}"
+            elif extra_nested is not None:
+                failure_kind = "NESTED_KEYWORD_EXTRA_FIELDS"
+                failure_path = f"Data[].Keyword.{_diagnostic_safe_field_name(extra_nested)}"
+            else:
+                missing_row = next(
+                    (
+                        name
+                        for name in _KEYWORD_ROW_DIAGNOSTIC_TYPES
+                        if any(name not in row for row in row_mappings)
+                    ),
+                    None,
+                )
+                missing_nested = next(
+                    (
+                        name
+                        for name in _KEYWORD_NESTED_DIAGNOSTIC_TYPES
+                        if any(name not in nested for nested in nested_keyword_mappings)
+                        or len(nested_keyword_mappings) != len(row_mappings)
+                    ),
+                    None,
+                )
+                if missing_row is not None:
+                    failure_kind, failure_path = "SEMANTIC_FIELD_MISSING", f"Data[].{missing_row}"
+                elif missing_nested is not None:
+                    failure_kind = "SEMANTIC_FIELD_MISSING"
+                    failure_path = f"Data[].Keyword.{missing_nested}"
+                else:
+                    incompatible = next(
+                        (
+                            (f"Data[].{name}", value, expected)
+                            for row in row_mappings
+                            for name, expected in _KEYWORD_ROW_DIAGNOSTIC_TYPES.items()
+                            for value in (row[name],)
+                            if _wire_json_type(value) not in expected
+                        ),
+                        None,
+                    )
+                    if incompatible is None:
+                        incompatible = next(
+                            (
+                                (f"Data[].Keyword.{name}", value, expected)
+                                for nested in nested_keyword_mappings
+                                for name, expected in _KEYWORD_NESTED_DIAGNOSTIC_TYPES.items()
+                                for value in (nested[name],)
+                                if _wire_json_type(value) not in expected
+                            ),
+                            None,
+                        )
+                    if incompatible is not None:
+                        path, value, expected = incompatible
+                        failure_kind = (
+                            "SEMANTIC_FIELD_NULLABILITY"
+                            if value is None and "NULL" not in expected
+                            else "SEMANTIC_FIELD_TYPE"
+                        )
+                        failure_path = path
+
+    if failure_kind is None and any(
+        _keyword_position_element_class(value) != "ELEMENT_TYPES:STRING"
+        or _keyword_cardinality_class(value) == "LEN_0"
+        for value in position_types
+    ):
+        failure_kind, failure_path = "POSITION_TYPE_SHAPE", "Data[].PositionType"
+    if failure_kind is None and any(
+        value not in {"NULL", "EMPTY_STRING"} for value in ad_positions
+    ):
+        failure_kind, failure_path = "SPONSORED_FIELD_PRESENCE", "Data[].AdPosition"
+    if failure_kind is None and any(
+        value not in {"NULL", "EMPTY_STRING"} for value in ad_position_dates
+    ):
+        failure_kind = "SPONSORED_FIELD_PRESENCE"
+        failure_path = "Data[].AdPositionDate"
+    if failure_kind is None and any(
+        value != "CHINESE_PAGE_1_3" for value in search_positions
+    ):
+        failure_kind, failure_path = "SEARCH_POSITION_FORMAT", "Data[].SearchPosition"
+    if failure_kind is None and any(
+        value != "LOCAL_MINUTE_TIMEZONE_UNKNOWN" for value in search_position_dates
+    ):
+        failure_kind = "SEARCH_POSITION_DATE_FORMAT"
+        failure_path = "Data[].SearchPositionDate"
+    if failure_kind is None and any(
+        _keyword_range_length_class(value) != "LEN_2"
+        or any(_wire_json_type(item) != "NUMBER" for item in value)
+        for value in cpc_ranges
+    ):
+        failure_kind, failure_path = "CPC_RANGE_SHAPE", "Data[].Keyword.CpcRange"
+
+    parser_accepted = False
+    try:
+        parse_asin_request_keyword_response(payload, request, http_status=http_status)
+    except ProviderConnectorError:
+        if failure_kind is None:
+            failure_kind = "OTHER_PROVEN_WIRE_DRIFT"
+            failure_path = "Data[]"
+    else:
+        parser_accepted = True
+
+    return SorftimeAsinRequestKeywordStructuralDiagnostic(
+        contract_version=_ASIN_KEYWORD_STRUCTURAL_DIAGNOSTIC_VERSION,
+        http_status=http_status,
+        envelope_keys=envelope_keys,
+        data_json_type=_wire_json_type(data),
+        row_count=(len(rows) if isinstance(data, (list, tuple)) else None),
+        row_json_types=tuple(_wire_json_type(row) for row in rows),
+        row_fields=row_fields,
+        nested_keyword_fields=nested_fields,
+        casing_aliases=tuple(sorted((*row_aliases, *nested_aliases))),
+        position_type_container_types=tuple(
+            sorted({_wire_json_type(value) for value in position_types})
+        ),
+        position_type_element_classes=tuple(
+            sorted({_keyword_position_element_class(value) for value in position_types})
+        ),
+        position_type_cardinality_classes=tuple(
+            sorted({_keyword_cardinality_class(value) for value in position_types})
+        ),
+        ad_position_presence_classes=tuple(sorted(set(ad_positions))),
+        ad_position_date_presence_classes=tuple(sorted(set(ad_position_dates))),
+        search_position_format_classes=tuple(sorted(set(search_positions))),
+        search_position_date_format_classes=tuple(sorted(set(search_position_dates))),
+        cpc_range_container_types=tuple(
+            sorted({_wire_json_type(value) for value in cpc_ranges})
+        ),
+        cpc_range_length_classes=tuple(
+            sorted({_keyword_range_length_class(value) for value in cpc_ranges})
+        ),
+        unsafe_field_count=row_unsafe + nested_unsafe,
+        provider_code=_diagnostic_counter(mapping_payload, "Code"),
+        request_consumed=_diagnostic_counter(mapping_payload, "RequestConsumed"),
+        request_left=_diagnostic_counter(mapping_payload, "RequestLeft"),
+        parser_accepted=parser_accepted,
+        parser_failure_kind=failure_kind,
+        parser_failure_path=failure_path,
+    )
+
+
 def parse_product_variations_response(
     payload: Any,
     request: SorftimeProductVariationsRequest,
@@ -1253,9 +1751,134 @@ def parse_asin_request_keyword_response(
     *,
     http_status: int = 200,
 ) -> SorftimeAsinRequestKeywordResponse:
+    return parse_asin_request_keyword_wire_response(
+        payload,
+        request,
+        http_status=http_status,
+    ).semantic_response
+
+
+def _asin_keyword_schema_mismatch(
+    message: str,
+    *,
+    payload: Any,
+    http_status: int,
+    field_path: str,
+) -> ProviderConnectorError:
+    return ProviderConnectorError(
+        ProviderErrorCode.SCHEMA_MISMATCH,
+        message,
+        provider_id="sorftime",
+        operation="ASINRequestKeyword",
+        details={
+            "data_state": _data_state(payload),
+            "field_path": field_path,
+            "http_status": http_status,
+        },
+    )
+
+
+def parse_asin_request_keyword_wire_response(
+    payload: Any,
+    request: SorftimeAsinRequestKeywordRequest,
+    *,
+    http_status: int = 200,
+) -> SorftimeAsinRequestKeywordWireCapture:
+    """Project proven rich nested Keyword objects into the strict semantic slice."""
+
+    _require_http_success(http_status, "ASINRequestKeyword")
+    if not isinstance(payload, MappingABC) or not isinstance(payload.get("Data"), (list, tuple)):
+        _decode_success(
+            SorftimeAsinRequestKeywordResponse,
+            payload,
+            operation="ASINRequestKeyword",
+            http_status=http_status,
+        )
+        raise AssertionError("strict keyword decoding unexpectedly accepted malformed Data")
+
+    semantic_keyword_names = frozenset(item.name for item in fields(SorftimeKeywordSummary))
+    semantic_keyword_names_by_case = {
+        name.casefold(): name for name in semantic_keyword_names
+    }
+    proven_extension_names_by_case = {
+        name.casefold(): name for name in _ASIN_KEYWORD_PROVEN_NESTED_EXTENSION_TYPES
+    }
+    semantic_rows: list[Any] = []
+    nested_extensions: list[Mapping[str, Any]] = []
+    nested_mappings: list[Mapping[str, Any]] = []
+    for index, raw_row in enumerate(payload["Data"]):
+        if not isinstance(raw_row, MappingABC):
+            semantic_rows.append(raw_row)
+            nested_extensions.append(MappingProxyType({}))
+            continue
+        raw_keyword = raw_row.get("Keyword")
+        if not isinstance(raw_keyword, MappingABC):
+            semantic_rows.append(dict(raw_row))
+            nested_extensions.append(MappingProxyType({}))
+            continue
+        nested_mappings.append(raw_keyword)
+        semantic_keyword: dict[str, Any] = {}
+        extensions: dict[str, Any] = {}
+        for name, value in raw_keyword.items():
+            if type(name) is not str:
+                raise _asin_keyword_schema_mismatch(
+                    "Sorftime ASINRequestKeyword nested field names must be strings",
+                    payload=payload,
+                    http_status=http_status,
+                    field_path=f"Data[{index}].Keyword",
+                )
+            if name in semantic_keyword_names:
+                semantic_keyword[name] = value
+            elif name.casefold() in semantic_keyword_names_by_case:
+                expected = semantic_keyword_names_by_case[name.casefold()]
+                raise _asin_keyword_schema_mismatch(
+                    "Sorftime ASINRequestKeyword semantic field casing is invalid",
+                    payload=payload,
+                    http_status=http_status,
+                    field_path=f"Data[{index}].Keyword.{name};expected={expected}",
+                )
+            elif _unsafe_wire_field_name(name) or _contains_unsafe_wire_field(value):
+                continue
+            elif name in _ASIN_KEYWORD_PROVEN_NESTED_EXTENSION_TYPES:
+                expected_types = _ASIN_KEYWORD_PROVEN_NESTED_EXTENSION_TYPES[name]
+                if _wire_json_type(value) not in expected_types:
+                    raise _asin_keyword_schema_mismatch(
+                        "Sorftime ASINRequestKeyword proven extension type is invalid",
+                        payload=payload,
+                        http_status=http_status,
+                        field_path=f"Data[{index}].Keyword.{name}",
+                    )
+                try:
+                    extensions[name] = _freeze_captured_json(value)
+                except (ContractValidationError, TypeError, ValueError) as exc:
+                    raise _asin_keyword_schema_mismatch(
+                        "Sorftime ASINRequestKeyword extension is not JSON-safe",
+                        payload=payload,
+                        http_status=http_status,
+                        field_path=f"Data[{index}].Keyword.{name}",
+                    ) from exc
+            elif name.casefold() in proven_extension_names_by_case:
+                expected = proven_extension_names_by_case[name.casefold()]
+                raise _asin_keyword_schema_mismatch(
+                    "Sorftime ASINRequestKeyword extension field casing is invalid",
+                    payload=payload,
+                    http_status=http_status,
+                    field_path=f"Data[{index}].Keyword.{name};expected={expected}",
+                )
+            else:
+                # Preserve unknown nested names in the semantic projection so
+                # global JsonContract strictness continues to reject them.
+                semantic_keyword[name] = value
+        semantic_row = dict(raw_row)
+        semantic_row["Keyword"] = semantic_keyword
+        semantic_rows.append(semantic_row)
+        nested_extensions.append(MappingProxyType(dict(sorted(extensions.items()))))
+
+    semantic_payload = dict(payload)
+    semantic_payload["Data"] = semantic_rows
     response = _decode_success(
         SorftimeAsinRequestKeywordResponse,
-        payload,
+        semantic_payload,
         operation="ASINRequestKeyword",
         http_status=http_status,
     )
@@ -1269,7 +1892,16 @@ def parse_asin_request_keyword_response(
             operation="ASINRequestKeyword",
             details={"mismatch": "REQUEST_RESPONSE"},
         ) from exc
-    return response
+    inventory, _, _ = _keyword_field_structure(
+        tuple(nested_mappings),
+        expected_types=_KEYWORD_NESTED_DIAGNOSTIC_TYPES,
+        path_prefix="Data[].Keyword",
+    )
+    return SorftimeAsinRequestKeywordWireCapture(
+        semantic_response=response,
+        nested_keyword_extensions=tuple(nested_extensions),
+        nested_keyword_inventory=inventory,
+    )
 
 
 def sorftime_dto_json(contract: JsonContract) -> str:
@@ -1281,8 +1913,11 @@ __all__ = (
     "SorftimeAsinKeywordRow",
     "SorftimeAsinRequestKeywordRequest",
     "SorftimeAsinRequestKeywordResponse",
+    "SorftimeAsinRequestKeywordStructuralDiagnostic",
+    "SorftimeAsinRequestKeywordWireCapture",
     "SorftimeDomainContext",
     "SorftimeKeywordSummary",
+    "SorftimeKeywordFieldStructuralDiagnostic",
     "SorftimeMinorUnitEvidence",
     "SorftimeOrganicPosition",
     "SorftimePageState",
@@ -1300,6 +1935,8 @@ __all__ = (
     "SorftimeWireFieldInventory",
     "SorftimeWireFieldStatus",
     "parse_asin_request_keyword_response",
+    "parse_asin_request_keyword_wire_response",
+    "diagnose_asin_request_keyword_wire_structure",
     "diagnose_product_request_wire_structure",
     "parse_product_request_response",
     "parse_product_request_wire_response",

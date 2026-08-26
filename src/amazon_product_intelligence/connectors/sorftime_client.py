@@ -12,12 +12,13 @@ from .models import ProviderConfig
 from .sorftime_dtos_v0_1 import (
     SorftimeAsinRequestKeywordRequest,
     SorftimeAsinRequestKeywordResponse,
+    SorftimeAsinRequestKeywordWireCapture,
     SorftimeProductRequest,
     SorftimeProductRequestResponse,
     SorftimeProductRequestWireCapture,
     SorftimeProductVariationsRequest,
     SorftimeProductVariationsResponse,
-    parse_asin_request_keyword_response,
+    parse_asin_request_keyword_wire_response,
     parse_product_request_wire_response,
     parse_product_variations_response,
 )
@@ -131,7 +132,11 @@ class SorftimeOperationResult(Generic[_ResponseT]):
     operation: str
     response: _ResponseT = field(repr=False)
     usage: SorftimeUsageEvidence
-    wire_capture: SorftimeProductRequestWireCapture | None = field(default=None, repr=False)
+    wire_capture: (
+        SorftimeProductRequestWireCapture
+        | SorftimeAsinRequestKeywordWireCapture
+        | None
+    ) = field(default=None, repr=False)
 
     def to_safe_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -222,7 +227,10 @@ class SorftimeClient:
             try:
                 raw = self._transport.execute(transport_request)
                 parsed = self._parse(operation.operation, request, raw.payload, raw.status_code)
-                if isinstance(parsed, SorftimeProductRequestWireCapture):
+                if isinstance(
+                    parsed,
+                    (SorftimeProductRequestWireCapture, SorftimeAsinRequestKeywordWireCapture),
+                ):
                     response = parsed.semantic_response
                     wire_capture = parsed
                 else:
@@ -322,7 +330,9 @@ class SorftimeClient:
         if operation == "ProductVariations":
             return parse_product_variations_response(payload, request, http_status=status_code)
         if operation == "ASINRequestKeyword":
-            return parse_asin_request_keyword_response(payload, request, http_status=status_code)
+            return parse_asin_request_keyword_wire_response(
+                payload, request, http_status=status_code
+            )
         raise ProviderConnectorError(
             ProviderErrorCode.CONFIGURATION,
             "Sorftime operation is not part of the accepted HTTP contract",
