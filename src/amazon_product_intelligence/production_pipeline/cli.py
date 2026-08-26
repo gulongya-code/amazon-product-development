@@ -166,9 +166,10 @@ def main(
     if result.provider_summary is not None:
         if result.provider_summary.provider_usage is not None:
             usage = result.provider_summary.provider_usage
+            consumed = "unavailable" if usage.consumed is None else str(usage.consumed)
             remaining = "unavailable" if usage.remaining is None else str(usage.remaining)
             print(
-                f"provider requests consumed: {usage.consumed}; remaining: {remaining}; "
+                f"provider requests consumed: {consumed}; remaining: {remaining}; "
                 f"{usage.semantics.value}",
                 file=stdout,
             )

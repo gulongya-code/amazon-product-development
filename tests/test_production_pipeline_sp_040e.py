@@ -22,6 +22,7 @@ from amazon_product_intelligence.production_pipeline import (
     ProductionRunStatus,
     ProductionRunValidationError,
     ProviderOperationExecutionSource,
+    ProviderUsageSemantics,
     ProviderUsageUnit,
 )
 from amazon_product_intelligence.production_pipeline.cli import build_parser, main
@@ -85,7 +86,11 @@ class KeywordFaultTransport:
         return self.fixture.execute(request)
 
 
-def sorftime_runtime(transport) -> ProviderRuntime:
+def sorftime_runtime(
+    transport,
+    *,
+    usage_semantics=ProviderUsageSemantics.FIXTURE_REFERENCE,
+) -> ProviderRuntime:
     metadata = json.loads(SORFTIME_FIXTURE.read_text(encoding="utf-8"))
     recording = RecordingTransport(transport)
     provider = SorftimeProvider(
@@ -111,6 +116,7 @@ def sorftime_runtime(transport) -> ProviderRuntime:
         recording_transport=recording,
         metadata=metadata,
         credit_semantics=None,
+        usage_semantics=usage_semantics,
     )
 
 
@@ -250,7 +256,7 @@ class SorftimeFixturePipelineTests(unittest.TestCase):
             ).run(request(Path(directory), mode=ProductionRunMode.LIVE))
         self.assertEqual(result.status, ProductionRunStatus.FAILED)
         self.assertEqual(calls, [])
-        self.assertIn("fixture-only until SP-040F", result.error["message"])
+        self.assertIn("remains fixture-only", result.error["message"])
 
     def test_cli_reports_requests_not_credits(self):
         with TemporaryDirectory() as directory:

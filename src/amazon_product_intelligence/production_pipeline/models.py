@@ -49,7 +49,7 @@ class ProviderUsageSemantics(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ProviderUsageSummary:
     unit: ProviderUsageUnit
-    consumed: int
+    consumed: int | None
     remaining: int | None
     semantics: ProviderUsageSemantics
 

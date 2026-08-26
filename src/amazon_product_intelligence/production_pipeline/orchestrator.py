@@ -44,6 +44,7 @@ from amazon_product_intelligence.connectors import (
     ProviderRequest,
     ProviderResolver,
     SORFTIME_CREDENTIAL_ENV,
+    SORFTIME_ORIGIN,
     SorftimeProvider,
     XiYouProvider,
 )
@@ -155,6 +156,7 @@ _SAFE_RESOLVER_ATTEMPT_STATUSES = frozenset(
     item.value for item in ProviderAttemptStatus
 )
 _SAFE_PROVIDER_ERROR_CODES = frozenset(item.value for item in ProviderErrorCode)
+_SORFTIME_V0_1_LIVE_RELEASE_ENABLED = False
 
 
 @dataclass(slots=True)
@@ -164,6 +166,7 @@ class ProviderRuntime:
     recording_transport: RecordingTransport
     metadata: Mapping[str, Any]
     credit_semantics: ProviderCreditSemantics | None
+    usage_semantics: ProviderUsageSemantics | None = None
 
 
 ProviderRuntimeFactory = Callable[[ProductionRunRequest], ProviderRuntime]
@@ -394,6 +397,7 @@ class ProductionPipelineOrchestrator:
                 logical_operations,
                 transport_attempts,
             )
+            self._validate_sorftime_live_release(request, provider_summary)
             tracker.finish(
                 current,
                 f"acquired {len(acquisitions)} minimum provider operation payloads",
@@ -739,14 +743,23 @@ class ProductionPipelineOrchestrator:
             raise UnsupportedCapabilityError(
                 "production provider must be exactly 'xiyou' or 'sorftime'"
             )
-        if request.provider_preference == "sorftime" and request.mode is ProductionRunMode.LIVE:
-            raise UnsupportedCapabilityError(
-                "Sorftime live mode is fixture-only until SP-040F"
-            )
         if request.provider_preference == "sorftime" and request.marketplace != "US":
             raise UnsupportedCapabilityError(
                 "Sorftime production acquisition is proven only for marketplace US"
             )
+        if request.provider_preference == "sorftime" and request.mode is ProductionRunMode.LIVE:
+            if not _SORFTIME_V0_1_LIVE_RELEASE_ENABLED:
+                raise UnsupportedCapabilityError(
+                    "Sorftime live mode remains fixture-only after SP-040F provider contract validation"
+                )
+            if request.asins != ("B09265WXY5",):
+                raise UnsupportedCapabilityError(
+                    "Sorftime V0.1 live release is limited to ASIN B09265WXY5"
+                )
+            if request.resume_from is not None:
+                raise UnsupportedCapabilityError(
+                    "Sorftime V0.1 live resume is prohibited"
+                )
         if request.provider_config_reference != "environment":
             raise UnsupportedCapabilityError(
                 "SP-034 accepts only the credential-safe 'environment' provider config reference"
@@ -763,16 +776,39 @@ class ProductionPipelineOrchestrator:
     @staticmethod
     def _default_provider_runtime(request: ProductionRunRequest) -> ProviderRuntime:
         if request.provider_preference == "sorftime":
-            metadata = json.loads(_SORFTIME_FIXTURE.read_text(encoding="utf-8"))
-            fixture_asins = set(metadata["fixture_asins"])
-            if not set(request.asins) <= fixture_asins:
-                raise UnsupportedCapabilityError(
-                    "Sorftime fixture mode supports only the checked-in SP-040B ASIN cohort"
+            if request.mode is ProductionRunMode.FIXTURE:
+                metadata = json.loads(_SORFTIME_FIXTURE.read_text(encoding="utf-8"))
+                fixture_asins = set(metadata["fixture_asins"])
+                if not set(request.asins) <= fixture_asins:
+                    raise UnsupportedCapabilityError(
+                        "Sorftime fixture mode supports only the checked-in SP-040B ASIN cohort"
+                    )
+                transport = RecordingTransport(FixtureTransport(metadata))
+                environment: Mapping[str, str] = {
+                    SORFTIME_CREDENTIAL_ENV: "offline-fixture-sentinel"
+                }
+                usage_semantics = ProviderUsageSemantics.FIXTURE_REFERENCE
+            else:
+                transport = RecordingTransport(
+                    HttpJsonTransport({"sorftime": SORFTIME_ORIGIN})
                 )
-            transport = RecordingTransport(FixtureTransport(metadata))
+                environment = os.environ
+                usage_semantics = ProviderUsageSemantics.LIVE_PROVIDER_REPORTED
+                now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                metadata = {
+                    "locale": "en-us",
+                    "currency": "USD",
+                    "retrieved_at": now,
+                    "transformed_at": now,
+                    "generated_at": now,
+                    "category_name": request.category_name,
+                    "category_scope": (
+                        f"Amazon {request.marketplace} > {request.category_name}"
+                    ),
+                }
             provider: DataProvider = SorftimeProvider(
                 transport,
-                environment={SORFTIME_CREDENTIAL_ENV: "offline-fixture-sentinel"},
+                environment=environment,
                 retry_policy=NoRetryPolicy(),
             )
             registry = ProviderRegistry()
@@ -793,6 +829,7 @@ class ProductionPipelineOrchestrator:
                 recording_transport=transport,
                 metadata=metadata,
                 credit_semantics=None,
+                usage_semantics=usage_semantics,
             )
         if request.mode is ProductionRunMode.FIXTURE:
             metadata = json.loads(_FIXTURE.read_text(encoding="utf-8"))
@@ -879,6 +916,43 @@ class ProductionPipelineOrchestrator:
                 ProductionPipelineErrorCode.INVALID_INPUT,
                 "provider runtime must contain only the explicitly selected provider",
                 stage=PipelineStage.PROVIDER_RESOLUTION.value,
+            )
+
+    @staticmethod
+    def _validate_sorftime_live_release(
+        request: ProductionRunRequest, summary: ProviderOperationSummary
+    ) -> None:
+        if not (
+            request.provider_preference == "sorftime"
+            and request.mode is ProductionRunMode.LIVE
+        ):
+            return
+        usage = summary.provider_usage
+        attempts_per_operation = {
+            item.logical_operation_id: item.transport_attempt_count
+            for item in summary.logical_operations
+        }
+        if (
+            summary.provider_id != "sorftime"
+            or summary.operations != ("ProductRequest", "ASINRequestKeyword")
+            or summary.operation_count != 2
+            or summary.executed_operation_count != 2
+            or summary.replayed_operation_count != 0
+            or summary.transport_attempt_count != 2
+            or tuple(attempts_per_operation.values()) != (1, 1)
+            or summary.credits is not None
+            or summary.credit_semantics is not None
+            or usage is None
+            or usage.unit is not ProviderUsageUnit.REQUEST
+            or usage.semantics is not ProviderUsageSemantics.LIVE_PROVIDER_REPORTED
+            or usage.consumed != 2
+            or type(usage.remaining) is not int
+        ):
+            raise ProductionPipelineError(
+                ProductionPipelineErrorCode.PROVIDER_FAILURE,
+                "Sorftime V0.1 live release usage/attempt gate failed",
+                stage=PipelineStage.ACQUISITION.value,
+                details={"gate": "SORFTIME_V0_1_LIVE_RELEASE"},
             )
 
     @staticmethod
@@ -1319,9 +1393,12 @@ class ProductionPipelineOrchestrator:
             usage = recording.confirmed_request_usage
             provider_usage = ProviderUsageSummary(
                 unit=ProviderUsageUnit.REQUEST,
-                consumed=sum(item[0] for item in usage),
+                consumed=(sum(item[0] for item in usage) if usage else None),
                 remaining=(usage[-1][1] if usage else None),
-                semantics=ProviderUsageSemantics.FIXTURE_REFERENCE,
+                semantics=(
+                    runtime.usage_semantics
+                    or ProviderUsageSemantics.FIXTURE_REFERENCE
+                ),
             )
         return ProviderOperationSummary(
             provider_id=runtime.provider.provider_id,
