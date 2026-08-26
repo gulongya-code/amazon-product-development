@@ -1,0 +1,626 @@
+{
+  "ruleset_version": "operator-template-contract-v1.0",
+  "sheets": [
+    {
+      "name": "综合说明",
+      "ordinal": 1,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "类目",
+      "ordinal": 2,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "市场调研",
+      "ordinal": 3,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "竞品数据",
+      "ordinal": 4,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "不同维度分析",
+      "ordinal": 5,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "分析模型对比",
+      "ordinal": 6,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "top100—日单量分析",
+      "ordinal": 7,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "产品初步筛选范围",
+      "ordinal": 8,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "价格核算",
+      "ordinal": 9,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "样品类型",
+      "ordinal": 10,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "竞品收集",
+      "ordinal": 11,
+      "visibility": "VISIBLE"
+    },
+    {
+      "name": "自动化配置",
+      "ordinal": 12,
+      "visibility": "HIDDEN"
+    },
+    {
+      "name": "原始数据源",
+      "ordinal": 13,
+      "visibility": "HIDDEN"
+    },
+    {
+      "name": "关键词1—数据源",
+      "ordinal": 14,
+      "visibility": "HIDDEN"
+    },
+    {
+      "name": "自动化辅助",
+      "ordinal": 15,
+      "visibility": "HIDDEN"
+    }
+  ],
+  "raw_headers": [
+    {
+      "name": "图片",
+      "requirement": "OPTIONAL",
+      "semantic_note": "operator display helper"
+    },
+    {
+      "name": "ASIN",
+      "requirement": "CORE",
+      "semantic_note": "listing identity"
+    },
+    {
+      "name": "SKU",
+      "requirement": "CORE",
+      "semantic_note": "listing/variation identity evidence"
+    },
+    {
+      "name": "详细参数",
+      "requirement": "CORE",
+      "semantic_note": "structured listing attribute evidence"
+    },
+    {
+      "name": "品牌",
+      "requirement": "CORE",
+      "semantic_note": "brand identity"
+    },
+    {
+      "name": "品牌链接",
+      "requirement": "OPTIONAL",
+      "semantic_note": "operator display link"
+    },
+    {
+      "name": "商品标题",
+      "requirement": "CORE",
+      "semantic_note": "listing title evidence"
+    },
+    {
+      "name": "商品详情页链接",
+      "requirement": "CORE",
+      "semantic_note": "listing source link"
+    },
+    {
+      "name": "商品主图",
+      "requirement": "CORE",
+      "semantic_note": "listing image evidence"
+    },
+    {
+      "name": "父ASIN",
+      "requirement": "CORE",
+      "semantic_note": "variation family evidence"
+    },
+    {
+      "name": "类目路径",
+      "requirement": "CORE",
+      "semantic_note": "category scope evidence"
+    },
+    {
+      "name": "大类目",
+      "requirement": "CORE",
+      "semantic_note": "major category scope"
+    },
+    {
+      "name": "大类BSR",
+      "requirement": "CORE",
+      "semantic_note": "third-party rank estimate"
+    },
+    {
+      "name": "大类BSR增长数",
+      "requirement": "CORE",
+      "semantic_note": "third-party rank change estimate"
+    },
+    {
+      "name": "大类BSR增长率",
+      "requirement": "CORE",
+      "semantic_note": "third-party rank change estimate"
+    },
+    {
+      "name": "小类目",
+      "requirement": "CORE",
+      "semantic_note": "minor category scope"
+    },
+    {
+      "name": "小类BSR",
+      "requirement": "CORE",
+      "semantic_note": "third-party rank estimate"
+    },
+    {
+      "name": "月销量",
+      "requirement": "CORE",
+      "semantic_note": "THIRD_PARTY_ESTIMATE; missing is not zero"
+    },
+    {
+      "name": "销量环比增长率",
+      "requirement": "CORE",
+      "semantic_note": "third-party growth estimate"
+    },
+    {
+      "name": "销量同比增长率",
+      "requirement": "CORE",
+      "semantic_note": "third-party growth estimate"
+    },
+    {
+      "name": "月销售额($)",
+      "requirement": "CORE",
+      "semantic_note": "THIRD_PARTY_ESTIMATE; missing is not zero"
+    },
+    {
+      "name": "子体销量",
+      "requirement": "CORE",
+      "semantic_note": "third-party variation estimate"
+    },
+    {
+      "name": "子体销售额($)",
+      "requirement": "CORE",
+      "semantic_note": "third-party variation estimate"
+    },
+    {
+      "name": "变体数",
+      "requirement": "CORE",
+      "semantic_note": "variation count evidence"
+    },
+    {
+      "name": "价格($)",
+      "requirement": "CORE",
+      "semantic_note": "observed/estimated selling price"
+    },
+    {
+      "name": "prime价格($)",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional Prime price"
+    },
+    {
+      "name": "Coupon",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional promotion evidence"
+    },
+    {
+      "name": "Q&A",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional engagement evidence"
+    },
+    {
+      "name": "评分数",
+      "requirement": "CORE",
+      "semantic_note": "review barrier evidence"
+    },
+    {
+      "name": "月新增评分数",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional review growth estimate"
+    },
+    {
+      "name": "评分",
+      "requirement": "CORE",
+      "semantic_note": "rating evidence"
+    },
+    {
+      "name": "留评率",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional estimated review-rate evidence"
+    },
+    {
+      "name": "FBA($)",
+      "requirement": "CORE",
+      "semantic_note": "observed fee input; missing is not zero"
+    },
+    {
+      "name": "毛利率",
+      "requirement": "OPTIONAL",
+      "semantic_note": "REFERENCE_ONLY_NOT_PROCUREMENT_TRUTH"
+    },
+    {
+      "name": "评级",
+      "requirement": "OPTIONAL",
+      "semantic_note": "provider display classification"
+    },
+    {
+      "name": "上架时间",
+      "requirement": "CORE",
+      "semantic_note": "listing age evidence"
+    },
+    {
+      "name": "上架天数",
+      "requirement": "CORE",
+      "semantic_note": "listing age evidence"
+    },
+    {
+      "name": "配送方式",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional fulfilment evidence"
+    },
+    {
+      "name": "买家运费($)",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional buyer shipping fee"
+    },
+    {
+      "name": "LQS",
+      "requirement": "OUT_OF_SCOPE",
+      "semantic_note": "MVP non-blocker"
+    },
+    {
+      "name": "卖家数",
+      "requirement": "CORE",
+      "semantic_note": "seller concentration evidence"
+    },
+    {
+      "name": "BuyBox卖家",
+      "requirement": "CORE",
+      "semantic_note": "seller concentration evidence"
+    },
+    {
+      "name": "BuyBox类型",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional Buy Box evidence"
+    },
+    {
+      "name": "卖家所属地",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional seller geography evidence"
+    },
+    {
+      "name": "卖家信息",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional seller metadata"
+    },
+    {
+      "name": "卖家首页",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional seller link"
+    },
+    {
+      "name": "Best Seller标识",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content/badge evidence"
+    },
+    {
+      "name": "Amazon's Choice",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content/badge evidence"
+    },
+    {
+      "name": "New Release标识",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content/badge evidence"
+    },
+    {
+      "name": "A+页面",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content-adoption evidence"
+    },
+    {
+      "name": "视频介绍",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content-adoption evidence"
+    },
+    {
+      "name": "SP广告",
+      "requirement": "OUT_OF_SCOPE",
+      "semantic_note": "MVP non-blocker"
+    },
+    {
+      "name": "品牌故事",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content-adoption evidence"
+    },
+    {
+      "name": "品牌广告",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional content-adoption evidence"
+    },
+    {
+      "name": "秒杀",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional promotion evidence"
+    },
+    {
+      "name": "AC关键词",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional keyword evidence"
+    },
+    {
+      "name": "商品重量",
+      "requirement": "CORE",
+      "semantic_note": "raw product weight evidence"
+    },
+    {
+      "name": "商品重量（单位换算）",
+      "requirement": "CORE",
+      "semantic_note": "normalized product weight evidence"
+    },
+    {
+      "name": "商品尺寸",
+      "requirement": "CORE",
+      "semantic_note": "raw product dimensions evidence"
+    },
+    {
+      "name": "商品尺寸（单位换算）",
+      "requirement": "CORE",
+      "semantic_note": "normalized product dimensions evidence"
+    },
+    {
+      "name": "包装重量",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional raw package weight"
+    },
+    {
+      "name": "包装重量（单位换算）",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional normalized package weight"
+    },
+    {
+      "name": "包装尺寸",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional raw package dimensions"
+    },
+    {
+      "name": "包装尺寸（单位换算）",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional normalized package dimensions"
+    },
+    {
+      "name": "包装尺寸分段",
+      "requirement": "OPTIONAL",
+      "semantic_note": "optional package-size band"
+    },
+    {
+      "name": "标签",
+      "requirement": "OPTIONAL",
+      "semantic_note": "operator display helper"
+    }
+  ],
+  "formula_policies": [
+    {
+      "sheet_name": "市场调研",
+      "range_ref": "*",
+      "disposition": "IMPLEMENT_IN_CODE_AND_MIRROR_IN_EXCEL",
+      "numeric_literals_to_config": true,
+      "rationale": "market metrics consumed by JSON/AI require code parity"
+    },
+    {
+      "sheet_name": "不同维度分析",
+      "range_ref": "*",
+      "disposition": "REUSE_AS_FORMULA",
+      "numeric_literals_to_config": true,
+      "rationale": "preserve category-neutral formulas; externalize bands"
+    },
+    {
+      "sheet_name": "自动化配置",
+      "range_ref": "*",
+      "disposition": "MOVE_TO_CONFIG",
+      "numeric_literals_to_config": true,
+      "rationale": "this sheet is the operator-facing configuration surface"
+    },
+    {
+      "sheet_name": "关键词1—数据源",
+      "range_ref": "*",
+      "disposition": "REUSE_AS_FORMULA",
+      "numeric_literals_to_config": false,
+      "rationale": "preserve provider-neutral keyword support formulas"
+    },
+    {
+      "sheet_name": "分析模型对比",
+      "range_ref": "*",
+      "disposition": "IMPLEMENT_IN_CODE_AND_MIRROR_IN_EXCEL",
+      "numeric_literals_to_config": true,
+      "rationale": "decision metrics require deterministic code parity"
+    },
+    {
+      "sheet_name": "自动化辅助",
+      "range_ref": "*",
+      "disposition": "REUSE_AS_FORMULA",
+      "numeric_literals_to_config": true,
+      "rationale": "preserve auditable helper formulas; externalize thresholds"
+    },
+    {
+      "sheet_name": "价格核算",
+      "range_ref": "*",
+      "disposition": "DEPRECATED",
+      "numeric_literals_to_config": true,
+      "rationale": "reference workbook is value-only; SP-041F owns the code model"
+    }
+  ],
+  "formula_census_reference": [
+    {
+      "sheet_name": "市场调研",
+      "approximate_count": 3
+    },
+    {
+      "sheet_name": "不同维度分析",
+      "approximate_count": 1150
+    },
+    {
+      "sheet_name": "自动化配置",
+      "approximate_count": 2
+    },
+    {
+      "sheet_name": "关键词1—数据源",
+      "approximate_count": 961
+    },
+    {
+      "sheet_name": "分析模型对比",
+      "approximate_count": 108
+    },
+    {
+      "sheet_name": "自动化辅助",
+      "approximate_count": 24514
+    }
+  ],
+  "dependencies": [
+    {
+      "kind": "NAMED_RANGE",
+      "name": "PivotSourceKeyword",
+      "sheet_name": null,
+      "required": true
+    },
+    {
+      "kind": "NAMED_RANGE",
+      "name": "PivotSourceCompetitor",
+      "sheet_name": null,
+      "required": true
+    },
+    {
+      "kind": "NAMED_RANGE",
+      "name": "可选蓝色参数",
+      "sheet_name": null,
+      "required": true
+    },
+    {
+      "kind": "AUTO_FILTER",
+      "name": "竞品数据",
+      "sheet_name": "竞品数据",
+      "required": true
+    },
+    {
+      "kind": "AUTO_FILTER",
+      "name": "关键词1—数据源",
+      "sheet_name": "关键词1—数据源",
+      "required": true
+    },
+    {
+      "kind": "AUTO_FILTER",
+      "name": "原始数据源",
+      "sheet_name": "原始数据源",
+      "required": true
+    }
+  ],
+  "threshold_rules": [
+    {
+      "rule_id": "target_gross_margin",
+      "source": "requirements-v1.0",
+      "frozen_value": "0.30",
+      "value_verified": true,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "default target margin is configurable; SP-041F implements it"
+    },
+    {
+      "rule_id": "price_bands",
+      "source": "不同维度分析",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "formula tokenizer inventory supplies exact local literals"
+    },
+    {
+      "rule_id": "review_count_bands",
+      "source": "不同维度分析",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "review thresholds are business configuration"
+    },
+    {
+      "rule_id": "review_rate_bands",
+      "source": "不同维度分析",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "provider review-rate thresholds are not universal truth"
+    },
+    {
+      "rule_id": "fba_fee_bands",
+      "source": "不同维度分析",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "fee bands must remain explicit and auditable"
+    },
+    {
+      "rule_id": "listing_age_bands",
+      "source": "不同维度分析",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "listing-age bands are configurable business rules"
+    },
+    {
+      "rule_id": "new_product_window",
+      "source": "自动化配置",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "new-product window cannot be inferred or hard-coded globally"
+    },
+    {
+      "rule_id": "category_semantic_rules",
+      "source": "自动化配置",
+      "frozen_value": "EXTERNAL_REFERENCE_WORKBOOK_VALUE_REQUIRES_LOCAL_AUDIT",
+      "value_verified": false,
+      "disposition": "MOVE_TO_CONFIG",
+      "rationale": "category semantics belong in a later CategoryRulePack"
+    },
+    {
+      "rule_id": "provider_gross_margin",
+      "source": "原始数据源.毛利率",
+      "frozen_value": "REFERENCE_ONLY_NOT_PROCUREMENT_TRUTH",
+      "value_verified": true,
+      "disposition": "DEPRECATED",
+      "rationale": "provider margin cannot determine procurement truth"
+    }
+  ],
+  "product_selection_semantics": [
+    {
+      "sheet_name": "产品初步筛选范围",
+      "before_direction_locked": "CANDIDATE_PRODUCT_ARCHETYPES",
+      "after_direction_locked": "LOCKED_DIRECTION_CONTEXT",
+      "direct_competitor_label_allowed_before_lock": false
+    },
+    {
+      "sheet_name": "样品类型",
+      "before_direction_locked": "HYPOTHESES_AND_SAMPLING_DIRECTIONS",
+      "after_direction_locked": "LOCKED_DIRECTION_SAMPLE_SPECIFICATIONS",
+      "direct_competitor_label_allowed_before_lock": false
+    },
+    {
+      "sheet_name": "竞品收集",
+      "before_direction_locked": "REPRESENTATIVE_ASINS_ONLY",
+      "after_direction_locked": "DIRECT_COMPETITOR_SET_ALLOWED",
+      "direct_competitor_label_allowed_before_lock": false
+    }
+  ],
+  "raw_header_mapping_policy": "BY_EXACT_HEADER_NAME_NOT_COLUMN_INDEX",
+  "numeric_missing_policy": "MISSING_BLANK_NA_PARSE_FAILURE_NEVER_ZERO",
+  "provider_gross_margin_semantics": "REFERENCE_ONLY_NOT_PROCUREMENT_TRUTH",
+  "external_network_calls_allowed": false,
+  "schema_fingerprint": "2f74177efe761fede4421af23b810e03b5f37155bda5f4d07e0b0dc71dc6f900"
+}
