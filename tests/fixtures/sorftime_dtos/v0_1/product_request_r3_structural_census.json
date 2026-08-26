@@ -1,0 +1,158 @@
+{
+  "contract": "sorftime-product-request-structural-census-r3-v0.1",
+  "http_status": 200,
+  "provider_code": 0,
+  "request_consumed": 1,
+  "request_left": 1343,
+  "data_root_field_count": 65,
+  "variation_asin_count": 10,
+  "attribute_row_count": 10,
+  "attribute_row_json_types": [
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY",
+    "ARRAY"
+  ],
+  "attribute_row_lengths": [5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+  "envelope_keys": ["Code", "Data", "Message", "RequestConsumed", "RequestLeft"],
+  "casing_aliases": [],
+  "unsafe_field_count": 0,
+  "pre_repair_failure": {
+    "kind": "SEMANTIC_FIELD_MISSING",
+    "path": "Data.ListingSalesOfDaily"
+  },
+  "field_groups": [
+    {
+      "json_type": "STRING",
+      "nullable": false,
+      "status": "PROMOTED_EXACT",
+      "field_names": ["Asin", "ParentAsin", "Title"]
+    },
+    {
+      "json_type": "ARRAY",
+      "nullable": false,
+      "status": "PROMOTED_EXACT",
+      "field_names": ["Attribute", "VariationASIN"]
+    },
+    {
+      "json_type": "NUMBER",
+      "nullable": false,
+      "status": "PROMOTED_EXACT",
+      "field_names": ["VariationASINCount"]
+    },
+    {
+      "json_type": "NULL",
+      "nullable": true,
+      "status": "PROMOTED_EXACT",
+      "field_names": [
+        "ListPriceTrend",
+        "ListingSalesOfMonthTrend",
+        "ListingSalesVolumeOfMonthTrend",
+        "PriceTrend",
+        "RankTrend"
+      ]
+    },
+    {
+      "json_type": "ARRAY",
+      "nullable": false,
+      "status": "CAPTURED_PROVEN_ARRAY_DRIFT",
+      "field_names": ["BsrRankTrend", "DealTrend"]
+    },
+    {
+      "json_type": "MISSING",
+      "nullable": false,
+      "status": "UNAVAILABLE_MISSING",
+      "field_names": ["ListingSalesOfDaily", "ListingSalesVolumeOfDaily"]
+    },
+    {
+      "json_type": "NULL",
+      "nullable": true,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": ["ListingSalesOfDailyTrend", "ListingSalesVolumeOfDailyTrend"]
+    },
+    {
+      "json_type": "BOOLEAN",
+      "nullable": false,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": ["APlus", "HasBrandStore", "HasVideo", "IsFBA"]
+    },
+    {
+      "json_type": "STRING",
+      "nullable": false,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": [
+        "Brand",
+        "BrandPromotion",
+        "BuyboxSeller",
+        "BuyboxSellerAddress",
+        "BuyboxSellerId",
+        "DealType",
+        "Description",
+        "OnlineDate",
+        "ProductInfo",
+        "ProductType",
+        "Property",
+        "ShipsFrom",
+        "StoreName",
+        "UpdateDate"
+      ]
+    },
+    {
+      "json_type": "ARRAY",
+      "nullable": false,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": [
+        "BsrCategory",
+        "Category",
+        "EBCPhoto",
+        "ExtraSavings",
+        "FbaDetetail",
+        "Photo",
+        "ProductBadge",
+        "Size"
+      ]
+    },
+    {
+      "json_type": "OBJECT",
+      "nullable": false,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": ["Feature"]
+    },
+    {
+      "json_type": "NUMBER",
+      "nullable": false,
+      "status": "CAPTURED_UNVERIFIED",
+      "field_names": [
+        "AsinSalesCount",
+        "Coupon",
+        "FbaFee",
+        "FiveStartRatings",
+        "FourStartRatings",
+        "ListPrice",
+        "ListingSalesVolumeOfYear",
+        "OffSale",
+        "OneStartRatings",
+        "OnlineDays",
+        "PlatformFee",
+        "Price",
+        "Profit",
+        "ProfitRate",
+        "Rank",
+        "Ratings",
+        "RatingsCount",
+        "SalesPrice",
+        "SellerCount",
+        "ShipCost",
+        "ThreeStartRatings",
+        "TwoStartRatings",
+        "Weight"
+      ]
+    }
+  ]
+}

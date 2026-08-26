@@ -241,8 +241,6 @@ class SorftimeProductRequestData(JsonContract):
     VariationASIN: tuple[str, ...] | None
     VariationASINCount: int
     Attribute: tuple[tuple[str, ...], ...] | None
-    ListingSalesVolumeOfDaily: Any
-    ListingSalesOfDaily: Any
     ListingSalesVolumeOfMonthTrend: Any
     ListingSalesOfMonthTrend: Any
     RankTrend: Any
@@ -250,6 +248,11 @@ class SorftimeProductRequestData(JsonContract):
     DealTrend: Any
     PriceTrend: Any
     ListPriceTrend: Any
+    # The ordinary ProductRequest wire census proved these two legacy names may
+    # be absent.  Their similarly named ``*DailyTrend`` extensions are retained
+    # as capture-only evidence and are deliberately not treated as aliases.
+    ListingSalesVolumeOfDaily: Any = None
+    ListingSalesOfDaily: Any = None
     Title: str | None = None
 
     def __post_init__(self) -> None:
@@ -546,7 +549,17 @@ class SorftimeProductRequestResponse(JsonContract):
 class SorftimeWireFieldStatus(StrEnum):
     PROMOTED = "PROMOTED"
     CAPTURED_UNVERIFIED = "CAPTURED_UNVERIFIED"
+    UNAVAILABLE_MISSING = "UNAVAILABLE_MISSING"
     IGNORED_UNSAFE = "IGNORED_UNSAFE"
+
+
+# R3 proved that these exact fields can carry arrays on the ordinary Trend=2
+# wire.  Their business semantics remain unapproved, so the values stay in the
+# runtime-only capture and the semantic DTO continues to expose UNAVAILABLE.
+_PRODUCT_REQUEST_CAPTURE_ONLY_ARRAY_DRIFT = frozenset({"BsrRankTrend", "DealTrend"})
+_PRODUCT_REQUEST_PROVEN_OPTIONAL_FIELDS = frozenset(
+    {"ListingSalesVolumeOfDaily", "ListingSalesOfDaily"}
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -557,6 +570,39 @@ class SorftimeWireFieldInventory(JsonContract):
     status: SorftimeWireFieldStatus
     source_operation: str = "ProductRequest"
     source_version: str = _PRODUCT_REQUEST_WIRE_CAPTURE_VERSION
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeStructuralFieldDiagnostic(JsonContract):
+    field_name: str
+    json_type: str
+    nullable: bool
+    status: str
+    expected_semantic_field: str | None = None
+    expected_json_types: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SorftimeProductRequestStructuralDiagnostic(JsonContract):
+    """Scalar-free ProductRequest schema evidence safe for census persistence."""
+
+    http_status: int
+    envelope_keys: tuple[str, ...]
+    data_root_field_count: int
+    data_fields: tuple[SorftimeStructuralFieldDiagnostic, ...]
+    missing_semantic_fields: tuple[str, ...]
+    casing_aliases: tuple[str, ...]
+    variation_asin_count: int | None
+    attribute_row_count: int | None
+    attribute_row_json_types: tuple[str, ...]
+    attribute_row_lengths: tuple[int | None, ...]
+    unsafe_field_count: int
+    provider_code: int | None
+    request_consumed: int | None
+    request_left: int | None
+    parser_accepted: bool
+    parser_failure_kind: str | None
+    parser_failure_path: str | None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -847,7 +893,14 @@ def parse_product_request_wire_response(
                 http_status=http_status,
                 field_path="Data",
             )
-        if name in semantic_names:
+        if (
+            name in _PRODUCT_REQUEST_CAPTURE_ONLY_ARRAY_DRIFT
+            and _wire_json_type(value) == "ARRAY"
+        ):
+            semantic_data[name] = None
+            extensions[name] = _freeze_captured_json(value)
+            status = SorftimeWireFieldStatus.CAPTURED_UNVERIFIED
+        elif name in semantic_names:
             semantic_data[name] = value
             status = SorftimeWireFieldStatus.PROMOTED
         elif name.casefold() in semantic_names_by_case:
@@ -877,6 +930,16 @@ def parse_product_request_wire_response(
                 json_type=_wire_json_type(value),
                 nullable=value is None,
                 status=status,
+            )
+        )
+
+    for name in sorted(_PRODUCT_REQUEST_PROVEN_OPTIONAL_FIELDS - data.keys()):
+        inventory.append(
+            SorftimeWireFieldInventory(
+                field_name=name,
+                json_type="MISSING",
+                nullable=False,
+                status=SorftimeWireFieldStatus.UNAVAILABLE_MISSING,
             )
         )
 
@@ -916,6 +979,247 @@ def parse_product_request_response(
         request,
         http_status=http_status,
     ).semantic_response
+
+
+_PRODUCT_REQUEST_DIAGNOSTIC_TYPES: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "Asin": ("STRING",),
+        "ParentAsin": ("NULL", "STRING"),
+        "VariationASIN": ("ARRAY", "NULL"),
+        "VariationASINCount": ("NUMBER",),
+        "Attribute": ("ARRAY", "NULL"),
+        "ListingSalesVolumeOfDaily": ("NULL",),
+        "ListingSalesOfDaily": ("NULL",),
+        "ListingSalesVolumeOfMonthTrend": ("NULL",),
+        "ListingSalesOfMonthTrend": ("NULL",),
+        "RankTrend": ("NULL",),
+        "BsrRankTrend": ("ARRAY", "NULL"),
+        "DealTrend": ("ARRAY", "NULL"),
+        "PriceTrend": ("NULL",),
+        "ListPriceTrend": ("NULL",),
+        "Title": ("NULL", "STRING"),
+    }
+)
+_PRODUCT_REQUEST_REQUIRED_DIAGNOSTIC_FIELDS = frozenset(
+    name
+    for name in _PRODUCT_REQUEST_DIAGNOSTIC_TYPES
+    if name != "Title" and name not in _PRODUCT_REQUEST_PROVEN_OPTIONAL_FIELDS
+)
+_PRODUCT_REQUEST_ENVELOPE_FIELDS = frozenset(
+    {"RequestLeft", "RequestConsumed", "Code", "Message", "Data"}
+)
+
+
+def _diagnostic_counter(payload: Mapping[str, Any], name: str) -> int | None:
+    value = payload.get(name)
+    return value if type(value) is int and value >= 0 else None
+
+
+def _diagnostic_safe_field_name(name: str) -> str:
+    return "[REDACTED_UNSAFE]" if _unsafe_wire_field_name(name) else name
+
+
+def _unique_casefold_value(data: Mapping[str, Any], semantic_name: str) -> Any:
+    matches = [
+        value
+        for name, value in data.items()
+        if name.casefold() == semantic_name.casefold()
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def diagnose_product_request_wire_structure(
+    payload: Any,
+    request: SorftimeProductRequest,
+    *,
+    http_status: int = 200,
+) -> SorftimeProductRequestStructuralDiagnostic:
+    """Describe ProductRequest structure without retaining business scalar values."""
+
+    envelope_keys: tuple[str, ...] = ()
+    data: Mapping[str, Any] = MappingProxyType({})
+    unsafe_field_count = 0
+    if isinstance(payload, MappingABC):
+        envelope_keys = tuple(
+            sorted(
+                _diagnostic_safe_field_name(name)
+                for name in payload
+                if type(name) is str
+            )
+        )
+        candidate = payload.get("Data")
+        if isinstance(candidate, MappingABC):
+            data = candidate
+
+    semantic_by_case = {
+        name.casefold(): name for name in _PRODUCT_REQUEST_DIAGNOSTIC_TYPES
+    }
+    observed_by_case: dict[str, list[str]] = {}
+    diagnostics: list[SorftimeStructuralFieldDiagnostic] = []
+    for name, value in data.items():
+        if type(name) is not str:
+            unsafe_field_count += 1
+            continue
+        observed_by_case.setdefault(name.casefold(), []).append(name)
+        unsafe = _unsafe_wire_field_name(name) or _contains_unsafe_wire_field(value)
+        if unsafe:
+            unsafe_field_count += 1
+            diagnostics.append(
+                SorftimeStructuralFieldDiagnostic(
+                    field_name="[REDACTED_UNSAFE]",
+                    json_type=_wire_json_type(value),
+                    nullable=value is None,
+                    status="IGNORED_UNSAFE",
+                )
+            )
+            continue
+        expected = semantic_by_case.get(name.casefold())
+        exact = name in _PRODUCT_REQUEST_DIAGNOSTIC_TYPES
+        diagnostics.append(
+            SorftimeStructuralFieldDiagnostic(
+                field_name=name,
+                json_type=_wire_json_type(value),
+                nullable=value is None,
+                status=(
+                    "CAPTURED_PROVEN_ARRAY_DRIFT"
+                    if exact
+                    and name in _PRODUCT_REQUEST_CAPTURE_ONLY_ARRAY_DRIFT
+                    and _wire_json_type(value) == "ARRAY"
+                    else "PROMOTED_EXACT"
+                    if exact
+                    else "CASING_ALIAS_CANDIDATE"
+                    if expected is not None
+                    else "CAPTURED_UNVERIFIED"
+                ),
+                expected_semantic_field=expected,
+                expected_json_types=(
+                    _PRODUCT_REQUEST_DIAGNOSTIC_TYPES[expected]
+                    if expected is not None
+                    else ()
+                ),
+            )
+        )
+
+    casing_aliases = tuple(
+        sorted(
+            f"{observed}->{expected}"
+            for observed_names in observed_by_case.values()
+            for observed in observed_names
+            for expected in (semantic_by_case.get(observed.casefold()),)
+            if expected is not None and observed != expected
+        )
+    )
+    missing = tuple(
+        sorted(
+            name
+            for name in _PRODUCT_REQUEST_DIAGNOSTIC_TYPES
+            if name.casefold() not in observed_by_case
+        )
+    )
+
+    variation = _unique_casefold_value(data, "VariationASIN")
+    variation_count = len(variation) if isinstance(variation, (list, tuple)) else None
+    attribute = _unique_casefold_value(data, "Attribute")
+    attribute_rows = tuple(attribute) if isinstance(attribute, (list, tuple)) else ()
+    attribute_row_types = tuple(_wire_json_type(row) for row in attribute_rows)
+    attribute_row_lengths = tuple(
+        len(row) if isinstance(row, (list, tuple)) else None for row in attribute_rows
+    )
+
+    failure_kind: str | None = None
+    failure_path: str | None = None
+    if not isinstance(payload, MappingABC):
+        failure_kind, failure_path = "ENVELOPE_SHAPE", "$"
+    else:
+        raw_envelope_names = {name for name in payload if type(name) is str}
+        if raw_envelope_names != _PRODUCT_REQUEST_ENVELOPE_FIELDS:
+            failure_kind, failure_path = "ENVELOPE_SHAPE", "$"
+        elif not isinstance(payload.get("Data"), MappingABC):
+            failure_kind, failure_path = "ENVELOPE_SHAPE", "Data"
+        else:
+            duplicate = next(
+                (
+                    expected
+                    for folded, names in sorted(observed_by_case.items())
+                    for expected in (semantic_by_case.get(folded),)
+                    if expected is not None and len(names) > 1
+                ),
+                None,
+            )
+            if duplicate is not None:
+                failure_kind, failure_path = "WIRE_FIELD_CASING", f"Data.{duplicate}"
+            elif casing_aliases:
+                observed = casing_aliases[0].split("->", 1)[0]
+                failure_kind, failure_path = "WIRE_FIELD_CASING", f"Data.{observed}"
+            else:
+                required_missing = sorted(
+                    name
+                    for name in _PRODUCT_REQUEST_REQUIRED_DIAGNOSTIC_FIELDS
+                    if name not in data
+                )
+                if required_missing:
+                    failure_kind = "SEMANTIC_FIELD_MISSING"
+                    failure_path = f"Data.{required_missing[0]}"
+                else:
+                    incompatible = next(
+                        (
+                            item
+                            for item in sorted(diagnostics, key=lambda item: item.field_name)
+                            if item.expected_semantic_field is not None
+                            and item.json_type not in item.expected_json_types
+                        ),
+                        None,
+                    )
+                    if incompatible is not None:
+                        failure_kind = (
+                            "SEMANTIC_FIELD_NULLABILITY"
+                            if incompatible.json_type == "NULL"
+                            or incompatible.expected_json_types == ("NULL",)
+                            else "SEMANTIC_FIELD_TYPE"
+                        )
+                        failure_path = f"Data.{incompatible.field_name}"
+
+    parser_accepted = False
+    if failure_kind is None:
+        try:
+            parse_product_request_response(payload, request, http_status=http_status)
+        except ProviderConnectorError as exc:
+            failure_kind = "OTHER_PROVEN_WIRE_DRIFT"
+            failure_path = str(exc.details.get("field_path") or "Data")
+        else:
+            parser_accepted = True
+
+    mapping_payload = payload if isinstance(payload, MappingABC) else MappingProxyType({})
+    return SorftimeProductRequestStructuralDiagnostic(
+        http_status=http_status,
+        envelope_keys=envelope_keys,
+        data_root_field_count=len(data),
+        data_fields=tuple(
+            sorted(
+                diagnostics,
+                key=lambda item: (
+                    item.field_name,
+                    item.json_type,
+                    item.status,
+                ),
+            )
+        ),
+        missing_semantic_fields=missing,
+        casing_aliases=casing_aliases,
+        variation_asin_count=variation_count,
+        attribute_row_count=(
+            len(attribute_rows) if isinstance(attribute, (list, tuple)) else None
+        ),
+        attribute_row_json_types=attribute_row_types,
+        attribute_row_lengths=attribute_row_lengths,
+        unsafe_field_count=unsafe_field_count,
+        provider_code=_diagnostic_counter(mapping_payload, "Code"),
+        request_consumed=_diagnostic_counter(mapping_payload, "RequestConsumed"),
+        request_left=_diagnostic_counter(mapping_payload, "RequestLeft"),
+        parser_accepted=parser_accepted,
+        parser_failure_kind=failure_kind,
+        parser_failure_path=failure_path,
+    )
 
 
 def parse_product_variations_response(
@@ -986,14 +1290,17 @@ __all__ = (
     "SorftimeProductRequest",
     "SorftimeProductRequestData",
     "SorftimeProductRequestResponse",
+    "SorftimeProductRequestStructuralDiagnostic",
     "SorftimeProductRequestWireCapture",
     "SorftimeProductVariationRow",
     "SorftimeProductVariationsRequest",
     "SorftimeProductVariationsResponse",
     "SorftimeSalesState",
+    "SorftimeStructuralFieldDiagnostic",
     "SorftimeWireFieldInventory",
     "SorftimeWireFieldStatus",
     "parse_asin_request_keyword_response",
+    "diagnose_product_request_wire_structure",
     "parse_product_request_response",
     "parse_product_request_wire_response",
     "parse_product_variations_response",

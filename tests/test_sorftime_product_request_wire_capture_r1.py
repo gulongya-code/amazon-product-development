@@ -127,6 +127,79 @@ def test_missing_title_is_explicitly_unavailable() -> None:
     assert parse_product_request_response(payload, request()).Data.Title is None
 
 
+def test_r3_proven_missing_and_array_drift_stays_outside_semantic_dto() -> None:
+    payload = fixture()
+    data = payload["Data"]
+    del data["ListingSalesVolumeOfDaily"]  # type: ignore[index]
+    del data["ListingSalesOfDaily"]  # type: ignore[index]
+    data["BsrRankTrend"] = [["shape-only"]]  # type: ignore[index]
+    data["DealTrend"] = []  # type: ignore[index]
+    data["ListingSalesVolumeOfDailyTrend"] = None  # type: ignore[index]
+    data["ListingSalesOfDailyTrend"] = None  # type: ignore[index]
+
+    capture = parse_product_request_wire_response(payload, request())
+    semantic = capture.semantic_response.Data
+    inventory = {item.field_name: item for item in capture.field_inventory}
+
+    assert semantic.ListingSalesVolumeOfDaily is None
+    assert semantic.ListingSalesOfDaily is None
+    assert semantic.BsrRankTrend is None
+    assert semantic.DealTrend is None
+    assert capture.extensions["BsrRankTrend"] == (("shape-only",),)
+    assert capture.extensions["DealTrend"] == ()
+    assert "ListingSalesVolumeOfDailyTrend" in capture.extensions
+    assert "ListingSalesOfDailyTrend" in capture.extensions
+    assert inventory["ListingSalesVolumeOfDaily"].json_type == "MISSING"
+    assert inventory["ListingSalesVolumeOfDaily"].nullable is False
+    assert (
+        inventory["ListingSalesVolumeOfDaily"].status
+        is SorftimeWireFieldStatus.UNAVAILABLE_MISSING
+    )
+    assert (
+        inventory["ListingSalesOfDaily"].status
+        is SorftimeWireFieldStatus.UNAVAILABLE_MISSING
+    )
+    assert inventory["BsrRankTrend"].status is SorftimeWireFieldStatus.CAPTURED_UNVERIFIED
+    assert inventory["DealTrend"].status is SorftimeWireFieldStatus.CAPTURED_UNVERIFIED
+
+
+@pytest.mark.parametrize("field_name", ["BsrRankTrend", "DealTrend"])
+def test_r3_array_capture_exception_is_exact_and_does_not_accept_other_shapes(
+    field_name: str,
+) -> None:
+    payload = fixture()
+    payload["Data"][field_name] = {"unproven": True}  # type: ignore[index]
+    with pytest.raises(ProviderConnectorError, match="strict DTO validation"):
+        parse_product_request_wire_response(payload, request())
+
+
+@pytest.mark.parametrize(
+    ("exact_name", "drifted_name"),
+    [
+        ("Asin", "asin"),
+        ("ParentAsin", "parentasin"),
+        ("BsrRankTrend", "bsrranktrend"),
+        ("ListingSalesVolumeOfDaily", "listingsalesvolumeofdaily"),
+    ],
+)
+def test_r3_does_not_add_global_or_field_specific_case_insensitivity(
+    exact_name: str,
+    drifted_name: str,
+) -> None:
+    payload = fixture()
+    payload["Data"][drifted_name] = payload["Data"].pop(exact_name)  # type: ignore[index]
+    with pytest.raises(ProviderConnectorError, match="casing") as caught:
+        parse_product_request_wire_response(payload, request())
+    assert caught.value.details["field_path"] == f"Data.{drifted_name};expected={exact_name}"
+
+
+def test_r3_conflicting_exact_and_case_alias_fails_closed() -> None:
+    payload = fixture()
+    payload["Data"]["asin"] = "B000000000"  # type: ignore[index]
+    with pytest.raises(ProviderConnectorError, match="casing"):
+        parse_product_request_wire_response(payload, request())
+
+
 @pytest.mark.parametrize("title", ["", "   ", 7, True, ["synthetic"]])
 def test_invalid_title_type_or_blank_is_rejected(title: object) -> None:
     payload = fixture()
@@ -198,6 +271,26 @@ def test_capture_only_values_do_not_enter_semantic_response_or_fingerprint() -> 
     second["Data"]["Price"] = 999999  # type: ignore[index]
     first_result = map_payload(first)
     second_result = map_payload(second)
+    assert first_result.raw_evidence is not None
+    assert second_result.raw_evidence is not None
+    assert (
+        first_result.raw_evidence.content_fingerprint
+        == second_result.raw_evidence.content_fingerprint
+    )
+    assert first_result.raw_snapshot == second_result.raw_snapshot
+
+
+def test_r3_proven_array_drift_values_do_not_enter_semantic_fingerprint() -> None:
+    first = fixture()
+    second = fixture()
+    first["Data"]["BsrRankTrend"] = [["first-shape"]]  # type: ignore[index]
+    second["Data"]["BsrRankTrend"] = [["different-shape"], []]  # type: ignore[index]
+    first["Data"]["DealTrend"] = []  # type: ignore[index]
+    second["Data"]["DealTrend"] = [["capture-only"]]  # type: ignore[index]
+
+    first_result = map_payload(first)
+    second_result = map_payload(second)
+
     assert first_result.raw_evidence is not None
     assert second_result.raw_evidence is not None
     assert first_result.raw_evidence.content_fingerprint == second_result.raw_evidence.content_fingerprint
