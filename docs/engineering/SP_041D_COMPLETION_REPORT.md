@@ -85,10 +85,16 @@ Selection uses explicit evidence reason codes and deterministic lexicographic pr
 
 ## S. Mandatory private real-market replay — sanitized counts/coverage/fingerprints
 
-- `PRIVATE_REAL_MARKET_REPLAY = NOT_RUN`.
-- A header-level search of the workspace, project parent, Downloads, and Desktop found zero qualifying current SellerSprite acceptance assets.
-- No real source path, ASIN, title, brand, seller, price, row, or detailed parameter was persisted or printed.
-- Per the Issue hard gate, synthetic completion cannot be promoted to PASS.
+- `PRIVATE_REAL_MARKET_REPLAY = COMPLETED` on the operator-provided external workbook, fully in memory through SP-041B -> SP-041C -> SP-041D. The private asset was neither mutated nor copied into the repository.
+- Two identical replays used a fixed governed observation/import context. Both succeeded with source rows `998`, accepted listings `998`, Product Attribute Map mapped listings `998`, and attribute-map review-required listings `275`.
+- Route membership was assigned `297` (`29.7595%`), unclassified `562` (`56.3126%`), and review required `139` (`13.9279%`). The result contained `80` routes and selected `5` candidates.
+- Route-size distribution was: size 2 = `45` routes; 3 = `14`; 4 = `6`; 5 = `5`; 6 = `2`; 7 = `2`; and 8/10/11/12/18/31 = `1` route each. Candidate route sizes were `2`, `4`, `5`, `12`, and `18`, covering `13.8047%` of assigned listings and `4.1082%` of all accepted listings.
+- Mean structural-dimension coverage across routes was: product form `81.25%`, mounting/usage mode `80.00%`, material family `86.25%`, pack count `15.00%`, and special features `90.00%`.
+- Valid route evidence counts were: sales share/demand efficiency/price/product concentration/brand concentration/seller concentration `80/80`; MoM growth `56 AVAILABLE`, `21 PARTIAL`, `3 UNAVAILABLE`; YoY growth `27 AVAILABLE`, `34 PARTIAL`, `19 UNAVAILABLE`; review distribution `70 AVAILABLE`, `9 PARTIAL`, `1 UNAVAILABLE`; structural feature adoption `8 AVAILABLE`, `72 PARTIAL`.
+- A privacy-preserving structural sample check covered `195` route-member assignments and `14` candidate-route member assignments with `0` mismatches. All route IDs/fingerprints were unique; every route met the configured minimum size, had non-empty defining attributes, excluded cosmetic dimensions, and every candidate met the configured diversity gate. Candidate structural distance was minimum `0.40`, median `0.583333`, maximum `0.833333` against a configured minimum of `0.20`.
+- Deterministic fingerprints were identical across both replays: governed dataset `dadd62962d2dadb7d2316968d1078c3a3dd7a129951fc06d51833a795fdd92ea`; Product Attribute Map `33d4299959422aa5294ed52da877a36e89a27df2fffbcb9c3bb1ef385cc6381d`; route config `068c56db272fe5fc1f5d31bd918aa6e236120f37d217fb7f75dea39781a76a83`; route result `966cb0cd9c0006032c9cbf50424f41a87b9f5c9416aeaf540b39d587fc2ba62b`.
+- Replay runtimes were `6.887148s` and `7.177054s`. No real source path, ASIN, title, brand, seller, price, raw row, or detailed parameter was persisted or printed.
+- `BOUNDED_HUMAN_BUSINESS_SENSE_REVIEW = PENDING_OPERATOR`. The permitted sanitized-only evidence proves deterministic structural consistency and candidate diversity, but cannot by itself establish that private route definitions and member examples are business-meaningful. The observed `29.7595%` assignment coverage and high small-route count require explicit bounded operator review before PASS promotion.
 
 ## T. Network/provider/credential/LLM accounting
 
@@ -118,6 +124,10 @@ Dedicated branch, whitespace check, staged review, secret/privacy scans, commit,
 
 The independent result exposes stable routes, members, evidence, scorecards, candidates, and upstream/config fingerprints suitable as a future SP-041E input. SP-041E representative roles, medoids, direction lock, and Direct Competitors were not started.
 
+SP-041E remains gated and must not start until the bounded private business-sense review is accepted and SP-041D is explicitly promoted to PASS.
+
 ## Y. Final verdict
 
-`BLOCKED — PRIVATE_REAL_MARKET_REPLAY_REQUIRED`
+`BLOCKED — PRIVATE_REAL_MARKET_BUSINESS_REVIEW_REQUIRED`
+
+The mandatory private replay itself is complete and deterministic. PASS is not promoted from sanitized statistics alone because the latest Issue #54 acceptance comment also requires a bounded review of real route definitions, member examples, and candidate material distinctness.
