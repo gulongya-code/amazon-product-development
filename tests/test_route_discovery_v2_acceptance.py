@@ -68,8 +68,8 @@ CONFIG_ACCEPTANCE = (
     (
         "shower_caddies.v2.json",
         "shower_caddies.v1_1.json",
-        "cb863460d239978e461d4902906a5a7171e5069a820cb0305b09ad818de3edc3",
-        ("installation_architecture", "attachment_mechanism"),
+        "2b8bbf505579e9eefe5d36be94a50c1286ebbce7496679c0d46f32a3d8fa9f15",
+        ("product_form", "installation_architecture", "attachment_mechanism"),
         ("package_count",),
     ),
     (
@@ -184,7 +184,7 @@ def test_empty_and_single_product_inputs_do_not_manufacture_routes() -> None:
     assert empty.candidate_selection_status.value == "INSUFFICIENT_EVIDENCE"
 
     *_, single = _build((
-        _record(1, detail="Installation: Adhesive | Attachment: Wall"),
+        _record(1, detail="Installation: Wall Mount | Attachment: Adhesive"),
     ))
     assert single.listing_count == 1
     assert single.assigned_count == 0
@@ -193,19 +193,19 @@ def test_empty_and_single_product_inputs_do_not_manufacture_routes() -> None:
 
 
 def test_duplicate_product_and_duplicate_route_identities_fail_closed() -> None:
-    record = _record(1, detail="Installation: Adhesive | Attachment: Wall")
+    record = _record(1, detail="Installation: Wall Mount | Attachment: Adhesive")
     dataset = _dataset((record, record))
     profile = load_category_semantic_profile(PROFILES / "shower_caddies.v1_1.json")
     with pytest.raises(SemanticEngineV2Error, match="duplicate listing identities"):
         build_semantic_engine_v2_result(dataset, profile=profile)
 
-    *_, result = _build(_architecture_records((("Adhesive", "Wall", 3),)))
+    *_, result = _build(_architecture_records((("Wall Mount", "Adhesive", 3),)))
     with pytest.raises(RouteDiscoveryV2Error, match="duplicate route"):
         replace(result, routes=(result.routes[0], result.routes[0]))
 
 
 def test_missing_required_identity_is_not_admitted_to_a_route() -> None:
-    record = _record(1, detail="Installation: Adhesive | Attachment: Wall")
+    record = _record(1, detail="Installation: Wall Mount | Attachment: Adhesive")
     record = replace(
         record,
         fields=tuple(field for field in record.fields if field.header != TITLE),
@@ -228,7 +228,7 @@ def test_missing_optional_market_signals_preserve_route_identity_without_imputat
     records = []
     for index in range(1, 4):
         record = _record(
-            index, detail="Installation: Adhesive | Attachment: Wall",
+            index, detail="Installation: Wall Mount | Attachment: Adhesive",
         )
         records.append(replace(
             record,
@@ -267,7 +267,7 @@ def test_engine_output_claims_resolve_to_exact_s2_facts_and_evidence() -> None:
         _record(
             index,
             title="Shower Caddy No Drill",
-            detail="Installation: Adhesive | Attachment: Wall",
+            detail="Installation: Wall Mount | Attachment: Adhesive",
         )
         for index in range(1, 4)
     )
@@ -321,7 +321,7 @@ def test_engine_output_claims_resolve_to_exact_s2_facts_and_evidence() -> None:
 
 
 def test_unknown_route_references_are_rejected_by_result_contract() -> None:
-    *_, result = _build(_architecture_records((("Adhesive", "Wall", 3),)))
+    *_, result = _build(_architecture_records((("Wall Mount", "Adhesive", 3),)))
     unknown = CandidateRouteV2(
         priority=1,
         route_id="product-route-v2:unknown",
@@ -335,7 +335,7 @@ def test_unknown_route_references_are_rejected_by_result_contract() -> None:
 def test_hash_seed_process_independence_preserves_full_result() -> None:
     program = """
 from tests.test_route_discovery_v2 import _architecture_records, _build
-records = _architecture_records(((\"Adhesive\", \"Wall\", 3), (\"Hanging\", \"Hook\", 3)))
+records = _architecture_records(((\"Wall Mount\", \"Adhesive\", 3), (\"Hanging Mount\", \"Hook\", 3)))
 print(_build(records)[-1].to_json())
 """
     outputs = []

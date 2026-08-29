@@ -136,8 +136,8 @@ def _architecture_records(
 
 def test_s2_projection_preserves_authoritative_lineage_and_primary_source_values() -> None:
     records = (_record(
-        1, title="Shower Caddy No Drill",
-        detail="Installation: Adhesive | Attachment: Wall",
+        1, title="Adhesive Shower Caddy",
+        detail="Installation: Wall Mount | Attachment: Adhesive",
     ),)
     dataset = _dataset(records)
     profile = load_category_semantic_profile(PROFILES / "shower_caddies.v1_1.json")
@@ -153,16 +153,15 @@ def test_s2_projection_preserves_authoritative_lineage_and_primary_source_values
     installation = view.feature("installation_architecture")
     assert installation is not None
     assert installation.profile_fingerprint == profile.fingerprint
-    assert "adhesive" in installation.defining_values
-    assert "title_installation_signal" in installation.values
-    assert "title_installation_signal" not in installation.defining_values
+    assert installation.defining_values == ("wall_mount",)
+    assert installation.values == ("wall_mount",)
 
 
 def test_primary_only_gate_and_exactly_one_membership_state_per_listing() -> None:
     records = (
-        _record(1, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(2, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(3, detail="Installation: Adhesive | Attachment: Wall"),
+        _record(1, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(2, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(3, detail="Installation: Wall Mount | Attachment: Adhesive"),
         _record(4, title="Replacement Adhesive for Shower Caddy", detail="Installation: Adhesive"),
         _record(5, title="Squeegee for Bathroom", detail="Installation: Adhesive"),
     )
@@ -181,9 +180,9 @@ def test_primary_only_gate_and_exactly_one_membership_state_per_listing() -> Non
 
 def test_missing_semantics_are_unclassified_not_an_equality_signal() -> None:
     records = (
-        _record(1, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(2, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(3, detail="Installation: Adhesive | Attachment: Wall"),
+        _record(1, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(2, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(3, detail="Installation: Wall Mount | Attachment: Adhesive"),
         _record(4), _record(5), _record(6),
     )
     *_, result = _build(records)
@@ -201,7 +200,7 @@ def test_missing_semantics_are_unclassified_not_an_equality_signal() -> None:
 def test_facet_only_package_count_cannot_split_route_identity() -> None:
     records = tuple(
         _record(
-            index, detail="Installation: Adhesive | Attachment: Wall",
+            index, detail="Installation: Wall Mount | Attachment: Adhesive",
             pack_count=1 if index <= 3 else 9,
         )
         for index in range(1, 7)
@@ -242,14 +241,14 @@ def test_profile_secondary_promotion_is_explicit_and_facet_promotion_is_rejected
         )
 
 
-def test_compatible_multi_value_and_sparse_signatures_merge_deterministically() -> None:
+def test_compatible_attachment_multi_value_and_sparse_signatures_merge_deterministically() -> None:
     records = (
-        _record(1, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(2, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(3, detail="Installation: Adhesive | Attachment: Wall"),
-        _record(4, detail="Installation: Adhesive | Installation: Hanging"),
-        _record(5, detail="Installation: Adhesive"),
-        _record(6, detail="Installation: Adhesive"),
+        _record(1, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(2, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(3, detail="Installation: Wall Mount | Attachment: Adhesive"),
+        _record(4, detail="Installation: Wall Mount | Attachment: Adhesive | Attachment: Suction Cup"),
+        _record(5, detail="Installation: Wall Mount"),
+        _record(6, detail="Installation: Wall Mount"),
     )
     *_, result = _build(records)
     assert result.assigned_count == 6
@@ -264,7 +263,7 @@ def test_compatible_multi_value_and_sparse_signatures_merge_deterministically() 
     assert result.routes[0].defining_features[0].dimension == (
         "installation_architecture"
     )
-    assert result.routes[0].defining_features[0].values == ("adhesive",)
+    assert result.routes[0].defining_features[0].values == ("wall_mount",)
 
 
 def test_single_viable_child_with_sparse_remainder_stays_broad_parent() -> None:
@@ -272,7 +271,7 @@ def test_single_viable_child_with_sparse_remainder_stays_broad_parent() -> None:
         *tuple(
             _record(
                 index,
-                detail="Installation: Adhesive | Attachment: Wall",
+                detail="Installation: Wall Mount | Attachment: Clamp",
             )
             for index in range(1, 4)
         ),
@@ -287,7 +286,7 @@ def test_single_viable_child_with_sparse_remainder_stays_broad_parent() -> None:
     assert tuple(
         (item.dimension, item.values)
         for item in result.routes[0].defining_features
-    ) == (("installation_architecture", ("adhesive",)),)
+    ) == (("installation_architecture", ("wall_mount",)),)
     assert all(
         "HIERARCHICAL_BASE_OR_BROAD_PARENT_ROUTE"
         in item.membership_reason_codes
@@ -297,7 +296,7 @@ def test_single_viable_child_with_sparse_remainder_stays_broad_parent() -> None:
 
 def test_tiny_incompatible_route_is_governedly_unclassified() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Tension Pole", "Pole", 1),
+        ("Wall Mount", "Adhesive", 3), ("Tension Pole", "Tension", 1),
     ))
     *_, result = _build(records)
     assert result.assigned_count == 3
@@ -310,7 +309,7 @@ def test_tiny_incompatible_route_is_governedly_unclassified() -> None:
 
 def test_same_first_dimension_with_incompatible_second_dimension_stays_separate() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Adhesive", "Hook", 3),
+        ("Wall Mount", "Adhesive", 3), ("Wall Mount", "Suction Cup", 3),
     ))
     *_, result = _build(records)
     assert result.assigned_count == 6
@@ -321,12 +320,12 @@ def test_same_first_dimension_with_incompatible_second_dimension_stays_separate(
     }
     assert definitions == {
         (
-            ("installation_architecture", ("adhesive",)),
-            ("attachment_mechanism", ("wall",)),
+            ("installation_architecture", ("wall_mount",)),
+            ("attachment_mechanism", ("adhesive",)),
         ),
         (
-            ("installation_architecture", ("adhesive",)),
-            ("attachment_mechanism", ("hook",)),
+            ("installation_architecture", ("wall_mount",)),
+            ("attachment_mechanism", ("suction_cup",)),
         ),
     }
 
@@ -336,12 +335,12 @@ def test_cross_level_sparse_signature_does_not_merge_into_a_different_base() -> 
         *tuple(
             _record(
                 index,
-                detail="Installation: Adhesive | Attachment: Wall",
+                detail="Installation: Wall Mount | Attachment: Adhesive",
             )
             for index in range(1, 4)
         ),
-        _record(4, detail="Attachment: Wall"),
-        _record(5, detail="Attachment: Wall"),
+        _record(4, detail="Attachment: Clamp"),
+        _record(5, detail="Attachment: Clamp"),
     )
     *_, result = _build(records)
     assert result.assigned_count == 3
@@ -363,27 +362,27 @@ def test_cross_level_sparse_signature_does_not_merge_into_a_different_base() -> 
 def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None:
     records = (
         *_architecture_records((
-            ("Adhesive", "Wall", 3), ("Adhesive", "Hook", 3),
+            ("Wall Mount", "Clamp", 3), ("Wall Mount", "Screw", 3),
         )),
-        _record(7, detail="Attachment: Wall"),
-        _record(8, detail="Attachment: Wall"),
+        _record(7, detail="Attachment: Clamp"),
+        _record(8, detail="Attachment: Clamp"),
     )
     dataset, profile, _, config, result = _build(records)
     assert result.assigned_count == 8
     assert result.unclassified_count == 0
     assert result.review_required_count == 0
     assert len(result.routes) == 2
-    wall_route = next(
+    clamp_route = next(
         route for route in result.routes
         if any(
             item.dimension == "attachment_mechanism"
-            and item.values == ("wall",)
+            and item.values == ("clamp",)
             for item in route.defining_features
         )
     )
-    assert wall_route.member_count == 5
+    assert clamp_route.member_count == 5
     sparse = result.memberships[-2:]
-    assert all(item.primary_route_id == wall_route.route_id for item in sparse)
+    assert all(item.primary_route_id == clamp_route.route_id for item in sparse)
     assert all(
         "UNIQUE_COMPATIBLE_VIABLE_ROUTE_ATTACHMENT"
         in item.membership_reason_codes
@@ -396,7 +395,7 @@ def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None
     )
     assert all(
         tuple((key.dimension, key.values) for key in item.assignment_features)
-        == (("attachment_mechanism", ("wall",)),)
+        == (("attachment_mechanism", ("clamp",)),)
         for item in sparse
     )
     replay_dataset = replace(
@@ -416,10 +415,10 @@ def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None
 def test_ambiguous_sparse_bridge_does_not_merge_incompatible_routes() -> None:
     records = (
         *_architecture_records((
-            ("Adhesive", "Wall", 3), ("Adhesive", "Hook", 3),
+            ("Wall Mount", "Adhesive", 3), ("Wall Mount", "Suction Cup", 3),
         )),
-        _record(7, detail="Installation: Adhesive"),
-        _record(8, detail="Installation: Adhesive"),
+        _record(7, detail="Installation: Wall Mount"),
+        _record(8, detail="Installation: Wall Mount"),
     )
     dataset, profile, _, config, result = _build(records)
     assert result.assigned_count == 6
@@ -457,23 +456,23 @@ def test_ambiguous_sparse_bridge_does_not_merge_incompatible_routes() -> None:
     assert result.to_json() == replay.to_json()
 
 
-def test_overlapping_multi_values_merge_only_on_common_defining_value() -> None:
+def test_overlapping_attachment_values_merge_only_on_common_defining_value() -> None:
     records = (
-        _record(1, detail="Installation: Adhesive | Installation: Hanging"),
-        _record(2, detail="Installation: Adhesive | Installation: Hanging"),
-        _record(3, detail="Installation: Hanging"),
-        _record(4, detail="Installation: Hanging"),
-        _record(5, detail="Installation: Hanging"),
+        _record(1, detail="Attachment: Clamp | Attachment: Screw"),
+        _record(2, detail="Attachment: Clamp | Attachment: Screw"),
+        _record(3, detail="Attachment: Screw"),
+        _record(4, detail="Attachment: Screw"),
+        _record(5, detail="Attachment: Screw"),
     )
     *_, result = _build(records)
     assert result.assigned_count == 5
     assert len(result.routes) == 1
-    assert result.routes[0].defining_features[0].values == ("hanging",)
+    assert result.routes[0].defining_features[0].values == ("screw_or_drilled",)
     first_membership = next(
         item for item in result.memberships if item.listing_reference == records[0].asin
     )
     assert first_membership.assignment_features[0].values == (
-        "adhesive", "hanging",
+        "clamp", "screw_or_drilled",
     )
 
 
@@ -493,11 +492,11 @@ def test_corroborating_only_fact_without_profile_fallback_cannot_define_route() 
 def test_missing_only_difference_cannot_make_candidate_routes_materially_distinct() -> None:
     records = (
         *_architecture_records((
-            ("Adhesive", "Wall", 3), ("Adhesive", "Hook", 3),
+            ("Wall Mount", "Adhesive", 3), ("Wall Mount", "Suction Cup", 3),
         )),
-        _record(7, detail="Installation: Adhesive"),
-        _record(8, detail="Installation: Adhesive"),
-        _record(9, detail="Installation: Adhesive"),
+        _record(7, detail="Installation: Wall Mount"),
+        _record(8, detail="Installation: Wall Mount"),
+        _record(9, detail="Installation: Wall Mount"),
     )
     *_, result = _build(records)
     assert len(result.routes) == 3
@@ -508,27 +507,27 @@ def test_missing_only_difference_cannot_make_candidate_routes_materially_distinc
 def test_candidate_search_does_not_let_large_broad_route_hide_valid_distinct_set() -> None:
     records = (
         *tuple(
-            _record(index, detail="Installation: Adhesive")
+            _record(index, detail="Installation: Wall Mount")
             for index in range(1, 11)
         ),
         *tuple(
             _record(
                 index,
-                detail="Installation: Adhesive | Attachment: Wall",
+                detail="Installation: Wall Mount | Attachment: Adhesive",
             )
             for index in range(11, 14)
         ),
         *tuple(
             _record(
                 index,
-                detail="Installation: Adhesive | Attachment: Hook",
+                detail="Installation: Wall Mount | Attachment: Suction Cup",
             )
             for index in range(14, 17)
         ),
         *tuple(
             _record(
                 index,
-                detail="Installation: Adhesive | Attachment: Pole",
+                detail="Installation: Wall Mount | Attachment: Clamp",
             )
             for index in range(17, 20)
         ),
@@ -547,7 +546,7 @@ def test_candidate_search_does_not_let_large_broad_route_hide_valid_distinct_set
 
 def test_route_membership_ids_and_fingerprint_are_permutation_and_timestamp_stable() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Hanging", "Hook", 3),
+        ("Wall Mount", "Adhesive", 3), ("Hanging Mount", "Hook", 3),
     ))
     dataset, profile, semantic, config, first = _build(records)
     replay_dataset = replace(
@@ -565,7 +564,7 @@ def test_route_membership_ids_and_fingerprint_are_permutation_and_timestamp_stab
 
 
 def test_route_contract_rejects_tampered_id_and_fingerprint() -> None:
-    records = _architecture_records((("Adhesive", "Wall", 3),))
+    records = _architecture_records((("Wall Mount", "Adhesive", 3),))
     *_, result = _build(records)
     route = result.routes[0]
     with pytest.raises(RouteDiscoveryV2Error, match="route ID mismatch"):
@@ -575,7 +574,7 @@ def test_route_contract_rejects_tampered_id_and_fingerprint() -> None:
 
 
 def test_result_contract_rejects_declared_status_count_tampering() -> None:
-    records = _architecture_records((("Adhesive", "Wall", 3),))
+    records = _architecture_records((("Wall Mount", "Adhesive", 3),))
     *_, result = _build(records)
     with pytest.raises(
         RouteDiscoveryV2Error, match="declared membership status counts mismatch",
@@ -589,7 +588,7 @@ def test_result_contract_rejects_declared_status_count_tampering() -> None:
 
 def test_result_contract_rejects_route_member_mapping_tampering() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Hanging", "Hook", 3),
+        ("Wall Mount", "Adhesive", 3), ("Hanging Mount", "Hook", 3),
     ))
     *_, result = _build(records)
     first, second = result.routes
@@ -630,7 +629,7 @@ def test_conflict_is_preserved_as_review_required(tmp_path: Path) -> None:
     profile = load_category_semantic_profile(profile_path)
     dataset = _dataset((_record(
         1,
-        detail="Installation: Adhesive | Installation: Hanging | Attachment: Wall",
+        detail="Installation: Wall Mount | Installation: Hanging Mount | Attachment: Adhesive",
     ),))
     semantic = build_semantic_engine_v2_result(dataset, profile=profile)
     config = load_route_discovery_v2_config(CONFIGS / "shower_caddies.v2.json")
@@ -644,8 +643,8 @@ def test_conflict_is_preserved_as_review_required(tmp_path: Path) -> None:
 
 def test_candidate_selection_uses_semantic_diversity_and_respects_three_to_five() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Hanging", "Hook", 3),
-        ("Tension Pole", "Pole", 3), ("Floor", "Standing", 3),
+        ("Wall Mount", "Adhesive", 3), ("Hanging Mount", "Hook", 3),
+        ("Tension Pole", "Tension", 3), ("Freestanding", "Clamp", 3),
     ))
     *_, result = _build(records)
     assert len(result.routes) == 4
@@ -666,7 +665,7 @@ def test_candidate_selection_uses_semantic_diversity_and_respects_three_to_five(
 
 def test_candidate_selection_does_not_force_minimum() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Hanging", "Hook", 3),
+        ("Wall Mount", "Adhesive", 3), ("Hanging Mount", "Hook", 3),
     ))
     *_, result = _build(records)
     assert len(result.routes) == 2
@@ -676,8 +675,8 @@ def test_candidate_selection_does_not_force_minimum() -> None:
 
 def test_retained_metric_invariants_growth_and_diagnostics_safety() -> None:
     records = _architecture_records((
-        ("Adhesive", "Wall", 3), ("Hanging", "Hook", 3),
-        ("Tension Pole", "Pole", 3),
+        ("Wall Mount", "Adhesive", 3), ("Hanging Mount", "Hook", 3),
+        ("Tension Pole", "Tension", 3),
     ))
     *_, result = _build(records)
     assert sum(route.metric("route_listing_share").value for route in result.routes) == pytest.approx(1)

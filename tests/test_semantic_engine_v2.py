@@ -167,7 +167,11 @@ def test_shower_facts_relationships_role_cohort_and_no_raw_title() -> None:
     assert listing.market_cohort_eligibility.state is CohortEligibilityState.PRIMARY_COHORT_ELIGIBLE
     assert any(item.role is UniversalSemanticRole.INSTALLATION_ARCHITECTURE for item in listing.facts)
     assert any(item.quantity_subtype is QuantitySubtype.PACKAGE_COUNT for item in listing.facts)
-    assert any(item.state is EvidenceRelationshipState.COMPATIBLE_MULTI_VALUE for item in listing.relationships)
+    installation = next(
+        item for item in listing.relationships
+        if item.dimension == "installation_architecture"
+    )
+    assert installation.state is EvidenceRelationshipState.SOURCE_ONLY_STRUCTURED
     encoded = result.to_json().casefold()
     assert "rustproof shower caddy no drill" not in encoded
     assert '"network_calls":0' in encoded
@@ -177,8 +181,8 @@ def test_shower_facts_relationships_role_cohort_and_no_raw_title() -> None:
 def test_agreement_source_only_unavailable_and_true_conflict_are_distinct() -> None:
     agreed = build_semantic_engine_v2_result(
         _dataset("shower caddies", (("B000000001", (
-            _field("商品标题", "Reusable Shower Caddy No Drill"),
-            _field("详细参数", "Installation Type: title_installation_signal"),
+            _field("商品标题", "Reusable Wall Mounted Shower Caddy"),
+            _field("详细参数", "Installation Type: Wall Mount"),
         )),)),
         profile=_profile("shower_caddies.v1_1.json"),
     ).listings[0]

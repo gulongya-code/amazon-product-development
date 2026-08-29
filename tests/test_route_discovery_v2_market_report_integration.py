@@ -40,9 +40,9 @@ from tests.test_route_discovery_v2 import (
 
 def _selected_result():
     records = _architecture_records((
-        ("adhesive", "wall", 3),
-        ("hanging", "wall", 3),
-        ("suction", "wall", 3),
+        ("wall mount", "adhesive", 3),
+        ("hanging mount", "hook", 3),
+        ("wall mount", "suction cup", 3),
     ))
     *_, result = _build(records)
     return records, result
@@ -50,8 +50,8 @@ def _selected_result():
 
 def _insufficient_candidate_result():
     records = _architecture_records((
-        ("adhesive", "wall", 3),
-        ("hanging", "wall", 3),
+        ("wall mount", "adhesive", 3),
+        ("hanging mount", "hook", 3),
     ))
     *_, result = _build(records)
     return result

@@ -13,6 +13,7 @@ from scripts.run_route_discovery_v2_private_replay import (
     PASS_VERDICT,
     CategoryReplay,
     _acceptance_verdict,
+    _automated_remediation_gate,
     _candidate_quality,
     _external_new_json,
     _manifest,
@@ -326,3 +327,16 @@ def test_aggregate_privacy_scan_and_verdict_are_fail_closed() -> None:
     assert not _privacy_safe({"api_key": "not-a-real-secret"})
     assert _acceptance_verdict({"a": True, "b": True}) == PASS_VERDICT
     assert _acceptance_verdict({}) == BLOCKED_VERDICT
+
+
+def test_automated_remediation_gate_excludes_unperformed_human_authority() -> None:
+    from scripts.run_route_discovery_v2_private_replay import (
+        AUTOMATED_REMEDIATION_GATE_KEYS,
+    )
+
+    gates = {key: True for key in AUTOMATED_REMEDIATION_GATE_KEYS}
+    gates["bounded_human_intra_route_consistency"] = False
+    gates["operator_route_safety_checks"] = False
+    assert _automated_remediation_gate(gates)["status"] == "PASS"
+    gates["evidence_provenance_integrity"] = False
+    assert _automated_remediation_gate(gates)["status"] == "FAIL"

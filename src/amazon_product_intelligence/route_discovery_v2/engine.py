@@ -37,6 +37,7 @@ from amazon_product_intelligence.semantic_engine_v2.models import (
     EvidenceRelationshipState,
     RoleRelevance,
     SemanticEngineV2Result,
+    UniversalSemanticRole,
 )
 from amazon_product_intelligence.semantic_engine_v2.profile import (
     CategorySemanticProfileV1_1,
@@ -402,11 +403,21 @@ def _clusters(
 def _compatible_with_route(
     signature: tuple[RouteSemanticKey, ...],
     route_definition: tuple[RouteSemanticKey, ...],
+    *,
+    structural_form_dimensions: frozenset[str],
 ) -> bool:
     """Return compatibility using only shared, profile-authorized facts."""
 
     signature_map = _definition_map(signature)
     route_map = _definition_map(route_definition)
+    # A governed structural form is a product-identity boundary, not an
+    # optional secondary attribute.  Missing form evidence cannot bridge into
+    # or out of a form-specific route during sparse-cluster attachment.
+    if any(
+        (dimension in signature_map) != (dimension in route_map)
+        for dimension in structural_form_dimensions
+    ):
+        return False
     shared_dimensions = set(signature_map) & set(route_map)
     if not shared_dimensions:
         return False
@@ -424,6 +435,8 @@ def _resolve_unclustered_signatures(
     clusters: tuple[_Cluster, ...],
     viable: dict[str, _Cluster],
     signature_cluster: dict[str, str],
+    *,
+    structural_form_dimensions: frozenset[str],
 ) -> tuple[dict[str, _Cluster], dict[str, str], dict[str, str]]:
     """Resolve only against already-formed routes without changing identity."""
 
@@ -435,7 +448,11 @@ def _resolve_unclustered_signatures(
         compatible = tuple(
             anchor_key
             for anchor_key, route in sorted(viable.items())
-            if _compatible_with_route(cluster.anchor, route.anchor)
+            if _compatible_with_route(
+                cluster.anchor,
+                route.anchor,
+                structural_form_dimensions=structural_form_dimensions,
+            )
         )
         if len(compatible) == 1:
             target = compatible[0]
@@ -826,7 +843,14 @@ def build_route_discovery_v2(
     }
     viable, signature_cluster, resolution_reasons = (
         _resolve_unclustered_signatures(
-            clusters, viable, signature_cluster,
+            clusters,
+            viable,
+            signature_cluster,
+            structural_form_dimensions=frozenset(
+                dimension for dimension in config.route_dimensions
+                if profile.source_policy(dimension).role
+                is UniversalSemanticRole.STRUCTURAL_FORM
+            ),
         )
     )
     route_ids = {

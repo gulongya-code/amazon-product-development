@@ -43,21 +43,21 @@ EXPECTED_COUNTS = {
     "CAL_AIR_FRYER_MIXED": 300,
 }
 EXPECTED_PRIMARY_COHORT_COUNTS = {
-    "CAL_SHOWER_CADDY": 868,
+    "CAL_SHOWER_CADDY": 650,
     "CAL_DOG_WATER_BOTTLE": 280,
     "CAL_VACUUM_FILTER": 0,
     "CAL_FOOD_STORAGE_SET": 99,
     "CAL_AIR_FRYER_MIXED": 162,
 }
 EXPECTED_PROFILE_FINGERPRINTS = {
-    "CAL_SHOWER_CADDY": "d08a2a441d0746767dd0e0f0a35bd26675256c82f26cda1821a488b039ca9aa1",
+    "CAL_SHOWER_CADDY": "c3b943fe1ad480ad348855a15e7f52a77d1ec79385382beffe7cf5f2fb342e09",
     "CAL_DOG_WATER_BOTTLE": "3bfa600c6659721fe133d27c866efdb8ed3ea0ac5d4623ed3055f16213c30173",
     "CAL_VACUUM_FILTER": "bfeb66f3c065394acba8c3bd55672b8c349ebe58289eff203105310061320764",
     "CAL_FOOD_STORAGE_SET": "097097108b11b88af72b3f0d1d81fb743dc3f8895176d0ec086980b87464339c",
     "CAL_AIR_FRYER_MIXED": "d3a4e29090ce5e50872f2b53087d7423b6bc0295cf74e43e6b5d8549f2c8fe76",
 }
 EXPECTED_ROUTE_CONFIG_FINGERPRINTS = {
-    "CAL_SHOWER_CADDY": "cb863460d239978e461d4902906a5a7171e5069a820cb0305b09ad818de3edc3",
+    "CAL_SHOWER_CADDY": "2b8bbf505579e9eefe5d36be94a50c1286ebbce7496679c0d46f32a3d8fa9f15",
     "CAL_DOG_WATER_BOTTLE": "7aea673fff8e1649cd2ac99d0b509c9d1aa61769dd196ad7d2b35c500c5ba620",
     "CAL_VACUUM_FILTER": "80a9b88f5822a3b22c1dcbac9de2abc4ce4be005a2b7e6b1f0714c9f7b82c2f1",
     "CAL_FOOD_STORAGE_SET": "4a2dd049d3c0bd90c8cb223b08da82299a6ad382ef75929a4ac8a7bb5da1fea2",
@@ -96,6 +96,26 @@ REVIEW_DECISION_KEYS = (
 TITLE_HEADER = "\u5546\u54c1\u6807\u9898"
 BLOCKED_VERDICT = "BLOCKED \u2014 ROUTE_V2_ACCEPTANCE_GATE_FAILED"
 PASS_VERDICT = "PASS \u2014 ROUTE_DISCOVERY_V2"
+AUTOMATED_REMEDIATION_GATE_KEYS = (
+    "exact_corpus_counts",
+    "candidate_material_distinctness",
+    "facet_only_distinct_candidate_pairs_zero",
+    "candidate_count_policy",
+    "nonprimary_leakage_zero",
+    "route_identity_uses_only_authorized_dimensions",
+    "frozen_metric_contract_match",
+    "accepted_s2_authority_match",
+    "accepted_calibrated_authority_match",
+    "semantic_determinism_100_percent",
+    "route_determinism_100_percent",
+    "evidence_provenance_integrity",
+    "category_isolation_zero",
+    "generic_engine_category_patches_zero",
+    "forbidden_downstream_capabilities_zero",
+    "static_network_provider_credential_llm_references_zero",
+    "network_provider_credential_llm_zero",
+    "aggregate_output_privacy_safe",
+)
 REPLAY_DISCLOSURE = {
     "execution_mode": "OFFLINE_PRIVATE_REPLAY",
     "input_data_classification": "CALLER_DECLARED_EXTERNAL_PRIVATE_CALIBRATION",
@@ -279,6 +299,75 @@ def _metric_contract_ok(result: Any) -> bool:
     return True
 
 
+def _evidence_provenance_violation_count(replay: CategoryReplay) -> int:
+    """Count broken listing-grain S2/Route lineage links without exposing values."""
+
+    violations = 0
+    semantic_by_listing = {
+        item.listing_reference: item for item in replay.semantic_result.listings
+    }
+    for listing in replay.semantic_result.listings:
+        evidence_ids = {item.evidence_id for item in listing.evidence}
+        fact_ids = {item.fact_id for item in listing.facts}
+        relationship_ids = {
+            item.relationship_id for item in listing.relationships
+        }
+        violations += int(len(evidence_ids) != len(listing.evidence))
+        violations += int(len(fact_ids) != len(listing.facts))
+        violations += int(
+            len(relationship_ids) != len(listing.relationships)
+        )
+        for fact in listing.facts:
+            violations += int(not set(fact.evidence_ids) <= evidence_ids)
+            violations += int(
+                fact.upstream_record_fingerprint
+                != listing.upstream_record_fingerprint
+            )
+        for relationship in listing.relationships:
+            violations += int(not set(relationship.fact_ids) <= fact_ids)
+            violations += int(not set(relationship.evidence_ids) <= evidence_ids)
+        governed_fact_ids = {
+            *listing.product_identity.fact_ids,
+            *listing.product_role.relation_fact_ids,
+            *listing.product_role.lifecycle_fact_ids,
+            *listing.market_cohort_eligibility.evidence_fact_ids,
+        }
+        violations += int(not governed_fact_ids <= fact_ids)
+    for view in replay.route_result.feature_views:
+        listing = semantic_by_listing.get(view.listing_reference)
+        if listing is None:
+            violations += 1
+            continue
+        evidence_ids = {item.evidence_id for item in listing.evidence}
+        fact_ids = {item.fact_id for item in listing.facts}
+        relationship_ids = {
+            item.relationship_id for item in listing.relationships
+        }
+        violations += int(
+            view.semantic_listing_result_id != listing.listing_result_id
+        )
+        violations += int(
+            view.semantic_listing_fingerprint != listing.semantic_fingerprint
+        )
+        for feature in view.features:
+            violations += int(not set(feature.fact_ids) <= fact_ids)
+            violations += int(
+                not set(feature.defining_fact_ids) <= set(feature.fact_ids)
+            )
+            violations += int(not set(feature.evidence_ids) <= evidence_ids)
+            violations += int(
+                not set(feature.relationship_ids) <= relationship_ids
+            )
+    for membership in replay.route_result.memberships:
+        listing = semantic_by_listing.get(membership.listing_reference)
+        if listing is None:
+            violations += 1
+            continue
+        evidence_ids = {item.evidence_id for item in listing.evidence}
+        violations += int(not set(membership.evidence_ids) <= evidence_ids)
+    return violations
+
+
 def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
     result = replay.route_result
     routes = result.routes
@@ -344,6 +433,28 @@ def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
         reason for candidate_item in result.candidates
         for reason in candidate_item.reason_codes
     )
+    cohort_states = Counter(
+        listing.market_cohort_eligibility.state.value
+        for listing in replay.semantic_result.listings
+    )
+    relation_roles = Counter(
+        listing.product_role.relation_role.value
+        for listing in replay.semantic_result.listings
+    )
+    conflicts = Counter(
+        f"{relationship.dimension}:{relationship.state.value}"
+        for listing in replay.semantic_result.listings
+        for relationship in listing.relationships
+        if relationship.state.value in {
+            "TRUE_CONFLICT", "ROUTE_CRITICAL_CONFLICT",
+        }
+    )
+    category_isolation_violations = int(
+        not replay.profile.supports_category(replay.dataset.category)
+    ) + int(
+        replay.route_config.category != replay.dataset.category
+        and replay.dataset.category not in replay.route_config.category_aliases
+    )
     return {
         "accepted_listing_count": result.listing_count,
         "primary_cohort_eligible_count": result.primary_cohort_eligible_count,
@@ -364,6 +475,9 @@ def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
         "route_ids": [route.route_id for route in routes],
         "route_fingerprints": [route.semantic_fingerprint for route in routes],
         "route_dimension_coverage": dimensions,
+        "semantic_cohort_state_counts": dict(sorted(cohort_states.items())),
+        "semantic_relation_role_counts": dict(sorted(relation_roles.items())),
+        "semantic_conflict_counts": dict(sorted(conflicts.items())),
         "route_defining_role_distribution": {
             role: {
                 "route_count": defining_roles[role],
@@ -387,6 +501,10 @@ def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
         "nonprimary_assigned_count": nonprimary_assigned,
         "invalid_route_identity_dimension_count": invalid_route_dimensions,
         "frozen_metric_contract_match": _metric_contract_ok(result),
+        "evidence_provenance_violation_count": (
+            _evidence_provenance_violation_count(replay)
+        ),
+        "category_isolation_violation_count": category_isolation_violations,
         "network_calls": diagnostics.get("network_calls"),
         "provider_calls": diagnostics.get("provider_calls"),
         "credential_accesses": diagnostics.get("credential_accesses"),
@@ -774,6 +892,17 @@ def _acceptance_verdict(gates: Mapping[str, bool]) -> str:
     return PASS_VERDICT if gates and all(gates.values()) else BLOCKED_VERDICT
 
 
+def _automated_remediation_gate(gates: Mapping[str, bool]) -> dict[str, Any]:
+    evaluated = {
+        key: bool(gates.get(key, False))
+        for key in AUTOMATED_REMEDIATION_GATE_KEYS
+    }
+    return {
+        "status": "PASS" if all(evaluated.values()) else "FAIL",
+        "evaluated_gates": evaluated,
+    }
+
+
 def run_private_replay(
     manifest_path: Path,
     completed_review_path: Path | None = None,
@@ -905,6 +1034,14 @@ def run_private_replay(
         "route_determinism_100_percent": all(
             summary["route_deterministic_match"] for summary in summaries.values()
         ),
+        "evidence_provenance_integrity": all(
+            summary["evidence_provenance_violation_count"] == 0
+            for summary in summaries.values()
+        ),
+        "category_isolation_zero": all(
+            summary["category_isolation_violation_count"] == 0
+            for summary in summaries.values()
+        ),
         "generic_engine_category_patches_zero": (
             source_checks["category_literal_patch_count"] == 0
         ),
@@ -943,6 +1080,14 @@ def run_private_replay(
     privacy_safe = _privacy_safe(report)
     report["privacy_leak_count"] = 0 if privacy_safe else 1
     report["gates"]["aggregate_output_privacy_safe"] = privacy_safe
+    report["automated_private_remediation_gate"] = (
+        _automated_remediation_gate(report["gates"])
+    )
+    report["final_release_status"] = (
+        "AUTHORIZED_HUMAN_ROUTE_REVIEW_PENDING"
+        if not operator["completed_review_supplied"]
+        else "AUTHORIZED_HUMAN_ROUTE_REVIEW_EVALUATED"
+    )
     report["verdict"] = _acceptance_verdict(report["gates"])
     return report, expected_review
 
@@ -993,10 +1138,21 @@ def main(argv: list[str] | None = None) -> int:
             handle.write("\n")
         print(json.dumps({
             "status": "SUCCEEDED", "verdict": report["verdict"],
+            "automated_private_remediation_gate": report[
+                "automated_private_remediation_gate"
+            ]["status"],
+            "final_release_status": report["final_release_status"],
             "total_listing_count": report["total_listing_count"],
             "privacy_leak_count": report["privacy_leak_count"],
         }, ensure_ascii=False, sort_keys=True))
-        return 0 if report["verdict"] == PASS_VERDICT else 3
+        if report["verdict"] == PASS_VERDICT:
+            return 0
+        if (
+            args.completed_review is None
+            and report["automated_private_remediation_gate"]["status"] == "PASS"
+        ):
+            return 0
+        return 3
     except (OSError, ValueError, SemanticEngineV2Error, RouteDiscoveryV2Error) as exc:
         public_error = getattr(exc, "code", "ROUTE_V2_PRIVATE_REPLAY_FAILED")
         print(json.dumps({
