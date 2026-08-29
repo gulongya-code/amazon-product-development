@@ -96,6 +96,13 @@ REVIEW_DECISION_KEYS = (
 TITLE_HEADER = "\u5546\u54c1\u6807\u9898"
 BLOCKED_VERDICT = "BLOCKED \u2014 ROUTE_V2_ACCEPTANCE_GATE_FAILED"
 PASS_VERDICT = "PASS \u2014 ROUTE_DISCOVERY_V2"
+REPLAY_DISCLOSURE = {
+    "execution_mode": "OFFLINE_PRIVATE_REPLAY",
+    "input_data_classification": "CALLER_DECLARED_EXTERNAL_PRIVATE_CALIBRATION",
+    "live_provider_access_enabled": False,
+    "fixture_mode_enabled": False,
+    "synthetic_fallback_enabled": False,
+}
 
 SHOWER_V1 = {
     "accepted_listing_count": 998,
@@ -919,6 +926,7 @@ def run_private_replay(
     }
     report = {
         "contract_version": "route-discovery-v2-private-replay-summary-v1.0",
+        "data_disclosure": dict(REPLAY_DISCLOSURE),
         "calibration_category_count": len(replays),
         "total_listing_count": sum(
             summary["accepted_listing_count"] for summary in summaries.values()

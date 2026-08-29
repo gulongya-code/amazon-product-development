@@ -93,6 +93,23 @@ class SemanticRouteFeature:
             "relationship_states", "limitations",
         ):
             object.__setattr__(self, name, _texts(getattr(self, name), name))
+        if set(self.defining_fact_ids) - set(self.fact_ids):
+            raise RouteDiscoveryV2Error(
+                "ROUTE_V2_CONTRACT_INVALID",
+                "defining fact IDs must reference observed feature facts",
+            )
+        if self.defining_values and (
+            not self.defining_fact_ids or not self.evidence_ids
+        ):
+            raise RouteDiscoveryV2Error(
+                "ROUTE_V2_CONTRACT_INVALID",
+                "defining values require facts and evidence",
+            )
+        if self.values and (not self.fact_ids or not self.evidence_ids):
+            raise RouteDiscoveryV2Error(
+                "ROUTE_V2_CONTRACT_INVALID",
+                "observed values require facts and evidence",
+            )
         logical = self.logical_dict()
         if self.semantic_fingerprint != _hash(logical):
             raise RouteDiscoveryV2Error(
