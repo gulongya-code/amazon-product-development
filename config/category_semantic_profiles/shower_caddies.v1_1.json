@@ -1,0 +1,56 @@
+{
+  "schema_version": "category-semantic-profile-v1.1",
+  "profile_id": "shower-caddies-semantic-v1-1",
+  "version": "1.1.0",
+  "category_scope": "shower caddies",
+  "category_aliases": ["shower caddy", "bathroom shower caddies"],
+  "normalization_version": "semantic-normalization-v2.0",
+  "source_authorization": ["LISTING_TITLE", "STRUCTURED_PARAMETERS", "DEDICATED_GOVERNED_FIELD", "AUTHORIZED_SKU", "PROVIDER_CATEGORY_CONTEXT"],
+  "source_policies": [
+    {"policy_id":"shower-policy-identity","role":"PRODUCT_IDENTITY","dimension":"product_identity","primary_sources":["LISTING_TITLE"],"corroborating_sources":["STRUCTURED_PARAMETERS"],"fallback_sources":[],"forbidden_sources":["LLM_DERIVED_CANDIDATE"],"exact_specification":false,"multi_value":false,"relevance":"CORE","route_critical":true},
+    {"policy_id":"shower-policy-relation","role":"PRODUCT_ROLE","dimension":"relation_role","primary_sources":["LISTING_TITLE"],"corroborating_sources":["STRUCTURED_PARAMETERS"],"fallback_sources":[],"forbidden_sources":["LLM_DERIVED_CANDIDATE"],"exact_specification":false,"multi_value":false,"relevance":"CORE","route_critical":true},
+    {"policy_id":"shower-policy-lifecycle","role":"PRODUCT_ROLE","dimension":"consumption_lifecycle","primary_sources":["LISTING_TITLE"],"corroborating_sources":["STRUCTURED_PARAMETERS"],"fallback_sources":[],"forbidden_sources":["LLM_DERIVED_CANDIDATE"],"exact_specification":false,"multi_value":false,"relevance":"SECONDARY","route_critical":false},
+    {"policy_id":"shower-policy-install","role":"INSTALLATION_ARCHITECTURE","dimension":"installation_architecture","primary_sources":["STRUCTURED_PARAMETERS"],"corroborating_sources":["LISTING_TITLE"],"fallback_sources":[],"forbidden_sources":["LLM_DERIVED_CANDIDATE"],"exact_specification":false,"multi_value":true,"relevance":"CORE","route_critical":false},
+    {"policy_id":"shower-policy-attach","role":"ATTACHMENT_MECHANISM","dimension":"attachment_mechanism","primary_sources":["STRUCTURED_PARAMETERS"],"corroborating_sources":["LISTING_TITLE"],"fallback_sources":[],"forbidden_sources":["LLM_DERIVED_CANDIDATE"],"exact_specification":false,"multi_value":true,"relevance":"CORE","route_critical":false},
+    {"policy_id":"shower-policy-quantity","role":"QUANTITY","dimension":"package_count","primary_sources":["STRUCTURED_PARAMETERS"],"corroborating_sources":[],"fallback_sources":[],"forbidden_sources":["LISTING_TITLE","LLM_DERIVED_CANDIDATE"],"exact_specification":true,"multi_value":false,"relevance":"FACET_ONLY","route_critical":false}
+  ],
+  "attribute_aliases": [
+    {"alias_id":"shower-alias-install-1","alias":"installation type","canonical":"installation"},
+    {"alias_id":"shower-alias-install-2","alias":"mounting type","canonical":"installation"},
+    {"alias_id":"shower-alias-install-3","alias":"installation method","canonical":"installation"},
+    {"alias_id":"shower-alias-attach-1","alias":"mount type","canonical":"attachment"},
+    {"alias_id":"shower-alias-attach-2","alias":"special feature","canonical":"attachment"},
+    {"alias_id":"shower-alias-count-1","alias":"number of items","canonical":"package count"},
+    {"alias_id":"shower-alias-count-2","alias":"item package quantity","canonical":"package count"}
+  ],
+  "value_aliases": [],
+  "fact_rules": [
+    {"rule_id":"shower-install-structured","role":"INSTALLATION_ARCHITECTURE","dimension":"installation_architecture","sources":["STRUCTURED_PARAMETERS"],"source_keys":["installation"],"match_phrases":[],"exclusions":[],"value_mode":"SOURCE_VALUE","normalized_value":null,"quantity_kind":null,"semantic_scope":null,"quantity_subtype":null,"confidence":"HIGH"},
+    {"rule_id":"shower-install-title-drill","role":"INSTALLATION_ARCHITECTURE","dimension":"installation_architecture","sources":["LISTING_TITLE"],"source_keys":[],"match_phrases":["no drill","drill free","adhesive","tension pole","hanging"],"exclusions":[],"value_mode":"FIXED","normalized_value":"title_installation_signal","quantity_kind":null,"semantic_scope":null,"quantity_subtype":null,"confidence":"MEDIUM"},
+    {"rule_id":"shower-attach-structured","role":"ATTACHMENT_MECHANISM","dimension":"attachment_mechanism","sources":["STRUCTURED_PARAMETERS"],"source_keys":["attachment"],"match_phrases":[],"exclusions":[],"value_mode":"SOURCE_VALUE","normalized_value":null,"quantity_kind":null,"semantic_scope":null,"quantity_subtype":null,"confidence":"HIGH"},
+    {"rule_id":"shower-package-count","role":"QUANTITY","dimension":"package_count","sources":["STRUCTURED_PARAMETERS"],"source_keys":["package count"],"match_phrases":[],"exclusions":[],"value_mode":"MEASUREMENT","normalized_value":null,"quantity_kind":"COUNT","semantic_scope":"PACKAGE","quantity_subtype":"PACKAGE_COUNT","confidence":"HIGH"}
+  ],
+  "identity_rules": [
+    {"rule_id":"shower-identity-generic-storage-caddy","sources":["LISTING_TITLE"],"phrases":["storage caddy"],"exclusions":["shower","bathroom","bath","tub"],"identity":"standalone storage caddy","is_target":false,"priority":3},
+    {"rule_id":"shower-identity-target","sources":["LISTING_TITLE"],"phrases":["shower caddy","shower caddies","shower shelf","shower shelves","shower organizer","shower organizers","pole caddy"],"exclusions":["replacement adhesive","adhesive strips only","hooks only","caddy connectors","squeegee","splash guard","fogless mirror"],"identity":"shower caddy","is_target":true,"priority":20},
+    {"rule_id":"shower-identity-other","sources":["LISTING_TITLE"],"phrases":["adhesive strips only","replacement adhesive","hooks only","caddy connectors","squeegee","splash guard","fogless mirror"],"exclusions":[],"identity":"standalone shower product or caddy component","is_target":false,"priority":10}
+  ],
+  "relation_rules": [
+    {"rule_id":"shower-relation-replacement","sources":["LISTING_TITLE"],"phrases":["replacement adhesive","adhesive hooks replacement"],"exclusions":[],"result":"REPLACEMENT","priority":5},
+    {"rule_id":"shower-relation-accessory","sources":["LISTING_TITLE"],"phrases":["adhesive strips only","hooks only","caddy connectors"],"exclusions":["replacement adhesive","adhesive hooks replacement"],"result":"ACCESSORY","priority":10},
+    {"rule_id":"shower-relation-primary","sources":["LISTING_TITLE"],"phrases":["shower caddy","shower caddies","shower shelf","shower shelves","shower organizer","shower organizers","pole caddy","squeegee","splash guard","fogless mirror"],"exclusions":["replacement adhesive","adhesive strips only","hooks only","caddy connectors"],"result":"PRIMARY_PRODUCT","priority":20}
+  ],
+  "lifecycle_rules": [
+    {"rule_id":"shower-lifecycle-replacement-durable","sources":["LISTING_TITLE"],"phrases":["replacement hook","replacement hooks","replacement plate","adhesive hooks replacement"],"exclusions":[],"result":"REUSABLE_DURABLE","priority":5},
+    {"rule_id":"shower-lifecycle-durable","sources":["LISTING_TITLE"],"phrases":["reusable","rustproof","stainless steel"],"exclusions":[],"result":"REUSABLE_DURABLE","priority":20},
+    {"rule_id":"shower-lifecycle-replacement","sources":["LISTING_TITLE"],"phrases":["replacement adhesive"],"exclusions":[],"result":"PERIODIC_REPLACEMENT","priority":10}
+  ],
+  "coexistence_rules": [{"rule_id":"shower-coexist-install-attach","left_dimension":"installation_architecture","right_dimension":"attachment_mechanism"}],
+  "true_conflict_rules": [{"rule_id":"shower-conflict-relation","dimension":"relation_role","values":[]}],
+  "route_critical_conflict_rules": [
+    {"rule_id":"shower-critical-identity","dimension":"product_identity","values":[]},
+    {"rule_id":"shower-critical-relation","dimension":"relation_role","values":[]}
+  ],
+  "quantity_scope_rules": [{"rule_id":"shower-quantity-package-scope","source_keys":["package count"],"quantity_kind":"COUNT","semantic_scope":"PACKAGE","quantity_subtype":"PACKAGE_COUNT"}],
+  "cohort_policy": {"policy_id":"shower-primary-cohort","version":"1.0.0","analysis_mode":"PRIMARY_ONLY","target_identity_values":["shower caddy"],"primary_relation_roles":["PRIMARY_PRODUCT"],"non_primary_relation_roles":["ACCESSORY","REPLACEMENT","REFILL","BUNDLE"]}
+}
