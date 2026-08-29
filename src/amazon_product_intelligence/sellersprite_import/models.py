@@ -27,6 +27,7 @@ class ImportValueStatus(StrEnum):
 
 
 class EvidenceSemantics(StrEnum):
+    UNKNOWN = "UNKNOWN"
     PROVIDER_EXPORTED_EVIDENCE = "PROVIDER_EXPORTED_EVIDENCE"
     THIRD_PARTY_ESTIMATE = "THIRD_PARTY_ESTIMATE"
     REFERENCE_ONLY_NOT_PROCUREMENT_TRUTH = "REFERENCE_ONLY_NOT_PROCUREMENT_TRUTH"
@@ -161,10 +162,11 @@ class GovernedMarketDatasetV1:
     contract_version: str = DATASET_CONTRACT_VERSION
     import_ruleset_version: str = IMPORT_RULESET_VERSION
     header_mapping_version: str = HEADER_MAPPING_VERSION
+    source_kind_value: str = SOURCE_KIND
 
     @property
     def source_kind(self) -> str:
-        return SOURCE_KIND
+        return self.source_kind_value
 
     @property
     def source_format(self) -> str:

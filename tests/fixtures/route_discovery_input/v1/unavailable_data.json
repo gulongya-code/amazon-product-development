@@ -1,0 +1,15 @@
+{
+  "context": {
+    "marketplace": "US",
+    "category": "shower caddies",
+    "imported_at": "2026-08-29T08:00:00Z",
+    "normalized_at": "2026-08-29T08:01:00Z",
+    "observed_date": null
+  },
+  "observations": [
+    {"provider":"provider_alpha","asin":"B0TEST0007","kind":"PRODUCT_FACT","name":"asin","fact_group":"IDENTITY_RELATED","value":"B0TEST0007"},
+    {"provider":"provider_alpha","asin":"B0TEST0007","kind":"PRODUCT_FACT","name":"title","fact_group":"DESCRIPTION","value":"Adhesive Shower Caddy"},
+    {"provider":"provider_beta","asin":"B0TEST0007","kind":"METRIC","name":"estimated_monthly_sales","presence":"UNKNOWN","value":null,"estimate":true,"unit":{"dimension":"COUNT","unit_code":"units","unit_system":"PROVIDER"}},
+    {"provider":"provider_beta","asin":"B0TEST0007","kind":"METRIC","name":"rating","presence":"EXPLICIT_NULL","value":null,"unit":{"dimension":"RATING","unit_code":"stars_5","unit_system":"DOMAIN"}}
+  ]
+}

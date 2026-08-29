@@ -1,0 +1,24 @@
+{
+  "context": {
+    "marketplace": "US",
+    "category": "shower caddies",
+    "imported_at": "2026-08-29T08:00:00Z",
+    "normalized_at": "2026-08-29T08:01:00Z",
+    "observed_date": "2026-08-28"
+  },
+  "observations": [
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"asin","fact_group":"IDENTITY_RELATED","value":"B0TEST0001"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"title","fact_group":"DESCRIPTION","value":"Adhesive Shower Caddy Organizer"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"brand","fact_group":"OTHER","value":"Example Brand"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"category","fact_group":"OTHER","value":"Home > Bath > Shower Caddies"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"parent_product_relationship","fact_group":"VARIATION","value":"B0PARENT01"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"first_available_date","fact_group":"OTHER","value":"2026-07-01"},
+    {"provider":"provider_beta","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"installation_type","fact_group":"ATTRIBUTE","value":"adhesive"},
+    {"provider":"provider_beta","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"mount_type","fact_group":"ATTRIBUTE","value":"wall mount"},
+    {"provider":"provider_beta","asin":"B0TEST0001","kind":"PRODUCT_FACT","name":"number_of_items","fact_group":"ATTRIBUTE","value":"2"},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"METRIC","name":"estimated_monthly_sales","value":120,"estimate":true,"unit":{"dimension":"COUNT","unit_code":"units","unit_system":"PROVIDER"}},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"METRIC","name":"price","value":"USD 24.99","unit":{"dimension":"CURRENCY","unit_code":"USD","unit_system":"ISO_4217"}},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"METRIC","name":"rating","value":"4.6","unit":{"dimension":"RATING","unit_code":"stars_5","unit_system":"DOMAIN"}},
+    {"provider":"provider_alpha","asin":"B0TEST0001","kind":"METRIC","name":"review_count","value":"1,234","unit":{"dimension":"COUNT","unit_code":"reviews","unit_system":"DOMAIN"}}
+  ]
+}

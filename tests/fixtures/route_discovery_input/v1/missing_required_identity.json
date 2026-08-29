@@ -1,0 +1,12 @@
+{
+  "context": {
+    "marketplace": "US",
+    "category": "shower caddies",
+    "imported_at": "2026-08-29T08:00:00Z",
+    "normalized_at": "2026-08-29T08:01:00Z",
+    "observed_date": null
+  },
+  "observations": [
+    {"provider":"provider_alpha","asin":"B0TEST0003","kind":"PRODUCT_FACT","name":"title","fact_group":"DESCRIPTION","value":"Shower Caddy Without Identity Evidence"}
+  ]
+}
