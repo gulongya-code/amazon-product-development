@@ -59,6 +59,7 @@ def compose_market_report_v0_2(
     provenance: tuple[ReportProvenanceRecord, ...],
     evidence: tuple[EvidenceRecord, ...],
     references: tuple[ContractReference, ...] = (),
+    evidence_registry_limitations: tuple[str, ...] = (),
     limitations: tuple[str, ...] = (),
 ) -> MarketReportSnapshotV0_2:
     sections = (
@@ -78,7 +79,11 @@ def compose_market_report_v0_2(
         if prior is not None and prior != item:
             raise MarketReportV0_2ValidationError("conflicting global reference identity")
         combined[item.reference_id] = item
-    evidence_registry = build_evidence_registry(references=tuple(combined.values()), evidence=evidence, limitations=())
+    evidence_registry = build_evidence_registry(
+        references=tuple(combined.values()),
+        evidence=evidence,
+        limitations=evidence_registry_limitations,
+    )
     placeholder = "sha256:" + "0" * 64
     metadata = ReportMetadataV0_2(
         report_id=report_id_for(semantic_fingerprint=placeholder, generated_at=generated_at),
