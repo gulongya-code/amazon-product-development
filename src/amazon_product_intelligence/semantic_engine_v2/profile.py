@@ -402,7 +402,7 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
     for index, raw in enumerate(top["fact_rules"]):
         item = _object(raw, f"fact_rules[{index}]", _FACT_RULE_KEYS)
         mode = _text(item["value_mode"], "value_mode").upper()
-        if mode not in {"FIXED", "SOURCE_VALUE", "MEASUREMENT"}:
+        if mode not in {"EVIDENCE_ONLY", "FIXED", "SOURCE_VALUE", "MEASUREMENT"}:
             raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "invalid value_mode")
         sources = _enums(SemanticSourceClass, item["sources"], "sources")
         if set(sources) - set(authorization):

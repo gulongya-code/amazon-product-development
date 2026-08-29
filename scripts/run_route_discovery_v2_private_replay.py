@@ -43,14 +43,14 @@ EXPECTED_COUNTS = {
     "CAL_AIR_FRYER_MIXED": 300,
 }
 EXPECTED_PRIMARY_COHORT_COUNTS = {
-    "CAL_SHOWER_CADDY": 650,
+    "CAL_SHOWER_CADDY": 676,
     "CAL_DOG_WATER_BOTTLE": 280,
     "CAL_VACUUM_FILTER": 0,
     "CAL_FOOD_STORAGE_SET": 99,
     "CAL_AIR_FRYER_MIXED": 162,
 }
 EXPECTED_PROFILE_FINGERPRINTS = {
-    "CAL_SHOWER_CADDY": "c3b943fe1ad480ad348855a15e7f52a77d1ec79385382beffe7cf5f2fb342e09",
+    "CAL_SHOWER_CADDY": "47824411ba9a530d99ec1d7716ad830282614546418bed004147b90cbe589e63",
     "CAL_DOG_WATER_BOTTLE": "3bfa600c6659721fe133d27c866efdb8ed3ea0ac5d4623ed3055f16213c30173",
     "CAL_VACUUM_FILTER": "bfeb66f3c065394acba8c3bd55672b8c349ebe58289eff203105310061320764",
     "CAL_FOOD_STORAGE_SET": "097097108b11b88af72b3f0d1d81fb743dc3f8895176d0ec086980b87464339c",
@@ -572,6 +572,49 @@ def _blank_human_review() -> dict[str, Any]:
     return {**{key: None for key in REVIEW_DECISION_KEYS}, "notes": ""}
 
 
+def _governed_route_evidence(listing: Any, route: Any) -> list[dict[str, Any]]:
+    """Expose route-authoring lineage without copying raw structured values."""
+
+    route_values = {
+        definition["dimension"]: set(definition["values"])
+        for item in route.defining_features
+        for definition in (item.to_dict(),)
+    }
+    evidence = {
+        item.evidence_id: item for item in getattr(listing, "evidence", ())
+    }
+    relationships = {
+        item.dimension: item for item in getattr(listing, "relationships", ())
+    }
+    result = []
+    for fact in sorted(
+        getattr(listing, "facts", ()), key=lambda item: item.fact_id,
+    ):
+        if (
+            fact.dimension not in route_values
+            or fact.normalized_value not in route_values[fact.dimension]
+        ):
+            continue
+        references = [
+            evidence[evidence_id] for evidence_id in fact.evidence_ids
+        ]
+        relationship = relationships.get(fact.dimension)
+        result.append({
+            "dimension": fact.dimension,
+            "normalized_value": fact.normalized_value,
+            "profile_rule_id": fact.rule_id,
+            "source_classes": [item.value for item in fact.source_classes],
+            "source_keys": sorted({
+                item.source_key for item in references
+                if item.source_key is not None
+            }),
+            "relationship_state": (
+                None if relationship is None else relationship.state.value
+            ),
+        })
+    return result
+
+
 def _review_sample(replays: Mapping[str, CategoryReplay]) -> dict[str, Any]:
     replay = replays[SHOWER_CALIBRATION_ID]
     route_result = replay.route_result
@@ -659,6 +702,9 @@ def _review_sample(replays: Mapping[str, CategoryReplay]) -> dict[str, Any]:
                 "route_eligible_definition": [
                     item.to_dict() for item in route.defining_features
                 ],
+                "governed_route_evidence": _governed_route_evidence(
+                    listing, route,
+                ),
                 "human_review": _blank_human_review(),
             })
     identity = [{
@@ -669,6 +715,7 @@ def _review_sample(replays: Mapping[str, CategoryReplay]) -> dict[str, Any]:
         "review_strata": row["review_strata"],
         "listing_reference": row["listing_reference"],
         "route_eligible_definition": row["route_eligible_definition"],
+        "governed_route_evidence": row["governed_route_evidence"],
     } for row in rows]
     sample_id = sha256(canonical_json(identity).encode("utf-8")).hexdigest()
     sampled_route_ids = {row["route_reference"] for row in rows}

@@ -404,18 +404,18 @@ def _compatible_with_route(
     signature: tuple[RouteSemanticKey, ...],
     route_definition: tuple[RouteSemanticKey, ...],
     *,
-    structural_form_dimensions: frozenset[str],
+    required_presence_dimensions: frozenset[str],
 ) -> bool:
     """Return compatibility using only shared, profile-authorized facts."""
 
     signature_map = _definition_map(signature)
     route_map = _definition_map(route_definition)
-    # A governed structural form is a product-identity boundary, not an
-    # optional secondary attribute.  Missing form evidence cannot bridge into
-    # or out of a form-specific route during sparse-cluster attachment.
+    # A governed structural form or route-critical dimension is not an
+    # optional sparse-attachment hint. Missing evidence cannot bridge into or
+    # out of a route that asserts one of these distinctions.
     if any(
         (dimension in signature_map) != (dimension in route_map)
-        for dimension in structural_form_dimensions
+        for dimension in required_presence_dimensions
     ):
         return False
     shared_dimensions = set(signature_map) & set(route_map)
@@ -436,7 +436,7 @@ def _resolve_unclustered_signatures(
     viable: dict[str, _Cluster],
     signature_cluster: dict[str, str],
     *,
-    structural_form_dimensions: frozenset[str],
+    required_presence_dimensions: frozenset[str],
 ) -> tuple[dict[str, _Cluster], dict[str, str], dict[str, str]]:
     """Resolve only against already-formed routes without changing identity."""
 
@@ -451,7 +451,7 @@ def _resolve_unclustered_signatures(
             if _compatible_with_route(
                 cluster.anchor,
                 route.anchor,
-                structural_form_dimensions=structural_form_dimensions,
+                required_presence_dimensions=required_presence_dimensions,
             )
         )
         if len(compatible) == 1:
@@ -846,10 +846,13 @@ def build_route_discovery_v2(
             clusters,
             viable,
             signature_cluster,
-            structural_form_dimensions=frozenset(
+            required_presence_dimensions=frozenset(
                 dimension for dimension in config.route_dimensions
-                if profile.source_policy(dimension).role
-                is UniversalSemanticRole.STRUCTURAL_FORM
+                if (
+                    profile.source_policy(dimension).role
+                    is UniversalSemanticRole.STRUCTURAL_FORM
+                    or profile.source_policy(dimension).route_critical
+                )
             ),
         )
     )

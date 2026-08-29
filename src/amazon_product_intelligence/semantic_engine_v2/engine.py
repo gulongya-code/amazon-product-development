@@ -260,6 +260,10 @@ def _fact_rules(
             observations, sources=rule.sources, source_keys=rule.source_keys,
             phrases=rule.match_phrases, exclusions=rule.exclusions,
         ):
+            if rule.value_mode == "EVIDENCE_ONLY":
+                evidence.append(_evidence(item, rule_id=rule.rule_id))
+                limitations.append(f"EVIDENCE_ONLY_UNRESOLVED:{rule.rule_id}")
+                continue
             value: Any
             quantity_kind = None if rule.quantity_kind is None else rule.quantity_kind.value
             semantic_scope = rule.semantic_scope

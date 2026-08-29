@@ -359,7 +359,7 @@ def test_cross_level_sparse_signature_does_not_merge_into_a_different_base() -> 
     assert all(item.status is MembershipStatus.UNCLASSIFIED for item in sparse)
 
 
-def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None:
+def test_sparse_signature_missing_route_critical_dimension_stays_unclassified() -> None:
     records = (
         *_architecture_records((
             ("Wall Mount", "Clamp", 3), ("Wall Mount", "Screw", 3),
@@ -368,8 +368,8 @@ def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None
         _record(8, detail="Attachment: Clamp"),
     )
     dataset, profile, _, config, result = _build(records)
-    assert result.assigned_count == 8
-    assert result.unclassified_count == 0
+    assert result.assigned_count == 6
+    assert result.unclassified_count == 2
     assert result.review_required_count == 0
     assert len(result.routes) == 2
     clamp_route = next(
@@ -380,22 +380,12 @@ def test_cross_level_sparse_signature_attaches_to_one_compatible_route() -> None
             for item in route.defining_features
         )
     )
-    assert clamp_route.member_count == 5
+    assert clamp_route.member_count == 3
     sparse = result.memberships[-2:]
-    assert all(item.primary_route_id == clamp_route.route_id for item in sparse)
+    assert all(item.primary_route_id is None for item in sparse)
+    assert all(item.status is MembershipStatus.UNCLASSIFIED for item in sparse)
     assert all(
-        "UNIQUE_COMPATIBLE_VIABLE_ROUTE_ATTACHMENT"
-        in item.membership_reason_codes
-        for item in sparse
-    )
-    assert all(
-        "ROUTE_DEFINITION_UNCHANGED_BY_COMPATIBLE_ATTACHMENT"
-        in item.limitations
-        for item in sparse
-    )
-    assert all(
-        tuple((key.dimension, key.values) for key in item.assignment_features)
-        == (("attachment_mechanism", ("clamp",)),)
+        "NO_COMPATIBLE_VIABLE_ROUTE" in item.membership_reason_codes
         for item in sparse
     )
     replay_dataset = replace(
