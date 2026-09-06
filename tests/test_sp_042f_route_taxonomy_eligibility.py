@@ -81,7 +81,7 @@ def test_tension_surface_forms_share_one_canonical_route() -> None:
     }
 
 
-def test_portable_form_is_no_installation_not_freestanding() -> None:
+def test_portable_form_does_not_author_installation_or_freestanding() -> None:
     dataset, profile, semantic = _shower_semantic((
         _record(
             1,
@@ -100,7 +100,7 @@ def test_portable_form_is_no_installation_not_freestanding() -> None:
         for fact in listing.facts
         if fact.dimension == "product_form"
     }
-    assert installation_values == {"no_installation"}
+    assert installation_values == set()
     assert form_values == {"portable"}
     assert any(
         fact.dimension == "functional_feature"

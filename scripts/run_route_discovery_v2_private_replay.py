@@ -43,14 +43,14 @@ EXPECTED_COUNTS = {
     "CAL_AIR_FRYER_MIXED": 300,
 }
 EXPECTED_PRIMARY_COHORT_COUNTS = {
-    "CAL_SHOWER_CADDY": 676,
+    "CAL_SHOWER_CADDY": 787,
     "CAL_DOG_WATER_BOTTLE": 280,
     "CAL_VACUUM_FILTER": 0,
     "CAL_FOOD_STORAGE_SET": 99,
     "CAL_AIR_FRYER_MIXED": 162,
 }
 EXPECTED_PROFILE_FINGERPRINTS = {
-    "CAL_SHOWER_CADDY": "47824411ba9a530d99ec1d7716ad830282614546418bed004147b90cbe589e63",
+    "CAL_SHOWER_CADDY": "59d5bb2b4b765f259421390d1a3cd993cb6127c7973197844de466e3808ea7f3",
     "CAL_DOG_WATER_BOTTLE": "3bfa600c6659721fe133d27c866efdb8ed3ea0ac5d4623ed3055f16213c30173",
     "CAL_VACUUM_FILTER": "bfeb66f3c065394acba8c3bd55672b8c349ebe58289eff203105310061320764",
     "CAL_FOOD_STORAGE_SET": "097097108b11b88af72b3f0d1d81fb743dc3f8895176d0ec086980b87464339c",
@@ -372,6 +372,13 @@ def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
     result = replay.route_result
     routes = result.routes
     candidate = _candidate_quality(result)
+    candidates_by_route = {
+        item.route_id: item for item in result.candidates
+    }
+    route_membership_counts = Counter(
+        reference for route in routes
+        for reference in route.member_listing_references
+    )
     views = {item.listing_reference: item for item in result.feature_views}
     nonprimary_assigned = sum(
         membership.status.value == "ASSIGNED"
@@ -472,6 +479,25 @@ def _category_summary(replay: CategoryReplay) -> dict[str, Any]:
         ),
         "candidate": candidate,
         "candidate_reason_code_histogram": dict(sorted(candidate_reason_codes.items())),
+        "operator_routes": [
+            {
+                "route_id": route.route_id,
+                "label": route.label,
+                "defining_features": [
+                    item.to_dict() for item in route.defining_features
+                ],
+                "member_count": route.member_count,
+                "candidate_priority": (
+                    candidates_by_route[route.route_id].priority
+                    if route.route_id in candidates_by_route else None
+                ),
+            }
+            for route in routes
+        ],
+        "duplicate_route_membership_count": sum(
+            count - 1 for count in route_membership_counts.values()
+            if count > 1
+        ),
         "route_ids": [route.route_id for route in routes],
         "route_fingerprints": [route.semantic_fingerprint for route in routes],
         "route_dimension_coverage": dimensions,

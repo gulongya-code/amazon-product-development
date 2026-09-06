@@ -53,7 +53,7 @@ def test_portable_basket_with_handle_is_not_freestanding(title: str) -> None:
     listing = semantic.listings[0]
 
     assert _values(listing, "product_form") == {"portable"}
-    assert _values(listing, "installation_architecture") == {"no_installation"}
+    assert _values(listing, "installation_architecture") == set()
     assert "freestanding" not in _values(listing, "installation_architecture")
     assert any(
         evidence.profile_rule_id
@@ -86,7 +86,7 @@ def test_no_installation_does_not_imply_freestanding() -> None:
     assert "freestanding" not in installation
 
 
-def test_structured_portable_form_is_visible_but_not_route_authority() -> None:
+def test_portable_special_feature_is_feature_only_not_structural_form() -> None:
     dataset, profile, semantic = _semantic(_record(
         1,
         title="Bath Storage Shower Organizer for Dorm and Gym",
@@ -94,16 +94,18 @@ def test_structured_portable_form_is_visible_but_not_route_authority() -> None:
     ))
     listing = semantic.listings[0]
 
-    assert _values(listing, "product_form") == {"portable"}
+    assert _values(listing, "product_form") == set()
     assert _values(listing, "installation_architecture") == set()
+    assert any(
+        fact.dimension == "functional_feature"
+        and "portable" in str(fact.normalized_value)
+        for fact in listing.facts
+    )
     config = load_route_discovery_v2_config(CONFIGS / "shower_caddies.v2.json")
     route_result = build_route_discovery_v2(
         dataset, semantic, profile=profile, config=config,
     )
-    form = route_result.feature_views[0].feature("product_form")
-    assert form is not None
-    assert form.values == ("portable",)
-    assert form.defining_values == ()
+    assert route_result.feature_views[0].feature("product_form") is None
     assert route_result.memberships[0].status is MembershipStatus.UNCLASSIFIED
 
 

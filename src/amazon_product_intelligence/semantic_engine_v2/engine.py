@@ -354,7 +354,13 @@ def _decision_facts(
     return facts, evidence
 
 
-def _rule_priority(profile: CategorySemanticProfileV1_1, fact: SemanticFact) -> int:
+def _rule_priority(
+    profile: CategorySemanticProfileV1_1,
+    fact: SemanticFact,
+    *,
+    dimension_rule_ids: tuple[str, ...] = (),
+    all_rule_ids: tuple[str, ...] = (),
+) -> int:
     rules: Iterable[Any]
     if fact.dimension == "product_identity":
         rules = profile.identity_rules
@@ -363,7 +369,11 @@ def _rule_priority(profile: CategorySemanticProfileV1_1, fact: SemanticFact) -> 
     elif fact.dimension == "consumption_lifecycle":
         rules = profile.lifecycle_rules
     else:
-        return 0
+        return profile.fact_authority_priority(
+            fact.rule_id,
+            dimension_rule_ids=dimension_rule_ids,
+            all_rule_ids=all_rule_ids,
+        )
     return next(item.priority for item in rules if item.rule_id == fact.rule_id)
 
 
@@ -389,6 +399,8 @@ def _relationship_for_dimension(
     dimension: str,
     facts: tuple[SemanticFact, ...],
     profile: CategorySemanticProfileV1_1,
+    *,
+    all_authority_rule_ids: tuple[str, ...],
 ) -> EvidenceRelationship:
     policy = profile.source_policy(dimension)
     if not facts:
@@ -434,8 +446,18 @@ def _relationship_for_dimension(
                 "PROFILE_ALLOWS_MULTI_VALUE_COEXISTENCE",
             )
         else:
-            minimum = min(_rule_priority(profile, item) for item in facts)
-            best = [item for item in facts if _rule_priority(profile, item) == minimum]
+            dimension_rule_ids = tuple(item.rule_id for item in facts)
+            priorities = {
+                item.fact_id: _rule_priority(
+                    profile,
+                    item,
+                    dimension_rule_ids=dimension_rule_ids,
+                    all_rule_ids=all_authority_rule_ids,
+                )
+                for item in facts
+            }
+            minimum = min(priorities.values())
+            best = [item for item in facts if priorities[item.fact_id] == minimum]
             best_values = {_value_key(item) for item in best}
             best_conflict_value_tokens = {_conflict_value_token(item) for item in best}
             best_primary_sources = {
@@ -454,12 +476,33 @@ def _relationship_for_dimension(
                     item, conflict_value_tokens
                 )
             ]
+            precedence_resolved = (
+                len(best_values) == 1
+                and len(set(priorities.values())) > 1
+                and any(
+                    item.rule_id in {
+                        rule.rule_id
+                        for rule in profile.fact_rules
+                        if rule.authority_priority > 0
+                    }
+                    for item in facts
+                )
+            )
             critical = (
-                bool(applicable_route_rules)
+                not precedence_resolved
+                and bool(applicable_route_rules)
                 and len(best_values) > 1
                 and bool(best_primary_sources)
             )
-            if critical:
+            if precedence_resolved:
+                state, reasons = (
+                    EvidenceRelationshipState.RESOLVED_BY_GOVERNED_PRECEDENCE,
+                    (
+                        "PROFILE_GOVERNED_FACT_AUTHORITY_PRECEDENCE",
+                        *(item.rule_id for item in best),
+                    ),
+                )
+            elif critical:
                 state, reasons = EvidenceRelationshipState.ROUTE_CRITICAL_CONFLICT, (
                     "MUTUALLY_EXCLUSIVE_PRIMARY_EVIDENCE",
                     *(item.rule_id for item in applicable_route_rules),
@@ -486,6 +529,8 @@ def _relationships(
     listing_reference: str,
     facts: tuple[SemanticFact, ...],
     profile: CategorySemanticProfileV1_1,
+    *,
+    evidence_rule_ids: tuple[str, ...] = (),
 ) -> tuple[EvidenceRelationship, ...]:
     by_dimension: dict[str, list[SemanticFact]] = defaultdict(list)
     for fact in facts:
@@ -495,6 +540,9 @@ def _relationships(
             listing_reference, policy.role, policy.dimension,
             tuple(sorted(by_dimension.get(policy.dimension, ()), key=lambda item: item.fact_id)),
             profile,
+            all_authority_rule_ids=tuple(
+                (*evidence_rule_ids, *(item.rule_id for item in facts))
+            ),
         )
         for policy in profile.source_policies
     ]
@@ -673,7 +721,12 @@ def _listing_result(
         }.values(),
         key=lambda item: item.evidence_id,
     ))
-    relationships = _relationships(record.asin, all_facts, profile)
+    relationships = _relationships(
+        record.asin,
+        all_facts,
+        profile,
+        evidence_rule_ids=tuple(item.profile_rule_id for item in all_evidence),
+    )
     identity = _identity(all_facts, profile)
     product_role = _product_role(all_facts, profile)
     critical_dimensions = {

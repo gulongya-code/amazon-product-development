@@ -11,10 +11,12 @@ from amazon_product_intelligence.sellersprite_import.models import GovernedMarke
 from amazon_product_intelligence.semantic_engine_v2.models import (
     EvidenceRelationshipState,
     ListingSemanticResult,
+    SemanticDecisionStatus,
     SemanticEngineV2Result,
 )
 from amazon_product_intelligence.semantic_engine_v2.profile import (
     CategorySemanticProfileV1_1,
+    RouteDimensionPrecedencePolicy,
     SourcePolicy,
 )
 
@@ -36,6 +38,7 @@ def _feature(
     *,
     policy: SourcePolicy,
     profile: CategorySemanticProfileV1_1,
+    route_precedence_policies: tuple[RouteDimensionPrecedencePolicy, ...],
 ) -> SemanticRouteFeature | None:
     facts = tuple(sorted((
         item for item in listing.facts
@@ -47,11 +50,36 @@ def _feature(
     relationships = tuple(sorted((
         item for item in listing.relationships if item.dimension == policy.dimension
     ), key=lambda item: item.relationship_id))
+    precedence_resolved = any(
+        item.state is EvidenceRelationshipState.RESOLVED_BY_GOVERNED_PRECEDENCE
+        for item in relationships
+    )
+    authoritative_facts = facts
+    if precedence_resolved:
+        dimension_rule_ids = tuple(item.rule_id for item in facts)
+        all_rule_ids = tuple((
+            *(item.rule_id for item in listing.facts),
+            *(item.profile_rule_id for item in listing.evidence),
+        ))
+        priorities = {
+            item.fact_id: profile.fact_authority_priority(
+                item.rule_id,
+                dimension_rule_ids=dimension_rule_ids,
+                all_rule_ids=all_rule_ids,
+            )
+            for item in facts
+        }
+        minimum = min(priorities.values())
+        authoritative_facts = tuple(
+            item for item in facts if priorities[item.fact_id] == minimum
+        )
     primary = tuple(
-        item for item in facts if set(item.source_classes) & set(policy.primary_sources)
+        item for item in authoritative_facts
+        if set(item.source_classes) & set(policy.primary_sources)
     )
     fallback = tuple(
-        item for item in facts if set(item.source_classes) & set(policy.fallback_sources)
+        item for item in authoritative_facts
+        if set(item.source_classes) & set(policy.fallback_sources)
     )
     # Corroborating-only signals remain visible but cannot manufacture an
     # architecture value.  A governed fallback is used only when primary facts
@@ -60,8 +88,23 @@ def _feature(
     limitations = {
         limitation for item in facts for limitation in item.limitations
     }
+    for route_policy in route_precedence_policies:
+        if policy.dimension not in route_policy.nondefining_dimensions:
+            continue
+        preserved_rule_ids = set(route_policy.preserved_fact_rule_ids)
+        retained = tuple(
+            item for item in defining if item.rule_id in preserved_rule_ids
+        )
+        if retained != defining:
+            defining = retained
+            limitations.add(
+                "PROFILE_GOVERNED_ROUTE_DIMENSION_PRECEDENCE:"
+                f"{route_policy.policy_id}"
+            )
     if not defining:
         limitations.add("CORROBORATING_ONLY_NOT_ROUTE_DEFINING")
+    if precedence_resolved:
+        limitations.add("PROFILE_GOVERNED_FACT_AUTHORITY_PRECEDENCE_APPLIED")
     if any(item.state is EvidenceRelationshipState.TRUE_CONFLICT for item in relationships):
         limitations.add("TRUE_CONFLICT_PRESERVED")
     if any(
@@ -93,15 +136,62 @@ def _feature(
     )
 
 
+def _route_precedence_policy_applies(
+    listing: ListingSemanticResult,
+    policy: RouteDimensionPrecedencePolicy,
+) -> bool:
+    """Require governed identity, role, fact, and a non-conflicting relationship."""
+
+    identity = listing.product_identity
+    product_role = listing.product_role
+    if (
+        identity.status is not SemanticDecisionStatus.GOVERNED
+        or identity.is_target_identity is not True
+        or identity.normalized_identity not in policy.trigger_product_identities
+        or product_role.relation_status is not SemanticDecisionStatus.GOVERNED
+        or product_role.relation_role not in policy.trigger_relation_roles
+    ):
+        return False
+    trigger_facts = tuple(
+        item for item in listing.facts
+        if item.dimension == policy.trigger_dimension
+        and item.availability is not Availability.UNAVAILABLE
+        and isinstance(item.normalized_value, str)
+        and item.normalized_value.casefold() in policy.trigger_values
+    )
+    if not trigger_facts:
+        return False
+    relationship = next((
+        item for item in listing.relationships
+        if item.dimension == policy.trigger_dimension
+    ), None)
+    return relationship is not None and relationship.state not in {
+        EvidenceRelationshipState.TRUE_CONFLICT,
+        EvidenceRelationshipState.ROUTE_CRITICAL_CONFLICT,
+        EvidenceRelationshipState.UNAVAILABLE,
+    }
+
+
 def _view(
     listing: ListingSemanticResult,
     *,
     policies: tuple[SourcePolicy, ...],
     profile: CategorySemanticProfileV1_1,
 ) -> SemanticRouteFeatureView:
+    route_precedence_policies = tuple(
+        item for item in profile.route_dimension_precedence_policies
+        if _route_precedence_policy_applies(listing, item)
+    )
     features = tuple(sorted((
         feature for policy in policies
-        if (feature := _feature(listing, policy=policy, profile=profile)) is not None
+        if (
+            feature := _feature(
+                listing,
+                policy=policy,
+                profile=profile,
+                route_precedence_policies=route_precedence_policies,
+            )
+        ) is not None
     ), key=lambda item: (item.role.value, item.dimension)))
     limitations = set(listing.limitations)
     if not listing.market_cohort_eligibility.eligible_for_primary_cohort:

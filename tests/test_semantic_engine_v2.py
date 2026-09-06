@@ -128,6 +128,7 @@ def test_profile_loader_rejects_unknown_keys_and_category_mismatch(tmp_path: Pat
 def test_frozen_relationship_and_role_vocabularies_are_exact() -> None:
     assert {item.value for item in EvidenceRelationshipState} == {
         "AGREES", "COMPLEMENTARY", "COMPATIBLE_MULTI_VALUE",
+        "RESOLVED_BY_GOVERNED_PRECEDENCE",
         "SOURCE_ONLY_TITLE", "SOURCE_ONLY_STRUCTURED", "UNAVAILABLE",
         "TRUE_CONFLICT", "ROUTE_CRITICAL_CONFLICT",
     }

@@ -696,9 +696,27 @@ def _coverage(
     )) for dimension in config.route_dimensions)
 
 
-def _label(definition: tuple[RouteSemanticKey, ...]) -> str:
+def _label(
+    definition: tuple[RouteSemanticKey, ...],
+    *,
+    profile: CategorySemanticProfileV1_1,
+) -> str:
+    present_dimensions = {item.dimension for item in definition}
+
+    def display_value(dimension: str, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        matches = tuple(
+            item for item in profile.route_fallback_label_policies
+            if item.dimension == dimension
+            and item.value == value.casefold()
+            and not (set(item.absent_dimensions) & present_dimensions)
+        )
+        return matches[0].fallback_label if len(matches) == 1 else value
+
     return " | ".join(
-        f"{item.role.value}:{item.dimension}={canonical_json(list(item.values))}"
+        f"{item.role.value}:{item.dimension}="
+        f"{canonical_json([display_value(item.dimension, value) for value in item.values])}"
         for item in definition
     )[:320]
 
@@ -1007,7 +1025,8 @@ def build_route_discovery_v2(
             relevance=RoleRelevance.FACET_ONLY,
         )
         logical = {
-            "route_id": route_id, "label": _label(cluster.anchor),
+            "route_id": route_id,
+            "label": _label(cluster.anchor, profile=profile),
             "defining_features": [item.to_dict() for item in cluster.anchor],
             "secondary_descriptors": [item.to_dict() for item in secondary],
             "facet_descriptors": [item.to_dict() for item in facets],

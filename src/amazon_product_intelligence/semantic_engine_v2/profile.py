@@ -37,6 +37,9 @@ _TOP_KEYS = {
     "true_conflict_rules", "route_critical_conflict_rules",
     "quantity_scope_rules", "cohort_policy",
 }
+_TOP_OPTIONAL_KEYS = {
+    "route_dimension_precedence_policies", "route_fallback_label_policies",
+}
 _SOURCE_POLICY_KEYS = {
     "policy_id", "role", "dimension", "primary_sources", "corroborating_sources",
     "fallback_sources", "forbidden_sources", "exact_specification",
@@ -47,6 +50,10 @@ _FACT_RULE_KEYS = {
     "rule_id", "role", "dimension", "sources", "source_keys", "match_phrases",
     "exclusions", "value_mode", "normalized_value", "quantity_kind",
     "semantic_scope", "quantity_subtype", "confidence",
+}
+_FACT_RULE_OPTIONAL_KEYS = {
+    "authority_priority", "authority_preferred_rule_ids",
+    "authority_blocking_rule_ids",
 }
 _IDENTITY_RULE_KEYS = {
     "rule_id", "sources", "phrases", "exclusions", "identity", "is_target", "priority",
@@ -60,6 +67,14 @@ _QUANTITY_SCOPE_KEYS = {
 _COHORT_KEYS = {
     "policy_id", "version", "analysis_mode", "target_identity_values",
     "primary_relation_roles", "non_primary_relation_roles",
+}
+_ROUTE_DIMENSION_PRECEDENCE_KEYS = {
+    "policy_id", "trigger_product_identities", "trigger_relation_roles",
+    "trigger_dimension", "trigger_values", "nondefining_dimensions",
+    "preserved_fact_rule_ids",
+}
+_ROUTE_FALLBACK_LABEL_KEYS = {
+    "policy_id", "dimension", "value", "absent_dimensions", "fallback_label",
 }
 
 
@@ -100,6 +115,9 @@ class FactRule:
     semantic_scope: SemanticScope | None
     quantity_subtype: QuantitySubtype | None
     confidence: AttributeConfidenceLevel
+    authority_priority: int = 0
+    authority_preferred_rule_ids: tuple[str, ...] = ()
+    authority_blocking_rule_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +175,36 @@ class APDCohortPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class RouteDimensionPrecedencePolicy:
+    """Profile authority for facts that remain true but are not Route-defining.
+
+    The trigger is a governed identity/relation decision plus an observed fact.
+    Only explicitly listed fact rules may retain defining authority on a demoted
+    dimension.  All observations, facts, evidence, and relationships remain in
+    the semantic feature view.
+    """
+
+    policy_id: str
+    trigger_product_identities: tuple[str, ...]
+    trigger_relation_roles: tuple[RelationRole, ...]
+    trigger_dimension: str
+    trigger_values: tuple[str, ...]
+    nondefining_dimensions: tuple[str, ...]
+    preserved_fact_rule_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RouteFallbackLabelPolicy:
+    """Operator-facing fallback label for a sparse governed Route definition."""
+
+    policy_id: str
+    dimension: str
+    value: str
+    absent_dimensions: tuple[str, ...]
+    fallback_label: str
+
+
+@dataclass(frozen=True, slots=True)
 class CategorySemanticProfileV1_1:
     profile_id: str
     version: str
@@ -177,6 +225,10 @@ class CategorySemanticProfileV1_1:
     quantity_scope_rules: tuple[QuantityScopeRule, ...]
     cohort_policy: APDCohortPolicy
     fingerprint: str
+    route_dimension_precedence_policies: tuple[
+        RouteDimensionPrecedencePolicy, ...
+    ] = ()
+    route_fallback_label_policies: tuple[RouteFallbackLabelPolicy, ...] = ()
     schema_version: str = CATEGORY_SEMANTIC_PROFILE_SCHEMA_VERSION
 
     @property
@@ -242,15 +294,59 @@ class CategorySemanticProfileV1_1:
             )
         return matches[0]
 
+    def fact_rule(self, rule_id: str) -> FactRule:
+        try:
+            return next(item for item in self.fact_rules if item.rule_id == rule_id)
+        except StopIteration as exc:
+            raise SemanticEngineV2Error(
+                "PROFILE_POLICY_MISSING", f"no fact rule {rule_id}"
+            ) from exc
+
+    def fact_authority_priority(
+        self,
+        rule_id: str,
+        *,
+        dimension_rule_ids: tuple[str, ...],
+        all_rule_ids: tuple[str, ...],
+    ) -> int:
+        """Return guarded profile authority for one observed fact rule.
+
+        A nonzero priority is active only when an explicitly listed preferred
+        rule is present, every other observed rule for the dimension is either
+        this subordinate rule or one of those preferred rules, and no declared
+        blocker occurs anywhere in the listing.  Lower numbers are stronger.
+        This makes specificity opt-in and fail-closed for unlisted conflicts.
+        """
+
+        rule = self.fact_rule(rule_id)
+        if rule.authority_priority == 0:
+            return 0
+        dimension_observed = set(dimension_rule_ids)
+        preferred = set(rule.authority_preferred_rule_ids)
+        if not dimension_observed & preferred:
+            return 0
+        if dimension_observed - {rule.rule_id, *preferred}:
+            return 0
+        if set(all_rule_ids) & set(rule.authority_blocking_rule_ids):
+            return 0
+        return rule.authority_priority
+
 
 def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
-def _object(value: Any, path: str, keys: set[str]) -> Mapping[str, Any]:
+def _object(
+    value: Any,
+    path: str,
+    keys: set[str],
+    *,
+    optional_keys: set[str] | None = None,
+) -> Mapping[str, Any]:
     if not isinstance(value, dict):
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", f"{path} must be object")
-    unknown = sorted(set(value) - keys)
+    allowed = keys | (optional_keys or set())
+    unknown = sorted(set(value) - allowed)
     missing = sorted(keys - set(value))
     if unknown or missing:
         raise SemanticEngineV2Error(
@@ -353,7 +449,9 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
         raise SemanticEngineV2Error(
             "PROFILE_READ_FAILED", "profile must be readable UTF-8 JSON"
         ) from exc
-    top = _object(payload, "profile", _TOP_KEYS)
+    top = _object(
+        payload, "profile", _TOP_KEYS, optional_keys=_TOP_OPTIONAL_KEYS,
+    )
     if top["schema_version"] != CATEGORY_SEMANTIC_PROFILE_SCHEMA_VERSION:
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "unsupported schema_version")
     if top["normalization_version"] != SEMANTIC_NORMALIZATION_VERSION:
@@ -400,7 +498,12 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
 
     fact_rules: list[FactRule] = []
     for index, raw in enumerate(top["fact_rules"]):
-        item = _object(raw, f"fact_rules[{index}]", _FACT_RULE_KEYS)
+        item = _object(
+            raw,
+            f"fact_rules[{index}]",
+            _FACT_RULE_KEYS,
+            optional_keys=_FACT_RULE_OPTIONAL_KEYS,
+        )
         mode = _text(item["value_mode"], "value_mode").upper()
         if mode not in {"EVIDENCE_ONLY", "FIXED", "SOURCE_VALUE", "MEASUREMENT"}:
             raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "invalid value_mode")
@@ -437,6 +540,19 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
             value_mode=mode, normalized_value=normalized_value, quantity_kind=kind,
             semantic_scope=scope, quantity_subtype=subtype,
             confidence=_enum(AttributeConfidenceLevel, item["confidence"], "confidence"),
+            authority_priority=_priority(
+                item.get("authority_priority", 0), "authority_priority"
+            ),
+            authority_preferred_rule_ids=_texts(
+                item.get("authority_preferred_rule_ids", []),
+                "authority_preferred_rule_ids", allow_empty=True,
+                normalize=False,
+            ),
+            authority_blocking_rule_ids=_texts(
+                item.get("authority_blocking_rule_ids", []),
+                "authority_blocking_rule_ids", allow_empty=True,
+                normalize=False,
+            ),
         ))
 
     identity_rules: list[IdentityRule] = []
@@ -524,6 +640,60 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
     if set(cohort.primary_relation_roles) & set(cohort.non_primary_relation_roles):
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "cohort role sets overlap")
 
+    route_dimension_precedence_policies = tuple(
+        RouteDimensionPrecedencePolicy(
+            policy_id=_text(item["policy_id"], "policy_id"),
+            trigger_product_identities=_texts(
+                item["trigger_product_identities"], "trigger_product_identities"
+            ),
+            trigger_relation_roles=_enums(
+                RelationRole, item["trigger_relation_roles"], "trigger_relation_roles"
+            ),
+            trigger_dimension=_text(
+                item["trigger_dimension"], "trigger_dimension", normalize=True
+            ),
+            trigger_values=_texts(item["trigger_values"], "trigger_values"),
+            nondefining_dimensions=_texts(
+                item["nondefining_dimensions"], "nondefining_dimensions"
+            ),
+            preserved_fact_rule_ids=_texts(
+                item["preserved_fact_rule_ids"], "preserved_fact_rule_ids",
+                allow_empty=True, normalize=False,
+            ),
+        )
+        for item in (
+            _object(
+                raw,
+                f"route_dimension_precedence_policies[{index}]",
+                _ROUTE_DIMENSION_PRECEDENCE_KEYS,
+            )
+            for index, raw in enumerate(
+                top.get("route_dimension_precedence_policies", [])
+            )
+        )
+    )
+    route_fallback_label_policies = tuple(
+        RouteFallbackLabelPolicy(
+            policy_id=_text(item["policy_id"], "policy_id"),
+            dimension=_text(item["dimension"], "dimension", normalize=True),
+            value=_text(item["value"], "value", normalize=True),
+            absent_dimensions=_texts(
+                item["absent_dimensions"], "absent_dimensions"
+            ),
+            fallback_label=_text(
+                item["fallback_label"], "fallback_label", normalize=True
+            ),
+        )
+        for item in (
+            _object(
+                raw,
+                f"route_fallback_label_policies[{index}]",
+                _ROUTE_FALLBACK_LABEL_KEYS,
+            )
+            for index, raw in enumerate(top.get("route_fallback_label_policies", []))
+        )
+    )
+
     profile = CategorySemanticProfileV1_1(
         profile_id=_text(top["profile_id"], "profile_id"),
         version=_text(top["version"], "version"),
@@ -543,6 +713,10 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
         true_conflict_rules=conflicts("true_conflict_rules"),
         route_critical_conflict_rules=conflicts("route_critical_conflict_rules"),
         quantity_scope_rules=quantity_rules, cohort_policy=cohort,
+        route_dimension_precedence_policies=(
+            route_dimension_precedence_policies
+        ),
+        route_fallback_label_policies=route_fallback_label_policies,
         fingerprint=sha256(canonical_json(payload).encode("utf-8")).hexdigest(),
     )
     all_ids = [
@@ -557,10 +731,48 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
         *(item.rule_id for item in profile.true_conflict_rules),
         *(item.rule_id for item in profile.route_critical_conflict_rules),
         *(item.rule_id for item in profile.quantity_scope_rules),
+        *(item.policy_id for item in profile.route_dimension_precedence_policies),
+        *(item.policy_id for item in profile.route_fallback_label_policies),
         profile.cohort_policy.policy_id,
     ]
     if len(all_ids) != len(set(all_ids)):
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "rule/policy IDs must be unique")
+    fact_rules_by_id = {item.rule_id: item for item in profile.fact_rules}
+    for item in profile.fact_rules:
+        preferred = set(item.authority_preferred_rule_ids)
+        blockers = set(item.authority_blocking_rule_ids)
+        if item.authority_priority == 0 and (preferred or blockers):
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fact rule {item.rule_id} precedence declarations require "
+                "authority_priority > 0",
+            )
+        if item.authority_priority > 0 and not preferred:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fact rule {item.rule_id} authority priority requires preferred rules",
+            )
+        referenced = preferred | blockers
+        missing_references = sorted(referenced - set(fact_rules_by_id))
+        if missing_references:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fact rule {item.rule_id} precedence references unknown rules: "
+                f"{missing_references}",
+            )
+        if item.rule_id in referenced or preferred & blockers:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fact rule {item.rule_id} has overlapping precedence declarations",
+            )
+        if any(
+            fact_rules_by_id[rule_id].dimension != item.dimension
+            for rule_id in preferred
+        ):
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fact rule {item.rule_id} preferred rules must share its dimension",
+            )
     measurement_rules = tuple(
         item for item in profile.fact_rules if item.value_mode == "MEASUREMENT"
     )
@@ -602,6 +814,70 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
     if mandatory_dimensions - dimensions:
         raise SemanticEngineV2Error(
             "PROFILE_SCHEMA_INVALID", "identity/relation/lifecycle source policies are required"
+        )
+    target_identities = set(profile.cohort_policy.target_identity_values)
+    primary_roles = set(profile.cohort_policy.primary_relation_roles)
+    for item in profile.route_dimension_precedence_policies:
+        if set(item.trigger_product_identities) - target_identities:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} trigger identity is not target-governed",
+            )
+        if set(item.trigger_relation_roles) - primary_roles:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} trigger role is not primary-governed",
+            )
+        policy_dimensions = {
+            item.trigger_dimension, *item.nondefining_dimensions,
+        }
+        if policy_dimensions - dimensions:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} references an unknown dimension",
+            )
+        if item.trigger_dimension in item.nondefining_dimensions:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} cannot demote its own trigger",
+            )
+        missing_rule_ids = sorted(
+            set(item.preserved_fact_rule_ids) - set(fact_rules_by_id)
+        )
+        if missing_rule_ids:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} references unknown fact rules: "
+                f"{missing_rule_ids}",
+            )
+        if any(
+            fact_rules_by_id[rule_id].dimension not in item.nondefining_dimensions
+            for rule_id in item.preserved_fact_rule_ids
+        ):
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"route policy {item.policy_id} preserved rules must belong to "
+                "nondefining dimensions",
+            )
+    for item in profile.route_fallback_label_policies:
+        if {item.dimension, *item.absent_dimensions} - dimensions:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fallback label policy {item.policy_id} references an unknown dimension",
+            )
+        if item.dimension in item.absent_dimensions:
+            raise SemanticEngineV2Error(
+                "PROFILE_SCHEMA_INVALID",
+                f"fallback label policy {item.policy_id} cannot require its own "
+                "dimension absent",
+            )
+    fallback_signatures = {
+        (item.dimension, item.value, frozenset(item.absent_dimensions))
+        for item in profile.route_fallback_label_policies
+    }
+    if len(fallback_signatures) != len(profile.route_fallback_label_policies):
+        raise SemanticEngineV2Error(
+            "PROFILE_SCHEMA_INVALID", "fallback label policies overlap",
         )
     authorized = set(profile.source_authorization)
     authoritative_rules = (
@@ -687,6 +963,7 @@ __all__ = (
     "APDCohortPolicy", "AliasRule", "CATEGORY_SEMANTIC_PROFILE_SCHEMA_VERSION",
     "CategorySemanticProfileV1_1", "CoexistenceRule", "ConflictRule",
     "DecisionRule", "FactRule", "IdentityRule", "QuantityScopeRule",
+    "RouteDimensionPrecedencePolicy", "RouteFallbackLabelPolicy",
     "SEMANTIC_NORMALIZATION_VERSION", "SourcePolicy",
     "load_category_semantic_profile",
 )

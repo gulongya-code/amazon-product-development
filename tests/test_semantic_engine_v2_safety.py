@@ -361,3 +361,42 @@ def test_ambiguous_quantity_scope_authorization_fails_closed(tmp_path: Path) -> 
         match="requires exactly one explicit quantity_scope_rules authorization",
     ):
         load_category_semantic_profile(_write_profile(tmp_path, payload))
+
+
+def test_fact_authority_precedence_rejects_unknown_preferred_rule(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(BASE_PROFILE.read_text(encoding="utf-8"))
+    rule = payload["fact_rules"][0]
+    rule["authority_priority"] = 1
+    rule["authority_preferred_rule_ids"] = ["missing-preferred-rule"]
+    rule["authority_blocking_rule_ids"] = []
+
+    with pytest.raises(
+        SemanticEngineV2Error,
+        match="precedence references unknown rules",
+    ):
+        load_category_semantic_profile(_write_profile(tmp_path, payload))
+
+
+def test_fact_authority_precedence_requires_same_dimension_preference(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(BASE_PROFILE.read_text(encoding="utf-8"))
+    rule = next(
+        item for item in payload["fact_rules"]
+        if item["rule_id"] == "dog-operation-structured"
+    )
+    different_dimension = next(
+        item for item in payload["fact_rules"]
+        if item["dimension"] != rule["dimension"]
+    )
+    rule["authority_priority"] = 1
+    rule["authority_preferred_rule_ids"] = [different_dimension["rule_id"]]
+    rule["authority_blocking_rule_ids"] = []
+
+    with pytest.raises(
+        SemanticEngineV2Error,
+        match="preferred rules must share its dimension",
+    ):
+        load_category_semantic_profile(_write_profile(tmp_path, payload))
