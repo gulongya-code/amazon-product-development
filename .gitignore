@@ -26,3 +26,8 @@ tmp/
 temp/
 *.tmp
 
+
+# Local evidence retained outside the 2026-10-15 pause snapshot
+*.egg-info/
+/outputs/
+/src/tests/docs/.private/

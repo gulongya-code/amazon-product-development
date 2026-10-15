@@ -1,0 +1,185 @@
+{
+  "date": "2026-10-15",
+  "timezone": "Asia/Shanghai",
+  "status": "DEVELOPMENT_PAUSED_NOT_A_STABLE_RELEASE",
+  "source_branch": "codex/task-sp-041d-product-map-route-opportunity",
+  "source_head": "6446c36618180d6a4b32b58c6801efd4f9f916fa",
+  "local_snapshot_commit": "5e4194ba091a03daf2bd02c1b291da8d39989e01",
+  "published_history_parent": "1b279535cf4aa565c1ea655c8d9fea769c0d11e8",
+  "published_history_ref": "origin/codex/task-sp-043b-operator-market-report-v0-3",
+  "target_branch": "main",
+  "local_changes_preserved": [
+    {
+      "path": "docs/requirements/MARKET_REPORT_REFERENCE_TEMPLATE_REQUIREMENTS_V0.1.md",
+      "kind": "tracked",
+      "size": 25107,
+      "sha256": "0a9c64de33303e5cbad84978be20e99dbbbb2cf4f1ecaed81b00db3cb6d47cd5"
+    },
+    {
+      "path": "docs/requirements/亚马逊智能选品系统_产品需求与核心架构说明_V0.2.md",
+      "kind": "tracked",
+      "size": 37064,
+      "sha256": "43d3e5bebb5fda80771eb5b40d915cc80a60a1ef53039149dde0393afdca934c"
+    },
+    {
+      "path": "pyproject.toml",
+      "kind": "tracked",
+      "size": 911,
+      "sha256": "ec7b7aba8c31222d99cd310d865a29bf7818344ff81990a9cdd7a8891a620bf7"
+    },
+    {
+      "path": "docs/08_market_offer.md",
+      "kind": "untracked",
+      "size": 5621,
+      "sha256": "5bb182b0b9805662b9a04f6c8aac8667a8f81f294719427c0ab1f5463aba4fec"
+    },
+    {
+      "path": "docs/buyer_context_probe.md",
+      "kind": "untracked",
+      "size": 8235,
+      "sha256": "e9a5b0c02bd6dad3c4bb09d2307ae40eb3cdb784e19d1aa703424e7690cf43d6"
+    },
+    {
+      "path": "docs/market_new_research_intake_v1.md",
+      "kind": "untracked",
+      "size": 2191,
+      "sha256": "6a6e5705e67e7333f6ede1f3fc87fe7f4ee94579e221b65d8f66945791924efe"
+    },
+    {
+      "path": "docs/market_pds_workflow_v1.md",
+      "kind": "untracked",
+      "size": 5693,
+      "sha256": "bd649218a9bfe8385603e996924c0821de3489f804cb366b98b7e77bb40f1fc8"
+    },
+    {
+      "path": "docs/yps_competitive_difference.md",
+      "kind": "untracked",
+      "size": 4888,
+      "sha256": "7f3b9207bd8631310fcb47f2490406f08c777c1aef4e28aa1f7b6be73a781f62"
+    },
+    {
+      "path": "scripts/receive_pds_market_research.py",
+      "kind": "untracked",
+      "size": 299,
+      "sha256": "c3d30d1e16cbff58148d5a9752a32025d66360394dea2b58773f02006d3ed042"
+    },
+    {
+      "path": "scripts/run_native_research_completion.py",
+      "kind": "untracked",
+      "size": 312,
+      "sha256": "77397b2164b50a94c9c2c8aa65935ad0bf582fab1932e57143f8c62dd714f8a4"
+    },
+    {
+      "path": "scripts/run_pds_market_research.py",
+      "kind": "untracked",
+      "size": 310,
+      "sha256": "21d81dc918322fa49261e4e796bbc254aec25653124573794bd16a4946032691"
+    },
+    {
+      "path": "src/amazon_product_intelligence/buyer_context_probe.py",
+      "kind": "untracked",
+      "size": 20687,
+      "sha256": "4b50a8d25069dc8cd492132d4207a60308e6d82cfbebe80110b20e46cbcfbd8d"
+    },
+    {
+      "path": "src/amazon_product_intelligence/market_pds_workflow.py",
+      "kind": "untracked",
+      "size": 14317,
+      "sha256": "e8dd6b0cc3fe143bbedea0d55b83e8ae314200914e24cca0f377a47300f935dc"
+    },
+    {
+      "path": "src/amazon_product_intelligence/market_research_intake.py",
+      "kind": "untracked",
+      "size": 7511,
+      "sha256": "b9d92a54e627a6eb13481aadb61e77bb5cd5e0ba6570db7a8f3d42e23390f33e"
+    },
+    {
+      "path": "src/amazon_product_intelligence/native_research_completion.py",
+      "kind": "untracked",
+      "size": 29113,
+      "sha256": "fc5d11e619012dfa4431dffee819802c278840f5048b6a7fad370a7bfae6502b"
+    },
+    {
+      "path": "src/amazon_product_intelligence/offer08_evidence.py",
+      "kind": "untracked",
+      "size": 10535,
+      "sha256": "9f5d40e7b8cbe4fcb012c130b62f53a1d23c24d9b8dfa9ac036e4f3d74fcce39"
+    },
+    {
+      "path": "src/amazon_product_intelligence/offer08_probe.py",
+      "kind": "untracked",
+      "size": 6746,
+      "sha256": "22f2791660b6d6ac33a15a859a775fdc36e7d2dd388738059866218aad1c2702"
+    },
+    {
+      "path": "src/amazon_product_intelligence/pds_market_readback.py",
+      "kind": "untracked",
+      "size": 4049,
+      "sha256": "04a966caa0e07dbcf187d0a6dc681cc5464d2aa4a3da855a75bbbe0b735688b3"
+    },
+    {
+      "path": "src/amazon_product_intelligence/yps_competitive_difference.py",
+      "kind": "untracked",
+      "size": 11051,
+      "sha256": "bd2277b12e3336d670e903c978a14f25e3ac370ce747c6fdc891c63dc17233ca"
+    },
+    {
+      "path": "tests/test_buyer_context_probe.py",
+      "kind": "untracked",
+      "size": 6174,
+      "sha256": "454db5656cf740dd721dc7437664b63487cff270158f31fd1b93420b0c486e5d"
+    },
+    {
+      "path": "tests/test_market_pds_workflow.py",
+      "kind": "untracked",
+      "size": 8855,
+      "sha256": "ff3b1f101d9aeab430b4c58e34da98a7a72bbdf498666b3dc37c537083598eab"
+    },
+    {
+      "path": "tests/test_market_research_intake.py",
+      "kind": "untracked",
+      "size": 5915,
+      "sha256": "8a3c99403b27c1f78ae76efa08cb4a940b9cb145bffec9bcc33a334f29272e38"
+    },
+    {
+      "path": "tests/test_native_research_completion.py",
+      "kind": "untracked",
+      "size": 7466,
+      "sha256": "eda2cf16f67f0d484a83a5652f9c09db8aa4172cf0d87b9d2d3ed07ae09805d4"
+    },
+    {
+      "path": "tests/test_offer08_evidence.py",
+      "kind": "untracked",
+      "size": 3495,
+      "sha256": "bd3aac37074da98cdee25797a6be36a1761f0b12e84e9c166d92306728b72355"
+    },
+    {
+      "path": "tests/test_pds_market_readback.py",
+      "kind": "untracked",
+      "size": 2281,
+      "sha256": "5b4404f540c528ff4c6d48262cf2aa2c01477ce99b8071b8379c6b492e49109d"
+    },
+    {
+      "path": "tests/test_yps_competitive_difference.py",
+      "kind": "untracked",
+      "size": 3298,
+      "sha256": "729c5f76e62807b522599d76d23927c996d1474f812eda75266914094e32aa58"
+    }
+  ],
+  "local_only_count": 13,
+  "local_only_reasons": {
+    "local evidence / runtime / private data": 7,
+    "generated dependency metadata": 6
+  },
+  "other_worktrees": [
+    {
+      "head": "d470521da969426cbdc5f26448487080b1f8cb97",
+      "branch": "refs/heads/codex/task-sp-041s2-semantic-engine-v2",
+      "changed_entries": 5,
+      "availability": "AVAILABLE",
+      "treatment": "retained locally; not promoted by this pause"
+    }
+  ],
+  "local_runtime_treatment": "No runtime source replacement, restart, scheduler change, database write or private-evidence upload.",
+  "source_hash_note": "SHA256 describes original local bytes before integration; merge and pause documents are separate changes. See Git parents for both versions."
+}
