@@ -1,0 +1,22 @@
+{
+  "profile_id": "shower-caddies-operator-display-v0.3",
+  "category": "shower caddies",
+  "currency": "USD",
+  "price_boundaries": [10, 20, 40],
+  "family_rules": [
+    {"dimension": "product_form", "value": "portable", "family": "portable"},
+    {"dimension": "product_form", "value": "recessed_niche", "family": "recessed_or_builtin"},
+    {"dimension": "installation_architecture", "value": "recessed_or_builtin", "family": "recessed_or_builtin"},
+    {"dimension": "installation_architecture", "value": "wall_mount", "family": "wall_mounted"},
+    {"dimension": "installation_architecture", "value": "hanging_mount", "family": "hanging_mount"},
+    {"dimension": "installation_architecture", "value": "tension_pole", "family": "tension_pole"},
+    {"dimension": "installation_architecture", "value": "freestanding", "family": "freestanding"},
+    {"dimension": "product_form", "value": "freestanding", "family": "freestanding"}
+  ],
+  "labels": {
+    "price-0": {"zh-CN": "低价带", "en-US": "Low price"},
+    "price-1": {"zh-CN": "主流观察带", "en-US": "Mainstream observation band"},
+    "price-2": {"zh-CN": "中高价带", "en-US": "Upper price"},
+    "price-3": {"zh-CN": "高价／小众观察带", "en-US": "Premium / niche observation band"}
+  }
+}

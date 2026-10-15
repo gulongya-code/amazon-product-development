@@ -1,0 +1,21 @@
+{
+  "schema_version": "route-discovery-v2-config-v1.0",
+  "config_id": "dog-water-bottles-route-discovery-v2",
+  "version": "2.0.0",
+  "category": "dog water bottles",
+  "category_aliases": ["dog water bottle", "portable dog water bottles"],
+  "route_dimensions": ["operation_mechanism"],
+  "promoted_secondary_dimensions": [],
+  "descriptor_dimensions": ["item_capacity", "package_count"],
+  "adoption_dimensions": ["operation_mechanism", "item_capacity", "package_count"],
+  "min_defining_dimensions": 1,
+  "min_route_size": 3,
+  "singleton_policy": "MERGE_COMPATIBLE_ELSE_UNCLASSIFIED",
+  "new_product_max_age_days": 180,
+  "new_product_threshold_source": "SP-041D_CONFIG_V1_RETAINED",
+  "percentile_method": "NEAREST_RANK",
+  "candidate_min_count": 3,
+  "candidate_max_count": 5,
+  "candidate_min_reason_count": 2,
+  "candidate_min_semantic_distance": "0.15"
+}

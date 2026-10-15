@@ -1,0 +1,21 @@
+{
+  "schema_version": "route-discovery-v2-config-v1.0",
+  "config_id": "air-fryers-route-discovery-v2",
+  "version": "2.0.0",
+  "category": "air fryers",
+  "category_aliases": ["air fryer", "air fryer mixed", "air fryer mixed market", "air fryer mixed market sample", "air fryer accessories"],
+  "route_dimensions": ["structural_form", "operation_mechanism"],
+  "promoted_secondary_dimensions": [],
+  "descriptor_dimensions": ["consumable_unit_count"],
+  "adoption_dimensions": ["structural_form", "operation_mechanism", "consumable_unit_count"],
+  "min_defining_dimensions": 1,
+  "min_route_size": 3,
+  "singleton_policy": "MERGE_COMPATIBLE_ELSE_UNCLASSIFIED",
+  "new_product_max_age_days": 180,
+  "new_product_threshold_source": "SP-041D_CONFIG_V1_RETAINED",
+  "percentile_method": "NEAREST_RANK",
+  "candidate_min_count": 3,
+  "candidate_max_count": 5,
+  "candidate_min_reason_count": 2,
+  "candidate_min_semantic_distance": "0.15"
+}

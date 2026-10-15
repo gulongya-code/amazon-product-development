@@ -161,6 +161,25 @@ def normalize_ratio(value: Any, unit: Unit | None) -> RuleOutcome:
     return _success(candidate, unit, step, "validate_ratio_range")
 
 
+def normalize_signed_ratio(value: Any, unit: Unit | None) -> RuleOutcome:
+    """Normalize signed growth ratios without applying bounded-share rules."""
+
+    try:
+        if isinstance(value, str) and value.strip().endswith("%"):
+            candidate = _decimal(value.strip()[:-1]) / Decimal(100)
+            step = "parse_explicit_signed_percentage"
+        else:
+            candidate = _decimal(value)
+            step = "parse_signed_ratio"
+    except (InvalidOperation, ValueError):
+        return _failure(
+            NormalizationIssueCode.INVALID_FORMAT,
+            "signed ratio has an unsupported format",
+            unit,
+        )
+    return _success(candidate, unit, step)
+
+
 def normalize_rank(value: Any, unit: Unit | None) -> RuleOutcome:
     if isinstance(value, bool):
         return _failure(NormalizationIssueCode.INVALID_FORMAT, "rank must be an integer", unit)
@@ -399,6 +418,7 @@ def build_default_registry() -> NormalizerRegistry:
                 "metric.orders",
                 "metric.estimated_monthly_sales",
                 "metric.estimated_variation_sales",
+                "metric.listing_age_days",
                 "keyword.search_volume",
                 "product.child_count",
                 "keyword.related_product_count",
@@ -408,7 +428,11 @@ def build_default_registry() -> NormalizerRegistry:
         NormalizationRule(
             rule_id="canonical.money",
             rule_version=RULE_VERSION,
-            canonical_fields=("metric.price", "keyword.cpc"),
+            canonical_fields=(
+                "metric.price",
+                "metric.estimated_monthly_revenue",
+                "keyword.cpc",
+            ),
             normalize=normalize_money,
         ),
         NormalizationRule(
@@ -418,9 +442,20 @@ def build_default_registry() -> NormalizerRegistry:
             normalize=normalize_ratio,
         ),
         NormalizationRule(
+            rule_id="canonical.signed_ratio",
+            rule_version=RULE_VERSION,
+            canonical_fields=("metric.sales_mom_growth", "metric.sales_yoy_growth"),
+            normalize=normalize_signed_ratio,
+        ),
+        NormalizationRule(
             rule_id="canonical.rank",
             rule_version=RULE_VERSION,
-            canonical_fields=("metric.bsr", "keyword.aba_rank", "relationship.rank"),
+            canonical_fields=(
+                "metric.bsr",
+                "metric.subcategory_bsr",
+                "keyword.aba_rank",
+                "relationship.rank",
+            ),
             normalize=normalize_rank,
         ),
         NormalizationRule(

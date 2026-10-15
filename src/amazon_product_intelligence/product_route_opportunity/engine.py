@@ -182,6 +182,16 @@ def _candidate_reasons(route: ProductRoute) -> tuple[str, ...]:
     return tuple(reasons)
 
 
+def candidate_metric_reason_codes(route: ProductRoute) -> tuple[str, ...]:
+    """Return the frozen SP-041D metric evidence reasons for a route-like object.
+
+    Route Discovery V2 supplies its own semantic-diversity policy, while
+    retaining this accepted market-evidence qualification unchanged.
+    """
+
+    return _candidate_reasons(route)
+
+
 def _distance(left: ProductRoute, right: ProductRoute) -> Decimal:
     first = set(left.defining_attributes)
     second = set(right.defining_attributes)
@@ -442,4 +452,4 @@ def build_product_route_opportunity(
     )
 
 
-__all__ = ("build_product_route_opportunity",)
+__all__ = ("build_product_route_opportunity", "candidate_metric_reason_codes")

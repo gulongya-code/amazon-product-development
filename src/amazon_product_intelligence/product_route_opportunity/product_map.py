@@ -101,6 +101,29 @@ def _age_from_date(
     )
 
 
+def build_governed_market_fields(
+    record: ListingRecordV1,
+    *,
+    observed_date: str | None,
+) -> tuple[ProductMapField, ...]:
+    """Project the frozen SP-041D market inputs for one governed listing.
+
+    Route Discovery V2 consumes S2 rather than the SP-041C attribute map, but
+    its retained metrics require this exact market-field projection.  Keeping
+    the projection here gives V1 and V2 one implementation and one set of
+    evidence/availability semantics.
+    """
+
+    fields = [_field(record, name, header) for name, header in _FIELD_HEADERS.items()]
+    replacement = _age_from_date(fields, observed_date)
+    if replacement is not None:
+        fields = [
+            replacement if item.name == "listing_age_days" else item
+            for item in fields
+        ]
+    return tuple(sorted(fields, key=lambda item: item.name))
+
+
 def build_product_map_records(
     dataset: GovernedMarketDatasetV1,
     attribute_map: ProductAttributeMapV1,
@@ -129,10 +152,9 @@ def build_product_map_records(
     for asin in sorted(listings):
         listing = listings[asin]
         mapped = attributes[asin]
-        fields = [_field(listing, name, header) for name, header in _FIELD_HEADERS.items()]
-        replacement = _age_from_date(fields, dataset.observed_date)
-        if replacement is not None:
-            fields = [replacement if item.name == "listing_age_days" else item for item in fields]
+        fields = list(build_governed_market_fields(
+            listing, observed_date=dataset.observed_date,
+        ))
 
         route_attributes = tuple(
             RouteAttribute(
@@ -208,4 +230,7 @@ def structural_signature(
     return tuple(signature)
 
 
-__all__ = ("build_product_map_records", "structural_signature")
+__all__ = (
+    "build_governed_market_fields", "build_product_map_records",
+    "structural_signature",
+)
