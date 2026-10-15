@@ -8,8 +8,13 @@ dependencies = [
     "rapidfuzz>=3.14,<4",
 ]
 
+[project.optional-dependencies]
+buyer-probe = ["playwright>=1.55,<2"]
+
 [project.scripts]
 amazon-intel = "amazon_product_intelligence.production_pipeline.cli:main"
+amazon-buyer-probe = "amazon_product_intelligence.buyer_context_probe:main"
+amazon-market-pds = "amazon_product_intelligence.market_pds_workflow:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
