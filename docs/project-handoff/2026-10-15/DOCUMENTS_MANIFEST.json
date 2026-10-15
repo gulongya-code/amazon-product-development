@@ -1,0 +1,43 @@
+{
+  "snapshot_date": "2026-10-15",
+  "purpose": "四项目暂停开发后的需求与状态查阅副本",
+  "authority": "查阅汇编；不替代各项目正式需求、版本采用记录、权限或已有验收",
+  "split_policy": "原正文按主题完整拆分，每册保留全部33项来源索引；完整总文档保留",
+  "files": [
+    {
+      "file": "四项目需求与功能现状总览.docx",
+      "pages": 8,
+      "description": "需求、已满足功能、未完成和待验收事项",
+      "bytes": 53045,
+      "sha256": "de06950d457bf0e5c8134aeded76a97761c8ae2a7bed27c29b5f370834134f0c"
+    },
+    {
+      "file": "四项目原始需求整合说明.docx",
+      "pages": 26,
+      "description": "完整需求、修订关系、验收要求及33项来源索引",
+      "bytes": 75500,
+      "sha256": "eb71573d3e8a4a57a00f4344ca8e6b76ef8f7e806f77ef27cd8dfa8ebe74f31c"
+    },
+    {
+      "file": "原始需求整合说明_第一册_共同需求与PDS经营.docx",
+      "pages": 11,
+      "description": "共同职责与证据要求；PDS经营、监测、诊断和复盘",
+      "bytes": 54279,
+      "sha256": "b5b0441cb8f50c3e09873f367651ecc6bc3e03e223914a4f3e55dc9974592252"
+    },
+    {
+      "file": "原始需求整合说明_第二册_PDS报关与ADS广告.docx",
+      "pages": 11,
+      "description": "PDS报关资料专项；ADS广告诊断、建议、审核和观察",
+      "bytes": 54887,
+      "sha256": "0b4e6441e51180a1ca9707d8a9064908ca48ad86b0e06b6a3f3af25cf9dc36c0"
+    },
+    {
+      "file": "原始需求整合说明_第三册_KWS市场分析与验收.docx",
+      "pages": 12,
+      "description": "KWS、市场分析、跨项目修订与验收汇总",
+      "bytes": 56311,
+      "sha256": "a3b8a950757772472ff56eabbd3de6d9f4c5189076ed1540e26fff9a8a4d7fc6"
+    }
+  ]
+}
