@@ -80,6 +80,9 @@ $env:MARKET_REPORT_NODE_MODULES = '<主机提供的node_modules目录>'
 | `marketplace`, `category` | 对象与品类，须与语义/路线配置匹配 |
 | `observed_date`, `imported_at`, `generated_at` | 观察日期、导入时间和报告时间，按真实来源分别填写 |
 | `profile`, `route_config` | 仓库相对配置路径；不因覆盖不足改变已发布分类规则 |
+| `report_evidence_context` | 可选对象：`research_query`、`sampling_description`、`period_start`、`period_end`；未知保持 null，不能以下载日填充。缺失时生成受限报告。 |
+
+报告正确性修订见 [三项 P0 验证](../validation/MARKET_REPORT_P0_RELIABILITY_001_2026_10_17.md)。原始 XLSX 若有非商品说明行，保留原文件并在仓库外生成有明确逐行转换记录的派生输入；不覆盖原文件或改变业务字段。本修订不扩展导入器。重复父体整组待核实，父体估计不能直接分配到子体路线/价格/年龄或 BuyBox 卖家。未知时间/范围与不稳健增长会自动限制结论；旧报告若无资格字段，必须从受治理输入重新生成后交付。
 
 现有匹配配置包括 shower caddies 和 air fryers；后者语义配置文件名为 `air_fryer_accessories.v1_1.json`，其实际 scope 为 `air fryers`，应核对内容而不是按文件名猜测。原始输入、manifest、报告及 QA 输出均放仓库外。以下仅为有合格输入后的调用形式，本轮未执行：
 

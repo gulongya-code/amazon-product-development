@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from amazon_product_intelligence.contracts import canonical_json
-from amazon_product_intelligence.market_report.v0_3 import OperatorMarketReport, ReportProfile, build_operator_market_report, load_report_profile
+from amazon_product_intelligence.market_report.v0_3 import OperatorMarketReport, ReportEvidenceContext, ReportProfile, build_operator_market_report, load_report_profile
 from amazon_product_intelligence.market_report.v0_3.builder import _explanations, _readiness, hierarchy, resolve
 from amazon_product_intelligence.market_report.v0_3.delivery import deliver, validate_workbook
 from amazon_product_intelligence.market_report.v0_3.i18n import QUESTIONS, label
@@ -38,7 +38,7 @@ def integrated():
 
 @pytest.fixture(scope="module")
 def report(integrated):
-    return build_operator_market_report(integrated, profile=load_report_profile(ROOT / "config/market_report/shower_caddies.v0_3.json"))
+    return build_operator_market_report(integrated, profile=load_report_profile(ROOT / "config/market_report/shower_caddies.v0_3.json"), evidence_context=ReportEvidenceContext(research_query="fixture market", sampling_description="all nine synthetic listings", period_start="2026-07-28", period_end="2026-08-26"))
 
 
 @pytest.mark.parametrize("field,boundaries,values,expected", [
@@ -104,7 +104,9 @@ def test_first_available_date_only_uses_governed_observed_date(first, observed, 
 def test_growth_reconstructs_prior_sales_not_mean_percentages():
     rows = [row(1, sales=200, mom=1), row(2, sales=100, mom=0), row(3, sales=50, mom=-1), row(4, sales=None, mom=0)]
     result = growth(rows, "mom")
-    assert result["value"] == .5
+    assert result["raw_value"] == .5
+    assert result["value"] is None  # two pairs and large leave-one-out movement
+    assert "TOO_FEW_GROWTH_PAIRS" in result["qualification_reasons"]
     assert result["reconstructed_prior_sales"] == 200
     assert result["coverage"] == .5
     assert result["invalid_reconstruction_count"] == 1
@@ -208,6 +210,7 @@ def test_low_coverage_blocks_strong_recommendations_without_engine_change(integr
     report = build_operator_market_report(integrated, profile=ReportProfile(minimum_sales_coverage=1))
     counts = {"accepted":300, "assigned":64, "unclassified":233, "review_required":3}
     data = report.to_dict()
+    data["evidence_qualification"]["strong_research_allowed"] = True  # isolate the independent coverage policy
     result = _readiness(counts, data["assigned_market"], data["market"], ReportProfile())
     assert result["assigned_coverage"] == pytest.approx(64/300)
     assert not result["strong_route_research_allowed"]

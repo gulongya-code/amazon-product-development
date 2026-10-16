@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 from amazon_product_intelligence.contracts import canonical_json
 from amazon_product_intelligence.market_report.integrated import run_final_market_intelligence
-from amazon_product_intelligence.market_report.v0_3 import ReportProfile, build_operator_market_report, load_report_profile
+from amazon_product_intelligence.market_report.v0_3 import ReportEvidenceContext, ReportProfile, build_operator_market_report, load_report_profile
 from amazon_product_intelligence.market_report.v0_3.delivery import deliver
 from amazon_product_intelligence.market_report.v0_3.presentation import markdown, workbook_spec
 from amazon_product_intelligence.route_discovery_input import RouteDiscoveryInputContext
@@ -49,7 +49,7 @@ def run(args):
         for number in (1, 2):
             print(f"{key}: governed generation {number}/2", flush=True)
             integrated = run_final_market_intelligence(canonical_bundles=(canonical,), input_context=context, semantic_profile=load_category_semantic_profile(repo / entry["profile"]), route_config=load_route_discovery_v2_config(repo / entry["route_config"]), generated_at=entry["generated_at"])
-            report = build_operator_market_report(integrated, profile=policy)
+            report = build_operator_market_report(integrated, profile=policy, evidence_context=ReportEvidenceContext(**entry.get("report_evidence_context", {})))
             runs.append(report)
         if runs[0].to_json() != runs[1].to_json():
             raise ValueError("report generation is nondeterministic")
