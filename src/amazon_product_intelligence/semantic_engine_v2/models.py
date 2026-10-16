@@ -465,6 +465,45 @@ class APDMarketCohortEligibility:
         }
 
 
+RESEARCH_SCOPE_GROUPS = (
+    "CORE_STANDARD", "CORE_MAIN_PRODUCT_BUNDLE", "ADJACENT",
+    "ACCESSORY_OR_REPLACEMENT", "REVIEW_UNRESOLVED",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ListingResearchScope:
+    """Listing-grain research scope, independent of installation/Route assignment."""
+
+    policy_id: str
+    policy_version: str
+    group: str
+    packaging_status: str
+    fact_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.group not in RESEARCH_SCOPE_GROUPS or self.packaging_status not in {
+            "NO_EXPLICIT_BUNDLE", "MAIN_PRODUCT_WITH_ANCILLARY_PARTS", "UNRESOLVED",
+        }:
+            raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "invalid research scope")
+        if not self.policy_id or not self.policy_version:
+            raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "research policy missing")
+        if (self.group == "CORE_MAIN_PRODUCT_BUNDLE") != (self.packaging_status == "MAIN_PRODUCT_WITH_ANCILLARY_PARTS"):
+            raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "bundle scope/packaging mismatch")
+        if self.packaging_status == "UNRESOLVED" and self.group != "REVIEW_UNRESOLVED":
+            raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "unresolved packaging cannot enter a known scope")
+        for name in ("fact_ids", "evidence_ids", "reason_codes"):
+            object.__setattr__(self, name, _texts(getattr(self, name), name))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"policy_id": self.policy_id, "policy_version": self.policy_version,
+                "group": self.group, "packaging_status": self.packaging_status,
+                "fact_ids": list(self.fact_ids), "evidence_ids": list(self.evidence_ids),
+                "reason_codes": list(self.reason_codes)}
+
+
 @dataclass(frozen=True, slots=True)
 class ListingSemanticResult:
     listing_result_id: str
@@ -480,6 +519,7 @@ class ListingSemanticResult:
     role_coverage: tuple[tuple[UniversalSemanticRole, Availability], ...]
     review_reason_codes: tuple[str, ...]
     limitations: tuple[str, ...]
+    research_scope: ListingResearchScope | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.listing_reference, str) or not self.listing_reference.strip():
@@ -496,6 +536,10 @@ class ListingSemanticResult:
             raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "fact references unknown evidence")
         if any(set(item.fact_ids) - fact_ids for item in self.relationships):
             raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "relationship references unknown facts")
+        if self.research_scope is not None:
+            if (set(self.research_scope.fact_ids) - fact_ids
+                    or set(self.research_scope.evidence_ids) - evidence_ids):
+                raise SemanticEngineV2Error("SEMANTIC_CONTRACT_INVALID", "research scope references unknown evidence")
         if len(self.role_coverage) != len(UniversalSemanticRole) or {
             role for role, _ in self.role_coverage
         } != set(UniversalSemanticRole):
@@ -521,6 +565,7 @@ class ListingSemanticResult:
             "role_coverage": {role.value: availability.value for role, availability in self.role_coverage},
             "review_reason_codes": list(self.review_reason_codes),
             "limitations": list(self.limitations),
+            **({} if self.research_scope is None else {"research_scope": self.research_scope.to_dict()}),
         }
 
     def to_dict(self) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 {
   "schema_version": "category-semantic-profile-v1.1",
   "profile_id": "shower-caddies-semantic-v1-1",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "category_scope": "shower caddies",
   "category_aliases": ["shower caddy", "bathroom shower caddies"],
   "normalization_version": "semantic-normalization-v2.0",
@@ -76,6 +76,10 @@
     {"rule_id":"shower-package-count","role":"QUANTITY","dimension":"package_count","sources":["STRUCTURED_PARAMETERS"],"source_keys":["package count"],"match_phrases":[],"exclusions":[],"value_mode":"MEASUREMENT","normalized_value":null,"quantity_kind":"COUNT","semantic_scope":"PACKAGE","quantity_subtype":"PACKAGE_COUNT","confidence":"HIGH"}
   ],
   "identity_rules": [
+    {"rule_id":"shower-identity-main-product-bundle","sources":["LISTING_TITLE"],"phrases":["bundle with"],"exclusions":[],"identity":"shower caddy","is_target":true,"priority":0,"text_pattern":"^(?P<subject>[^,;|+]{0,120}\\b(?:shower cadd(?:y|ies)|(?:corner )?shower shel(?:f|ves))(?: \\d+ pack)?) +bundle with +(?:adhesive (?:hook )?stickers?(?: \\d+ pack)?|(?:replacement )?hardware kit)(?:,? (?:black|white|silver|clear))?$","subject_exclusions":["replacement","spare","for","fits","clip","sticker","extender","hooks","kit","parts","only","and","&"]},
+    {"rule_id":"shower-identity-adjacent-toy-storage","sources":["LISTING_TITLE"],"phrases":["bath toy storage","bath toy organizer","bathtub toy organizer","bathtub toys organizer","bath tub toy basket"],"exclusions":[],"identity":"adjacent bath toy storage","is_target":false,"priority":2},
+    {"rule_id":"shower-identity-adjacent-generic-shelves","sources":["LISTING_TITLE"],"phrases":["wall mount organizer","bathroom shelves"],"exclusions":["shower"],"identity":"adjacent bathroom storage","is_target":false,"priority":2},
+    {"rule_id":"shower-identity-adjacent-countertop-storage","sources":["LISTING_TITLE"],"phrases":["countertop shelf","vanity tray","toilet paper basket"],"exclusions":[],"identity":"adjacent bathroom storage","is_target":false,"priority":2},
     {"rule_id":"shower-identity-component","sources":["LISTING_TITLE"],"phrases":["replacement","spare part","fits corner shower caddy","fits shower caddy","snap-on clip","snap on clip","mounting clip","adhesive sticker","wall sticker for shower caddy","suction cups for shower caddies","shower caddy extender","caddy extender","adhesive replacement","shower caddy adhesive, strong adhesive hooks","shower caddy adhesive strong adhesive hooks"],"exclusions":[],"identity":"shower caddy component","is_target":false,"priority":1},
     {"rule_id":"shower-identity-niche","sources":["LISTING_TITLE"],"phrases":["shower niche","recessed shower shelf","built in shower shelf","built-in shower shelf"],"exclusions":[],"identity":"recessed shower niche","is_target":true,"priority":5},
     {"rule_id":"shower-identity-corner-shelf","sources":["LISTING_TITLE"],"phrases":["corner shower shelf","corner shower shelves","shower corner shelf","shower corner shelves"],"exclusions":["replacement","fits corner shower caddy"],"identity":"corner shower shelf","is_target":true,"priority":6},
@@ -85,6 +89,7 @@
     {"rule_id":"shower-identity-other","sources":["LISTING_TITLE"],"phrases":["adhesive strips only","hooks only","caddy connectors","squeegee","splash guard","fogless mirror"],"exclusions":[],"identity":"standalone shower product or caddy component","is_target":false,"priority":10}
   ],
   "relation_rules": [
+    {"rule_id":"shower-relation-main-product-bundle","sources":["LISTING_TITLE"],"phrases":["bundle with"],"exclusions":[],"result":"BUNDLE","priority":0,"text_pattern":"^(?P<subject>[^,;|+]{0,120}\\b(?:shower cadd(?:y|ies)|(?:corner )?shower shel(?:f|ves))(?: \\d+ pack)?) +bundle with +(?:adhesive (?:hook )?stickers?(?: \\d+ pack)?|(?:replacement )?hardware kit)(?:,? (?:black|white|silver|clear))?$","subject_exclusions":["replacement","spare","for","fits","clip","sticker","extender","hooks","kit","parts","only","and","&"]},
     {"rule_id":"shower-relation-replacement","sources":["LISTING_TITLE"],"phrases":["replacement","spare part","fits corner shower caddy","fits shower caddy"],"exclusions":[],"result":"REPLACEMENT","priority":1},
     {"rule_id":"shower-relation-accessory","sources":["LISTING_TITLE"],"phrases":["snap-on clip","snap on clip","mounting clip","adhesive sticker","wall sticker for shower caddy","suction cups for shower caddies","shower caddy extender","caddy extender","adhesive strips only","hooks only","caddy connectors","shower caddy adhesive, strong adhesive hooks","shower caddy adhesive strong adhesive hooks"],"exclusions":["replacement"],"result":"ACCESSORY","priority":5},
     {"rule_id":"shower-relation-primary","sources":["LISTING_TITLE"],"phrases":["shower caddy","shower caddies","shower shelf","shower shelves","shower organizer","shower organizers","pole caddy","shower niche","portable shower basket","portable caddy","shower tote","mesh shower bag","shower bag"],"exclusions":["replacement","spare part","fits corner shower caddy","fits shower caddy","snap-on clip","snap on clip","mounting clip","adhesive sticker","wall sticker","suction cups for shower caddies","shower caddy extender","caddy extender","adhesive strips only","hooks only","caddy connectors","shower caddy adhesive, strong adhesive hooks","shower caddy adhesive strong adhesive hooks","squeegee","splash guard","fogless mirror"],"result":"PRIMARY_PRODUCT","priority":20}
@@ -102,5 +107,12 @@
     {"rule_id":"shower-critical-installation","dimension":"installation_architecture","values":[]}
   ],
   "quantity_scope_rules": [{"rule_id":"shower-quantity-package-scope","source_keys":["package count"],"quantity_kind":"COUNT","semantic_scope":"PACKAGE","quantity_subtype":"PACKAGE_COUNT"}],
-  "cohort_policy": {"policy_id":"shower-primary-cohort","version":"1.1.0","analysis_mode":"PRIMARY_ONLY","target_identity_values":["shower caddy","portable shower caddy","recessed shower niche","corner shower shelf"],"primary_relation_roles":["PRIMARY_PRODUCT"],"non_primary_relation_roles":["ACCESSORY","REPLACEMENT","REFILL","BUNDLE"]}
+  "cohort_policy": {"policy_id":"shower-primary-cohort","version":"1.1.1","analysis_mode":"PRIMARY_ONLY","target_identity_values":["shower caddy","portable shower caddy","recessed shower niche","corner shower shelf"],"primary_relation_roles":["PRIMARY_PRODUCT"],"non_primary_relation_roles":["ACCESSORY","REPLACEMENT","REFILL","BUNDLE"]},
+  "research_scope_policy": {
+    "policy_id":"shower-research-scope", "version":"1.0.0",
+    "adjacent_identity_values":["adjacent bath toy storage","adjacent bathroom storage","standalone storage caddy","standalone shower product or caddy component"],
+    "bundle_identity_rule_ids":["shower-identity-main-product-bundle"],
+    "bundle_relation_rule_ids":["shower-relation-main-product-bundle"],
+    "unresolved_title_patterns":[{"rule_id":"shower-packaging-pocket-sum-unresolved","pattern":"\\b\\d+ pockets? *\\+ *\\d+ pockets?\\b"},{"rule_id":"shower-packaging-unresolved-bundle","pattern":"\\bbundle\\b"}]
+  }
 }

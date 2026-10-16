@@ -8,6 +8,8 @@ from hashlib import sha256
 import json
 
 from amazon_product_intelligence.contracts import canonical_json
+from amazon_product_intelligence.semantic_engine_v2.research_scope import build_research_scope_summary
+from amazon_product_intelligence.semantic_engine_v2.models import RESEARCH_SCOPE_GROUPS
 
 from .config import ReportProfile
 from .metrics import aggregate, project_record, ratio, total
@@ -33,6 +35,22 @@ class OperatorMarketReport:
         if [r["question_id"] for r in data["business_value_review"]] != list(range(1, 12)):
             raise ValueError("eleven governed business questions required")
         counts = data["coverage_counts"]
+        research_scope = data.get("research_scope")
+        if research_scope is not None:
+            groups = research_scope["groups"]
+            members = [member for group in groups for member in group["member_record_fingerprints"]]
+            if (research_scope["semantic_result_fingerprint"] != data["source_lineage"]["semantic_result_fingerprint"]
+                    or research_scope["dataset_fingerprint"] != data["source_lineage"]["governed_dataset_fingerprint"]
+                    or research_scope["profile_fingerprint"] != data["source_lineage"]["semantic_profile_fingerprint"]
+                    or research_scope["listing_count"] != counts["accepted"]
+                    or len(members) != counts["accepted"] or len(set(members)) != len(members)
+                    or [group["group"] for group in groups] != list(RESEARCH_SCOPE_GROUPS)
+                    or any(group["listing_count"] != len(group["member_record_fingerprints"])
+                           or group["membership_fingerprint"] != sha256(canonical_json(group["member_record_fingerprints"]).encode()).hexdigest()
+                           for group in groups)
+                    or research_scope["core_listing_count"] != sum(group["listing_count"] for group in groups if group["group"].startswith("CORE_"))
+                    or sum(research_scope["packaging_counts"].values()) != counts["accepted"]):
+                raise ValueError("research scope population or upstream binding mismatch")
         qualification = data.get("evidence_qualification")
         if qualification:
             eligible = qualification["time_qualified"] and qualification["sampling_scope_qualified"] and qualification["allocation_qualified"]
@@ -285,6 +303,9 @@ def build_operator_market_report(integrated, *, profile=None, evidence_context=N
         "business_value_review": [{"question_id": i, "human_verdict": None, "notes": None} for i in range(1, 12)],
         "limitations": ["OBSERVED_EXPORT_NOT_TOTAL_ADDRESSABLE_MARKET", "THIRD_PARTY_ESTIMATES", "MISSING_NOT_ZERO", "ASSIGNED_SUBSET_ONLY", "UNASSIGNED_MEMBERSHIP_NOT_INFERRED", "BUYER_NEED_DATA_MISSING", "MARGIN_DATA_UNAVAILABLE", "NO_GOVERNED_SUCCESS_DEFINITION", "NOT_A_LAUNCH_RECOMMENDATION"],
     }
+    research_scope = build_research_scope_summary(integrated.semantic_result)
+    if research_scope is not None:
+        data["research_scope"] = research_scope
     data["decision_readiness"] = _readiness(data["coverage_counts"], data["assigned_market"], data["market"], profile, qualification)
     data["opportunity_explanations"] = _explanations(data)
     data["executive_summary"] = _summary(data)

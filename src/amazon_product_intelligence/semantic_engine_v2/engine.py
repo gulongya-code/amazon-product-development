@@ -36,6 +36,7 @@ from .models import (
     EvidenceRelationship,
     EvidenceRelationshipState,
     ListingSemanticResult,
+    ListingResearchScope,
     ProductIdentity,
     ProductRole,
     RelationRole,
@@ -168,6 +169,8 @@ def _rule_observations(
     source_keys: tuple[str, ...] = (),
     phrases: tuple[str, ...],
     exclusions: tuple[str, ...],
+    text_pattern: str | None = None,
+    subject_exclusions: tuple[str, ...] = (),
 ) -> tuple[_Observation, ...]:
     allowed_sources = set(sources)
     allowed_keys = set(source_keys)
@@ -181,6 +184,12 @@ def _rule_observations(
             continue
         if phrases and not any(_matches(item.normalized_text, term) for term in phrases):
             continue
+        if text_pattern is not None:
+            match = re.search(text_pattern, item.normalized_text)
+            if match is None or not match.group("subject") or any(
+                _matches(match.group("subject"), term) for term in subject_exclusions
+            ):
+                continue
         result.append(item)
     return tuple(result)
 
@@ -309,7 +318,8 @@ def _identity_facts(
     for rule in profile.identity_rules:
         for item in _rule_observations(
             observations, sources=rule.sources, phrases=rule.phrases,
-            exclusions=rule.exclusions,
+            exclusions=rule.exclusions, text_pattern=rule.text_pattern,
+            subject_exclusions=rule.subject_exclusions,
         ):
             evidence_item = _evidence(item, rule_id=rule.rule_id)
             evidence.append(evidence_item)
@@ -337,7 +347,8 @@ def _decision_facts(
     for rule in rules:
         for item in _rule_observations(
             observations, sources=rule.sources, phrases=rule.phrases,
-            exclusions=rule.exclusions,
+            exclusions=rule.exclusions, text_pattern=rule.text_pattern,
+            subject_exclusions=rule.subject_exclusions,
         ):
             evidence_item = _evidence(item, rule_id=rule.rule_id)
             evidence.append(evidence_item)
@@ -484,6 +495,9 @@ def _relationship_for_dimension(
                         rule.rule_id
                         for rule in profile.fact_rules
                         if rule.authority_priority > 0
+                    } | {
+                        rule.rule_id for rule in (*profile.identity_rules, *profile.relation_rules)
+                        if rule.text_pattern is not None
                     }
                     for item in facts
                 )
@@ -645,10 +659,53 @@ def _product_role(
     )
 
 
+def _research_scope(identity, role, facts, evidence, unresolved_evidence, profile):
+    policy = profile.research_scope_policy
+    if policy is None:
+        return None
+    by_id = {item.fact_id: item for item in facts}
+    identity_facts = [by_id[key] for key in identity.fact_ids]
+    relation_facts = [by_id[key] for key in role.relation_fact_ids]
+    authorized_identity = {e for item in identity_facts
+                           if item.rule_id in policy.bundle_identity_rule_ids for e in item.evidence_ids}
+    authorized_relation = {e for item in relation_facts
+                           if item.rule_id in policy.bundle_relation_rule_ids for e in item.evidence_ids}
+    def sources(ids):
+        return {item.source_content_fingerprint for item in evidence if item.evidence_id in ids}
+    contextual_bundle = bool(sources(authorized_identity) & sources(authorized_relation))
+    known = identity.status is SemanticDecisionStatus.GOVERNED
+    packaging = "NO_EXPLICIT_BUNDLE"
+    if unresolved_evidence and not contextual_bundle:
+        group, packaging, reason = "REVIEW_UNRESOLVED", "UNRESOLVED", "PACKAGING_RELATIONSHIP_UNRESOLVED"
+    elif role.relation_role in {RelationRole.ACCESSORY, RelationRole.REPLACEMENT, RelationRole.REFILL}:
+        group, reason = "ACCESSORY_OR_REPLACEMENT", "NON_PRIMARY_OBJECT"
+    elif known and identity.normalized_identity in policy.adjacent_identity_values:
+        group, reason = "ADJACENT", "ADJACENT_IDENTITY_OUTSIDE_CORE_DENOMINATOR"
+    elif known and not identity.is_target_identity:
+        group, reason = "ACCESSORY_OR_REPLACEMENT", "NON_TARGET_OBJECT"
+    elif (known and identity.is_target_identity
+          and identity.normalized_identity in profile.cohort_policy.target_identity_values
+          and role.relation_status is SemanticDecisionStatus.GOVERNED):
+        if role.relation_role is RelationRole.BUNDLE and contextual_bundle:
+            group, packaging, reason = "CORE_MAIN_PRODUCT_BUNDLE", "MAIN_PRODUCT_WITH_ANCILLARY_PARTS", "SAME_TITLE_MAIN_PRODUCT_AND_ANCILLARY_BUNDLE"
+        elif role.relation_role is RelationRole.PRIMARY_PRODUCT:
+            group, reason = "CORE_STANDARD", "TARGET_MAIN_PRODUCT"
+        else:
+            group, packaging, reason = "REVIEW_UNRESOLVED", "UNRESOLVED", "BUNDLE_NOT_AUTHORIZED_BY_MAIN_OBJECT_EVIDENCE"
+    else:
+        group, reason = "REVIEW_UNRESOLVED", "IDENTITY_OR_RELATION_UNRESOLVED"
+    fact_ids = tuple(sorted({*identity.fact_ids, *role.relation_fact_ids}))
+    evidence_ids = tuple(sorted({*(e for key in fact_ids for e in by_id[key].evidence_ids),
+                                 *(item.evidence_id for item in unresolved_evidence)}))
+    return ListingResearchScope(policy.policy_id, policy.version, group, packaging,
+                                fact_ids, evidence_ids, (reason,))
+
+
 def _cohort(
     identity: ProductIdentity, role: ProductRole,
     profile: CategorySemanticProfileV1_1,
     *, route_critical_fact_ids: tuple[str, ...] = (),
+    research_scope: ListingResearchScope | None = None,
 ) -> APDMarketCohortEligibility:
     policy = profile.cohort_policy
     evidence = tuple(sorted({
@@ -659,6 +716,8 @@ def _cohort(
             CohortEligibilityState.REVIEW_REQUIRED, False,
             ("ROUTE_CRITICAL_CONFLICT_REQUIRES_REVIEW",),
         )
+    elif research_scope is not None and research_scope.packaging_status == "UNRESOLVED":
+        state, eligible, reasons = CohortEligibilityState.REVIEW_REQUIRED, False, research_scope.reason_codes
     elif identity.status is SemanticDecisionStatus.REVIEW_REQUIRED or role.relation_status is SemanticDecisionStatus.REVIEW_REQUIRED:
         state, eligible, reasons = (
             CohortEligibilityState.REVIEW_REQUIRED, False,
@@ -674,6 +733,9 @@ def _cohort(
             CohortEligibilityState.OFF_TARGET_EXCLUDED, False,
             ("PRODUCT_IDENTITY_OUTSIDE_TARGET_MARKET",),
         )
+    elif research_scope is not None and research_scope.group == "CORE_MAIN_PRODUCT_BUNDLE":
+        state, eligible, reasons = (CohortEligibilityState.PRIMARY_COHORT_ELIGIBLE, True,
+                                    ("CONTEXTUAL_MAIN_PRODUCT_BUNDLE_AUTHORIZED",))
     elif role.relation_role in policy.non_primary_relation_roles:
         state, eligible, reasons = (
             CohortEligibilityState.NON_PRIMARY_EXCLUDED, False,
@@ -710,6 +772,12 @@ def _listing_result(
         record, observations, profile, rules=profile.lifecycle_rules,
         dimension="consumption_lifecycle",
     )
+    unresolved_evidence = []
+    if profile.research_scope_policy is not None:
+        for rule_id, pattern in profile.research_scope_policy.unresolved_title_patterns:
+            unresolved_evidence.extend(_evidence(item, rule_id=rule_id) for item in observations
+                                       if item.source_class is SemanticSourceClass.LISTING_TITLE
+                                       and re.search(pattern, item.normalized_text))
     all_facts = tuple(sorted(
         (*facts, *identity_facts, *relation_facts, *lifecycle_facts),
         key=lambda item: item.fact_id,
@@ -717,7 +785,7 @@ def _listing_result(
     all_evidence = tuple(sorted(
         {
             item.evidence_id: item
-            for item in (*evidence, *identity_evidence, *relation_evidence, *lifecycle_evidence)
+            for item in (*evidence, *identity_evidence, *relation_evidence, *lifecycle_evidence, *unresolved_evidence)
         }.values(),
         key=lambda item: item.evidence_id,
     ))
@@ -763,9 +831,14 @@ def _listing_result(
         if item.state is EvidenceRelationshipState.ROUTE_CRITICAL_CONFLICT
         for fact_id in item.fact_ids
     }))
+    research_scope = _research_scope(identity, product_role, all_facts, all_evidence,
+                                     unresolved_evidence, profile)
+    if research_scope is not None and research_scope.packaging_status == "UNRESOLVED":
+        review_reasons.add("PACKAGING_RELATIONSHIP_UNRESOLVED")
     cohort = _cohort(
         identity, product_role, profile,
         route_critical_fact_ids=route_critical_fact_ids,
+        research_scope=research_scope,
     )
     role_coverage = tuple(
         (
@@ -787,6 +860,7 @@ def _listing_result(
         "market_cohort_eligibility": cohort.to_dict(),
         "role_coverage": {role.value: state.value for role, state in role_coverage},
         "review_reason_codes": sorted(review_reasons), "limitations": list(limitations),
+        **({} if research_scope is None else {"research_scope": research_scope.to_dict()}),
     }
     return ListingSemanticResult(
         listing_result_id=deterministic_id("listing-semantic-result-v2", logical),
@@ -796,6 +870,7 @@ def _listing_result(
         product_identity=identity, product_role=product_role,
         market_cohort_eligibility=cohort, role_coverage=role_coverage,
         review_reason_codes=tuple(sorted(review_reasons)), limitations=limitations,
+        research_scope=research_scope,
     )
 
 
