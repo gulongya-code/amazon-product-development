@@ -79,6 +79,10 @@ class OperatorReportDeliveryV01Tests(unittest.TestCase):
             self.skipTest(f"artifact-tool runtime is unavailable: {exc}")
         return renderer
 
+    @mock.patch.dict(os.environ, {
+        "MARKET_REPORT_NODE_EXECUTABLE": "",
+        "MARKET_REPORT_NODE_MODULES": "",
+    })
     def test_bundled_runtime_is_discovered_without_environment_configuration(
         self,
     ) -> None:

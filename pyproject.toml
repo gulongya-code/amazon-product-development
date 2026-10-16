@@ -10,6 +10,19 @@ dependencies = [
 
 [project.optional-dependencies]
 buyer-probe = ["playwright>=1.55,<2"]
+test = ["pytest>=9.0,<10", "openpyxl==3.1.5", "lxml==6.1.3"]
+native-test = [
+    "pytest>=9.0,<10", "openpyxl==3.1.5", "lxml==6.1.3",
+    "cryptography>=42.0.0", "requests>=2,<3", "tzdata>=2024.1",
+    "pandas>=1.5.0", "numpy>=1.24.0", "pyarrow>=14.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "native_integration: offline cross-repository tests requiring explicit pinned PDS/ADS checkouts",
+]
 
 [project.scripts]
 amazon-intel = "amazon_product_intelligence.production_pipeline.cli:main"
