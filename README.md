@@ -2,7 +2,7 @@
 
 > **四项目总文档与分册**：[查阅文档目录](docs/project-handoff/2026-10-15/README.md)，含功能现状总览、完整需求说明及三册拆分版。
 
-> **当前项目需求入口（2026-10-16）**：[Market × PDS 项目需求与协作基线](docs/requirements/MARKET_PDS_COLLABORATION_REQUIREMENTS_V0.1_2026_10_16.md)。PDS B01 先行；Market 仅在明确消费方、研究问题和验收样本时选择新任务。旧 SP-004/SP-039A/SP-039B 与旧 V0.2 开发顺序保留历史，不自动续做。
+> **当前项目需求入口（2026-10-17；协作 V1.3）**：[Market × PDS 项目需求与协作基线](docs/requirements/MARKET_PDS_COLLABORATION_REQUIREMENTS_V0.1_2026_10_16.md)。Market 可以独立规划有具体证据的研究、报告缺陷和专业能力任务，不必等待 PDS B01；面向 PDS 的消费交接才需明确业务问题、消费方及验收样本。旧 SP-004/SP-039A/SP-039B 与 V0.2 开发顺序仍为历史，不自动续做。
 
 # 亚马逊市场分析
 
