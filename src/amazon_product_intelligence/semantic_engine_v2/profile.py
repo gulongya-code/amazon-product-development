@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import re
 from pathlib import Path
 from typing import Any, Mapping, TypeVar
 
@@ -39,6 +40,7 @@ _TOP_KEYS = {
 }
 _TOP_OPTIONAL_KEYS = {
     "route_dimension_precedence_policies", "route_fallback_label_policies",
+    "research_scope_policy",
 }
 _SOURCE_POLICY_KEYS = {
     "policy_id", "role", "dimension", "primary_sources", "corroborating_sources",
@@ -129,6 +131,8 @@ class IdentityRule:
     identity: str
     is_target: bool
     priority: int
+    text_pattern: str | None = None
+    subject_exclusions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +143,18 @@ class DecisionRule:
     exclusions: tuple[str, ...]
     result: str
     priority: int
+    text_pattern: str | None = None
+    subject_exclusions: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchScopePolicy:
+    policy_id: str
+    version: str
+    adjacent_identity_values: tuple[str, ...]
+    bundle_identity_rule_ids: tuple[str, ...]
+    bundle_relation_rule_ids: tuple[str, ...]
+    unresolved_title_patterns: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +245,7 @@ class CategorySemanticProfileV1_1:
         RouteDimensionPrecedencePolicy, ...
     ] = ()
     route_fallback_label_policies: tuple[RouteFallbackLabelPolicy, ...] = ()
+    research_scope_policy: ResearchScopePolicy | None = None
     schema_version: str = CATEGORY_SEMANTIC_PROFILE_SCHEMA_VERSION
 
     @property
@@ -336,6 +353,32 @@ def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+def _pattern(value: Any, *, subject: bool = False) -> str:
+    if not isinstance(value, str) or not value:
+        raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "pattern must be text")
+    try:
+        compiled = re.compile(value)
+    except re.error as exc:
+        raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "invalid text pattern") from exc
+    if subject and ("subject" not in compiled.groupindex or not value.startswith("^")):
+        raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "context pattern requires anchored subject")
+    if compiled.search(""):
+        raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "pattern cannot match empty text")
+    return value
+
+
+def _context_options(item: Mapping[str, Any], sources: tuple[SemanticSourceClass, ...]) -> dict:
+    pattern = item.get("text_pattern")
+    exclusions = _texts(item.get("subject_exclusions", []), "subject_exclusions", allow_empty=True)
+    if pattern is None:
+        if exclusions:
+            raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "subject exclusions require pattern")
+        return {}
+    if sources != (SemanticSourceClass.LISTING_TITLE,):
+        raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "context rules require Title only")
+    return {"text_pattern": _pattern(pattern, subject=True), "subject_exclusions": exclusions}
+
+
 def _object(
     value: Any,
     path: str,
@@ -424,7 +467,9 @@ def _decision_rules(values: Any, path: str, allowed: type[RelationRole] | type[C
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", f"{path} must be nonempty list")
     result = []
     for index, raw in enumerate(values):
-        item = _object(raw, f"{path}[{index}]", _DECISION_RULE_KEYS)
+        item = _object(raw, f"{path}[{index}]", _DECISION_RULE_KEYS,
+                       optional_keys={"text_pattern", "subject_exclusions"})
+        sources = _enums(SemanticSourceClass, item["sources"], "sources")
         result_value = _enum(allowed, item["result"], "result").value
         if result_value in {"UNKNOWN", "REVIEW_REQUIRED"}:
             raise SemanticEngineV2Error(
@@ -433,10 +478,11 @@ def _decision_rules(values: Any, path: str, allowed: type[RelationRole] | type[C
             )
         result.append(DecisionRule(
             rule_id=_text(item["rule_id"], "rule_id"),
-            sources=_enums(SemanticSourceClass, item["sources"], "sources"),
+            sources=sources,
             phrases=_texts(item["phrases"], "phrases"),
             exclusions=_texts(item["exclusions"], "exclusions", allow_empty=True),
             result=result_value, priority=_priority(item["priority"], "priority"),
+            **_context_options(item, sources),
         ))
     return tuple(result)
 
@@ -557,7 +603,8 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
 
     identity_rules: list[IdentityRule] = []
     for index, raw in enumerate(top["identity_rules"]):
-        item = _object(raw, f"identity_rules[{index}]", _IDENTITY_RULE_KEYS)
+        item = _object(raw, f"identity_rules[{index}]", _IDENTITY_RULE_KEYS,
+                       optional_keys={"text_pattern", "subject_exclusions"})
         sources = _enums(SemanticSourceClass, item["sources"], "sources")
         if set(sources) - set(authorization):
             raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "identity source unauthorized")
@@ -568,6 +615,7 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
             identity=_text(item["identity"], "identity", normalize=True),
             is_target=_boolean(item["is_target"], "is_target"),
             priority=_priority(item["priority"], "priority"),
+            **_context_options(item, sources),
         ))
     if not any(SemanticSourceClass.LISTING_TITLE in item.sources for item in identity_rules):
         raise SemanticEngineV2Error(
@@ -694,6 +742,27 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
         )
     )
 
+    scope = None
+    if "research_scope_policy" in top:
+        raw = _object(top["research_scope_policy"], "research_scope_policy", {
+            "policy_id", "version", "adjacent_identity_values", "bundle_identity_rule_ids",
+            "bundle_relation_rule_ids", "unresolved_title_patterns",
+        })
+        patterns = []
+        if not isinstance(raw["unresolved_title_patterns"], list):
+            raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "patterns must be list")
+        for value in raw["unresolved_title_patterns"]:
+            item = _object(value, "unresolved_title_patterns[]", {"rule_id", "pattern"})
+            patterns.append((_text(item["rule_id"], "rule_id"), _pattern(item["pattern"])))
+        scope = ResearchScopePolicy(
+            policy_id=_text(raw["policy_id"], "policy_id"),
+            version=_text(raw["version"], "version"),
+            adjacent_identity_values=_texts(raw["adjacent_identity_values"], "adjacent_identity_values"),
+            bundle_identity_rule_ids=_texts(raw["bundle_identity_rule_ids"], "bundle_identity_rule_ids", normalize=False),
+            bundle_relation_rule_ids=_texts(raw["bundle_relation_rule_ids"], "bundle_relation_rule_ids", normalize=False),
+            unresolved_title_patterns=tuple(patterns),
+        )
+
     profile = CategorySemanticProfileV1_1(
         profile_id=_text(top["profile_id"], "profile_id"),
         version=_text(top["version"], "version"),
@@ -717,6 +786,7 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
             route_dimension_precedence_policies
         ),
         route_fallback_label_policies=route_fallback_label_policies,
+        research_scope_policy=scope,
         fingerprint=sha256(canonical_json(payload).encode("utf-8")).hexdigest(),
     )
     all_ids = [
@@ -734,9 +804,23 @@ def load_category_semantic_profile(path: str | Path) -> CategorySemanticProfileV
         *(item.policy_id for item in profile.route_dimension_precedence_policies),
         *(item.policy_id for item in profile.route_fallback_label_policies),
         profile.cohort_policy.policy_id,
+        *(() if scope is None else (scope.policy_id, *(key for key, _ in scope.unresolved_title_patterns))),
     ]
     if len(all_ids) != len(set(all_ids)):
         raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "rule/policy IDs must be unique")
+    if scope is not None:
+        identities = {item.rule_id: item for item in profile.identity_rules}
+        relations = {item.rule_id: item for item in profile.relation_rules}
+        for key in scope.bundle_identity_rule_ids:
+            rule = identities.get(key)
+            if rule is None or not rule.is_target or not rule.text_pattern or rule.identity not in cohort.target_identity_values:
+                raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "bundle requires contextual target identity rule")
+        for key in scope.bundle_relation_rule_ids:
+            rule = relations.get(key)
+            if rule is None or rule.result != RelationRole.BUNDLE.value or not rule.text_pattern:
+                raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "bundle requires contextual BUNDLE rule")
+        if set(scope.adjacent_identity_values) & set(cohort.target_identity_values):
+            raise SemanticEngineV2Error("PROFILE_SCHEMA_INVALID", "adjacent and target identities overlap")
     fact_rules_by_id = {item.rule_id: item for item in profile.fact_rules}
     for item in profile.fact_rules:
         preferred = set(item.authority_preferred_rule_ids)

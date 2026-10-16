@@ -163,3 +163,21 @@ private report, corpus, named real entity, or machine-specific private path is
 permitted in committed validation documentation. Sanitized tests use fixtures.
 
 Technical acceptance never fills human answers or declares business-value PASS.
+
+## Optional upstream research scope (2026-10-17)
+
+The approved narrow Shower Caddy task adds an optional `research_scope` JSON
+projection from Semantic Engine V2. It partitions listing-grain subjects into
+standard core, explicit main-product bundle core, adjacent, accessory/replacement,
+and unresolved groups. Core listing count excludes adjacent and unresolved
+subjects. Packaging quantities never multiply listings or allocate sales.
+
+This projection binds the semantic result, dataset, profile and scope-policy
+versions, member-record fingerprints, group counts and membership hashes. It
+does not change the accepted-export `market` population, the actual Route
+partition, evidence qualification or human review. Missing installation evidence
+and conflicts retain their existing Route restrictions. Rendering does not infer
+research scope; no full workbook extension is authorized by this slice.
+
+See [the approved task](../engineering/TASK_MARKET_SHOWER_CADDY_SCOPE_PACKAGE_001.md)
+for the optional profile contract and conservative bundle admission rule.
