@@ -14,12 +14,12 @@ U2：标题明确表达整架主体加附属安装件的组合装，保留 `BUND
 
 ## 最小合同扩展
 
-- Profile 增加可选的 `research_scope_policy`；未启用品类保持旧序列化与行为。Shower profile 升至 `1.1.6`，cohort policy 升至 `1.1.1`。
+- Profile 增加可选的 `research_scope_policy`；未启用品类保持旧序列化与行为。Shower profile 初版为 `1.1.6`，PR #62 审查收紧相邻主语的组合准入后为 `1.1.7`；cohort policy 为 `1.1.1`。
 - Identity/Relation 规则可选择仅用于标题的、带命名主体捕获的锚定上下文模式；规则仍保留来源授权、优先级和排除条件。组合准入同时要求被选中的身份与 BUNDLE 关系事实，并绑定同一标题来源指纹。
 - 每条语义结果可附 `research_scope`，绑定策略版本、事实与证据。五个互斥组为 `CORE_STANDARD`、`CORE_MAIN_PRODUCT_BUNDLE`、`ADJACENT`、`ACCESSORY_OR_REPLACEMENT`、`REVIEW_UNRESOLVED`。
 - `CORE_STANDARD` 表示研究主体，不表示已证明单件包装；`NO_EXPLICIT_BUNDLE` 只表示没有明确组合证据。安装仍待审的整架可保留核心研究主体，其 cohort/Route 仍被既有冲突规则限制。
 - V0.3 JSON 仅投影上游研究分组和记录指纹，另给核心 listing 数分母；原 `market` 仍表示已接收导出样本，Route 仍表示实际分配，不将三者混用。核心包装组计一条 listing，无销量分配。报告层不重分类、不补 Route。
-- 新字段在缺省时不输出；既有五类通用语义角色和 Route 枚举不修改。Profile 内容、语义结果和报告指纹继续覆盖新增字段。
+- 新字段在缺省时不输出；既有通用语义角色和 Route 枚举不修改。Profile 内容、语义结果和报告指纹继续覆盖新增字段。
 
 ## 验证与停止条件
 

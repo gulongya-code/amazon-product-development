@@ -48,6 +48,9 @@ def test_explicit_whole_product_bundle_retains_role_and_evidence(title):
     "Adhesive Hooks for Shower Caddy bundle with Adhesive Stickers",
     "Soap Dish and Shower Caddy bundle with Adhesive Stickers",
     "Soap Dish & Shower Caddy bundle with Adhesive Stickers",
+    "Bath Toy Storage Shower Caddy bundle with Replacement Hardware Kit",
+    "Toilet Paper Basket Shower Caddy bundle with Adhesive Stickers",
+    "Countertop Shelf Shower Caddy bundle with Replacement Hardware Kit",
 ])
 def test_bundle_word_never_blanket_admits_parts_or_other_products(title):
     item = run(title).listings[0]
