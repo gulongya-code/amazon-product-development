@@ -98,12 +98,31 @@ def efficiency(rows, population):
     return metric(ratio(sales_share, listing_share), len(known), len(population), "PAIRED_SALES_SHARE_DIV_PAIRED_LISTING_SHARE", sales_share=sales_share, listing_share=listing_share, subset_count=len(subset))
 
 
-def growth(rows, field):
+def growth(rows, field, profile=None):
+    from .config import ReportProfile
+    profile = profile or ReportProfile()
     eligible = [r for r in rows if r["sales"] is not None and r[field] is not None and r[field] > -1 and r["sales"] > 0]
     current = sum((r["sales"] for r in eligible), Decimal(0))
-    prior = sum((r["sales"] / (1 + r[field]) for r in eligible), Decimal(0))
+    priors = [r["sales"] / (1 + r[field]) for r in eligible]
+    prior = sum(priors, Decimal(0))
     value = current / prior - 1 if prior > 0 else None
-    return metric(value, len(eligible), len(rows), "SUM_CURRENT_DIV_SUM_RECONSTRUCTED_PRIOR_MINUS_ONE", current_sales=number(current) if eligible else None, reconstructed_prior_sales=number(prior) if eligible else None, invalid_reconstruction_count=sum(r["sales"] is not None and r[field] is not None and (r[field] <= -1 or r["sales"] <= 0) for r in rows))
+    near_total = sum(r[field] <= Decimal(str(profile.growth_near_total_decline)) for r in eligible)
+    influence = ratio(max(priors), prior) if priors else None
+    leave_one_out = [(current-r["sales"])/(prior-p)-1 for r, p in zip(eligible, priors) if prior > p]
+    sensitive = max(leave_one_out, key=lambda v: (abs(v-value), v)) if leave_one_out else None
+    delta = abs(sensitive-value) if sensitive is not None else None
+    reasons = []
+    if len(eligible) < profile.growth_minimum_pairs:
+        reasons.append("TOO_FEW_GROWTH_PAIRS")
+    if near_total:
+        reasons.append("NEAR_TOTAL_DECLINE_IN_SOURCE")
+    if influence is not None and influence > profile.growth_maximum_prior_share:
+        reasons.append("DOMINANT_PRIOR_RECONSTRUCTION")
+    if delta is not None and delta > Decimal(str(profile.growth_maximum_leave_one_out_delta)):
+        reasons.append("LEAVE_ONE_OUT_SENSITIVE")
+    result = metric(value if not reasons else None, len(eligible), len(rows), "SUM_CURRENT_DIV_SUM_RECONSTRUCTED_PRIOR_MINUS_ONE", current_sales=number(current) if eligible else None, reconstructed_prior_sales=number(prior) if eligible else None, invalid_reconstruction_count=sum(r["sales"] is not None and r[field] is not None and (r[field] <= -1 or r["sales"] <= 0) for r in rows))
+    result.update(raw_value=number(value), interpretation_allowed=not reasons and value is not None, qualification_reasons=reasons, near_total_decline_count=near_total, largest_prior_contribution_share=influence, leave_one_out_value_audit_only=number(sensitive), maximum_leave_one_out_delta=number(delta))
+    return result
 
 
 def bands(rows, field, boundaries):
@@ -146,7 +165,7 @@ def competition(rows, field, top_n):
     sales_shares = sorted((e["sales_share"]["value"] for e in entities if e["sales_share"]["value"] is not None), reverse=True)
     def concentration(values):
         return {**{f"top_{n}": sum(values[:n]) if values else None for n in (1, 3, 5)}, "long_tail": max(0.0, 1 - sum(values[:5])) if values else None}
-    return {"entity_count": len(groups), "known_identity": len(known), "unknown_identity": len(rows)-len(known), "identity_coverage": ratio(len(known), len(rows)), "sales_coverage": total(known, "sales"), "ranking_basis": "KNOWN_IDENTITY_OBSERVED_SALES_DESC_THEN_LISTINGS_THEN_NAME", "denominator": "KNOWN_IDENTITY_LISTINGS_AND_OBSERVED_SALES", "listing_concentration": concentration(listing_shares), "sales_concentration": concentration(sales_shares), "top_entities": entities[:top_n]}
+    return {"entity_count": len(groups), "known_identity": len(known), "unknown_identity": len(rows)-len(known), "identity_coverage": ratio(len(known), len(rows)), "sales_coverage": total(known, "sales"), "ranking_basis": "KNOWN_IDENTITY_OBSERVED_SALES_DESC_THEN_LISTINGS_THEN_NAME", "denominator": "KNOWN_IDENTITY_LISTINGS_AND_OBSERVED_SALES", "listing_concentration": concentration(listing_shares), "sales_concentration": concentration(sales_shares), "top_entities": entities[:top_n], "all_entities": entities, "top_n": top_n}
 
 
 def aggregate(rows, assigned, profile):
@@ -156,7 +175,7 @@ def aggregate(rows, assigned, profile):
         "assigned_product_share": ratio(len(rows), len(assigned)), "sales": total(rows, "sales"), "sales_share": subset_share(rows, assigned, "sales"),
         "revenue": total(rows, "revenue"), "revenue_share": subset_share(rows, assigned, "revenue"),
         "median_price": median(rows, "price"), "median_reviews": median(rows, "reviews"), "median_rating": median(rows, "rating"),
-        "demand_efficiency": efficiency(rows, assigned), "mom": growth(rows, "mom"), "yoy": growth(rows, "yoy"),
+        "demand_efficiency": efficiency(rows, assigned), "mom": growth(rows, "mom", profile), "yoy": growth(rows, "yoy", profile),
         "new_products": [entrants(rows, d) for d in profile.new_product_days],
         "price_bands": bands(rows, "price", profile.price_boundaries), "review_bands": bands(rows, "reviews", profile.review_boundaries),
         "low_review": {"maximum_reviews_inclusive": profile.low_review_max, "products": len(low), "selling_products": sum(r["sales"] is not None and r["sales"] > 0 for r in low), "sales": total(low, "sales"), "sales_share": subset_share(low, rows, "sales"), "demand_efficiency": efficiency(low, [r for r in rows if r["reviews"] is not None]), "median_sales": median(low, "sales")},

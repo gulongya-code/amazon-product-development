@@ -1,5 +1,45 @@
 # Operator Market Report V0.3
 
+## P0 evidence qualification revision (2026-10-17)
+
+The additive `report-evidence-qualification-v1.0` policy supersedes permissive
+interpretation below where evidence scope/time is unconfirmed. It changes no
+Semantic/Route memberships or frozen V0.2 contract. The integrated runtime keeps
+its original Canonical bundles for report qualification; their fingerprints must
+match the bound input. No provider branches are introduced into the report.
+
+- The export adapter v1.1 declares monthly sales/revenue/growth as parent-link
+  estimates and variation sales as child observations. Unknown parent identity
+  stays unconfirmed. Current BuyBox identity is not seller transaction evidence.
+- Repeated parent groups are withheld as a whole, even if their estimates match;
+  no arbitrary representative, maximum or average is selected. Sample totals
+  include only known, unambiguous measurement subjects. Original field sums,
+  withheld group/row counts and sums remain explicitly audit-only. Missing
+  values stay missing; no child-sales substitution occurs.
+- Parent totals cannot be attributed to a representative child's Route, price,
+  reviews, age, brand or BuyBox identity without allocation evidence. Such
+  grouped estimates/shares/efficiencies are unavailable. Listing counts and
+  descriptive prices/reviews remain available; identity displays fall back to
+  listing-count order. This implementation does not infer parent homogeneity.
+- `ReportEvidenceContext` supplies the research query, sampling description and
+  actual window boundaries. Defaults are unknown. Observation time remains the
+  governed dataset date. Partial, reversed or contradictory windows are rejected;
+  time and scope restrictions enter JSON, its fingerprint and both localized
+  views. Unknown time/scope blocks trends, new-entrant interpretations and both
+  priority and low-priority direction labels. Upstream candidates are audit-only.
+- Growth retains all valid pairs and the raw reconstruction. Defaults withhold
+  interpretation for fewer than 3 pairs, any source decline <= -99%, a single
+  prior contribution > 50%, or a maximum leave-one-out movement > 20 percentage
+  points. These versioned report-warning limits are conservative diagnostics,
+  not source-error proofs or new opportunity scores. Leave-one-out values are
+  sensitivity evidence, never corrected trends. Valid near-zero denominator,
+  missing and invalid pairs are distinguished. Normal supported growth remains
+  available when time, scope and influence checks pass.
+
+Private operational regeneration preserves old output and source hashes, uses
+the same qualified presentation spec for JSON/Markdown/XLSX, and retains blank
+human-review fields. Technical verification does not complete business review.
+
 ## Ownership and compatibility
 
 This is an additive, report-owned extension of the SP-043A integrated result.

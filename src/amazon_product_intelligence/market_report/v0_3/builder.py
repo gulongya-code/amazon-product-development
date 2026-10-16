@@ -11,6 +11,7 @@ from amazon_product_intelligence.contracts import canonical_json
 
 from .config import ReportProfile
 from .metrics import aggregate, project_record, ratio, total
+from .qualification import ReportEvidenceContext, qualify_records, restrict_aggregate
 
 VERSION = "operator-market-report-v0.3"
 
@@ -32,6 +33,23 @@ class OperatorMarketReport:
         if [r["question_id"] for r in data["business_value_review"]] != list(range(1, 12)):
             raise ValueError("eleven governed business questions required")
         counts = data["coverage_counts"]
+        qualification = data.get("evidence_qualification")
+        if qualification:
+            eligible = qualification["time_qualified"] and qualification["sampling_scope_qualified"] and qualification["allocation_qualified"]
+            if any(qualification[key] is not eligible for key in ("strong_research_allowed", "trend_allowed", "new_product_allowed")):
+                raise ValueError("inconsistent evidence qualification flags")
+            if qualification["allocation_qualified"] and (qualification["parent_metric_listing_count"] or qualification["scope_unconfirmed_listing_count"]):
+                raise ValueError("unqualified measurement allocation")
+            groups = [data["market"], data["assigned_market"], *data["routes"], *data["families"], *data["mechanism_groups"]]
+            if not qualification["trend_allowed"] and any(group[key]["value"] is not None for group in groups for key in ("mom", "yoy")):
+                raise ValueError("unqualified evidence cannot publish trends")
+            if not qualification["new_product_allowed"] and any(item["products"] is not None for group in groups for item in group["new_products"]):
+                raise ValueError("unqualified evidence cannot publish new-entrant counts")
+            if not qualification["allocation_qualified"] and any(group["sales"]["value"] is not None for group in groups[1:]):
+                raise ValueError("parent estimates cannot publish child-group sales")
+        if qualification and not qualification["strong_research_allowed"]:
+            if data["decision_readiness"]["strong_route_research_allowed"] or any(e["classification"] in {"PRIORITY_RESEARCH", "LOW_PRIORITY"} for e in data["opportunity_explanations"]):
+                raise ValueError("unqualified evidence cannot authorize research directions")
         if counts["accepted"] != counts["assigned"] + counts["unclassified"] + counts["review_required"]:
             raise ValueError("coverage counts do not reconcile")
         routes = data["routes"]
@@ -96,7 +114,7 @@ def hierarchy(features, profile):
     return {"family_id": family, "mechanism_values": list(specific), "specificity": "EVIDENCE_LIMITED_FALLBACK" if fallback else "DEFINED_BY_GOVERNED_FEATURES", "fallback_label": "wall_mount_unspecified" if fallback else None, "profile_rule_index": rule_used, "compound_observation": any("," in v or "|" in v for f in features for v in f["values"])}
 
 
-def _readiness(counts, assigned, market, profile):
+def _readiness(counts, assigned, market, profile, qualification=None):
     coverage = ratio(counts["assigned"], counts["accepted"]) or 0.0
     unresolved = ratio(counts["unclassified"] + counts["review_required"], counts["accepted"]) or 0.0
     sales_coverage = assigned["sales"]["coverage"]
@@ -108,6 +126,9 @@ def _readiness(counts, assigned, market, profile):
     if unresolved > profile.high_unresolved_exposure:
         reasons.append("HIGH_UNRESOLVED_EXPOSURE")
     ready = not any(r in reasons for r in ("LIMITED_ROUTE_COVERAGE", "INSUFFICIENT_DEMAND_DATA", "HIGH_UNRESOLVED_EXPOSURE"))
+    if qualification is not None:
+        reasons.extend(qualification["reason_codes"])
+        ready = ready and qualification["strong_research_allowed"]
     return {"technical_report_status": "GENERATED_VALIDATED", "business_decision_readiness": "READY_FOR_ROUTE_COMPARISON" if ready else "LIMITED_ROUTE_COMPARISON", "codes": reasons, "assigned_coverage": coverage, "unresolved_exposure": unresolved, "assigned_sales_observation_coverage": sales_coverage, "assigned_observed_sales_share_of_market": ratio(assigned["sales"]["value"], market["sales"]["value"]), "whole_category_recommendation_allowed": False, "strong_route_research_allowed": ready, "launch_decision_ready": False, "threshold_scope": "REPORT_WARNING_POLICY_ONLY_NOT_RELEASE_GATES"}
 
 
@@ -152,10 +173,14 @@ def _explanations(data):
         readiness = data["decision_readiness"]
         facts.append({"code": "CATEGORY_ROUTE_COVERAGE", "path": "/decision_readiness/assigned_coverage", "value": readiness["assigned_coverage"], "role": "concern"})
         classification = "WATCH"
-        if eff is None or route["sales"]["coverage"] < data["report_profile"]["minimum_sales_coverage"]:
+        if not data.get("evidence_qualification", {"strong_research_allowed": True})["strong_research_allowed"]:
+            classification = "EVIDENCE_QUALIFICATION_REQUIRED"
+        elif eff is None or route["sales"]["coverage"] < data["report_profile"]["minimum_sales_coverage"]:
             classification = "INSUFFICIENT_EVIDENCE"
         elif not readiness["strong_route_research_allowed"]:
             classification = "LIMITED_COVERAGE_OBSERVATION"
+        elif any(route[key].get("raw_value") is not None and not route[key].get("interpretation_allowed", True) for key in ("mom", "yoy")):
+            classification = "GROWTH_QUALIFICATION_REQUIRED"
         elif eff > 1 and any(f["role"] == "support" and f["code"] in {"LARGEST_SALES_SHARE", "POSITIVE_MOM", "POSITIVE_YOY"} for f in facts):
             classification = "PRIORITY_RESEARCH"
         elif eff < 1 and not (new is not None and new > 1) and not any(f["code"] in {"POSITIVE_MOM", "POSITIVE_YOY"} for f in facts):
@@ -187,7 +212,7 @@ def _summary(data):
         else:
             record(question, [])
     for period in ("yoy", "mom"):
-        eligible = [(i, r) for i, r in enumerate(data["routes"]) if r[period]["value"] is not None and r[period]["coverage"] >= data["report_profile"]["minimum_sales_coverage"]]
+        eligible = [(i, r) for i, r in enumerate(data["routes"]) if r[period]["value"] is not None and r[period].get("interpretation_allowed", True) and r[period]["coverage"] >= data["report_profile"]["minimum_sales_coverage"]]
         if eligible:
             i, r = max(eligible, key=lambda t: (t[1][period]["value"], t[1]["route_id"]))
             record("STRONGEST_" + period.upper(), [f"/routes/{i}/{period}/value", f"/routes/{i}/{period}/coverage", f"/routes/{i}/sales/value"], r["route_number"])
@@ -205,17 +230,25 @@ def _summary(data):
     return summaries
 
 
-def build_operator_market_report(integrated, *, profile=None):
+def build_operator_market_report(integrated, *, profile=None, evidence_context=None):
     profile = profile or ReportProfile()
     dataset = integrated.route_input.dataset
     if profile.category is not None and profile.category != dataset.category:
         raise ValueError("report profile category mismatch")
     base = integrated.market_report.to_dict()
     lineage = base["source_lineage"]
+    bundles = getattr(integrated, "canonical_bundles", ())
+    if bundles:
+        from amazon_product_intelligence.competition_intelligence.models import bundle_fingerprint
+        if sorted(bundle_fingerprint(b) for b in bundles) != sorted(lineage["canonical_bundle_fingerprints"]):
+            raise ValueError("qualification Canonical source binding mismatch")
     for actual, expected in ((dataset.dataset_id, lineage["governed_dataset_id"]), (integrated.route_result.result_id, lineage["route_result_id"]), (integrated.semantic_result.result_id, lineage["semantic_result_id"]), (dataset.semantic_fingerprint, lineage["governed_dataset_fingerprint"]), (integrated.route_result.semantic_fingerprint, lineage["route_result_fingerprint"]), (integrated.semantic_result.semantic_fingerprint, lineage["semantic_result_fingerprint"])):
         if actual != expected:
             raise ValueError("integrated report upstream binding mismatch")
     records = {r.asin: project_record(r, observed_date=dataset.observed_date) for r in dataset.records}
+    qualification = qualify_records(integrated, records, evidence_context or ReportEvidenceContext())
+    def stats(rows, population, *, sample_total=False):
+        return restrict_aggregate(aggregate(rows, population, profile), qualification, sample_total=sample_total)
     assigned_refs = [m.listing_reference for m in integrated.route_result.memberships if m.status.value == "ASSIGNED"]
     released = sorted(integrated.route_result.routes, key=lambda r: (-r.member_count, r.route_id))
     route_refs = [ref for r in released for ref in r.member_listing_references]
@@ -231,27 +264,28 @@ def build_operator_market_report(integrated, *, profile=None):
         features = [{"dimension": f.dimension, "values": list(f.values)} for f in route.defining_features]
         h = hierarchy(features, profile)
         members = [records[x] for x in route.member_listing_references]
-        routes.append({"route_number": f"R{i+1:02d}", "route_id": route.route_id, "features": features, "hierarchy": h, "released_candidate": candidates.get(route.route_id), **aggregate(members, assigned, profile)})
+        routes.append({"route_number": f"R{i+1:02d}", "route_id": route.route_id, "features": features, "hierarchy": h, "released_candidate": candidates.get(route.route_id), "released_candidate_usage": "AUDIT_ONLY_NOT_QUALIFIED_REPORT_ADVICE", **stats(members, assigned)})
         family_records[h["family_id"]].extend(members)
         family_routes[h["family_id"]].append(route.route_id)
         mechanism = "|".join(h["mechanism_values"]) or h["fallback_label"] or "no_specific_mechanism"
         mechanism_records[(h["family_id"], mechanism)].extend(members)
         mechanism_routes[(h["family_id"], mechanism)].append(route.route_id)
-    families = [{"family_id": key, "route_ids": sorted(family_routes[key]), **aggregate(rows, assigned, profile)} for key, rows in sorted(family_records.items())]
+    families = [{"family_id": key, "route_ids": sorted(family_routes[key]), **stats(rows, assigned)} for key, rows in sorted(family_records.items())]
     families.sort(key=lambda f: (-(f["sales"]["value"] or 0), f["family_id"]))
-    mechanism_groups = [{"family_id": key[0], "mechanism_id": key[1], "route_ids": sorted(mechanism_routes[key]), **aggregate(members, family_records[key[0]], profile)} for key, members in sorted(mechanism_records.items())]
+    mechanism_groups = [{"family_id": key[0], "mechanism_id": key[1], "route_ids": sorted(mechanism_routes[key]), **stats(members, family_records[key[0]])} for key, members in sorted(mechanism_records.items())]
     data = {
         "contract_version": VERSION, "generated_at": base["generated_at"], "category": base["category"], "marketplace": base["marketplace"],
         "source_lineage": {**lineage, "v0_2_report_fingerprint": integrated.market_report.semantic_fingerprint, "report_profile_fingerprint": profile.fingerprint},
         "report_profile": profile.to_dict(), "coverage_counts": base["market_overview"]["coverage_counts"],
-        "market": aggregate(all_rows, all_rows, profile), "assigned_market": aggregate(assigned, assigned, profile),
+        "evidence_qualification": qualification,
+        "market": stats(all_rows, all_rows, sample_total=True), "assigned_market": stats(assigned, assigned),
         "routes": routes, "families": families, "mechanism_groups": mechanism_groups,
         "buyer_needs": {"availability": "UNAVAILABLE", "themes": [], "route_links": [], "reason": "NO_GOVERNED_REVIEW_OR_SEARCH_EVIDENCE"},
-        "upstream_intelligence": {"competition": base["competition"], "opportunity": base["opportunity"]},
+        "upstream_intelligence": {"usage": "AUDIT_ONLY_NOT_QUALIFIED_REPORT_ADVICE", "competition": base["competition"], "opportunity": base["opportunity"]},
         "business_value_review": [{"question_id": i, "human_verdict": None, "notes": None} for i in range(1, 12)],
         "limitations": ["OBSERVED_EXPORT_NOT_TOTAL_ADDRESSABLE_MARKET", "THIRD_PARTY_ESTIMATES", "MISSING_NOT_ZERO", "ASSIGNED_SUBSET_ONLY", "UNASSIGNED_MEMBERSHIP_NOT_INFERRED", "BUYER_NEED_DATA_MISSING", "MARGIN_DATA_UNAVAILABLE", "NO_GOVERNED_SUCCESS_DEFINITION", "NOT_A_LAUNCH_RECOMMENDATION"],
     }
-    data["decision_readiness"] = _readiness(data["coverage_counts"], data["assigned_market"], data["market"], profile)
+    data["decision_readiness"] = _readiness(data["coverage_counts"], data["assigned_market"], data["market"], profile, qualification)
     data["opportunity_explanations"] = _explanations(data)
     data["executive_summary"] = _summary(data)
     data["semantic_fingerprint"] = sha256(canonical_json(data).encode()).hexdigest()

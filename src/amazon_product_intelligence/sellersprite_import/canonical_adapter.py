@@ -62,8 +62,12 @@ from .models import (
 )
 
 
-SELLERSPRITE_CANONICAL_MAPPING_VERSION = "sellersprite-governed-canonical-v1.0"
-SELLERSPRITE_CANONICAL_ADAPTER_VERSION = "seller-export-canonical-adapter-v1.0"
+SELLERSPRITE_CANONICAL_MAPPING_VERSION = "sellersprite-governed-canonical-v1.1"
+SELLERSPRITE_CANONICAL_ADAPTER_VERSION = "seller-export-canonical-adapter-v1.1"
+
+# Provider documentation: https://open.sellersprite.com/api/1
+# Monthly estimates/growth describe the parent link, not the selected variant.
+_PARENT_METRICS = frozenset({"estimated_monthly_sales", "estimated_monthly_revenue", "sales_mom_growth", "sales_yoy_growth"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,6 +288,7 @@ def build_sellersprite_canonical_evidence(
                     mapping_version=SELLERSPRITE_CANONICAL_MAPPING_VERSION,
                 ))
             identity = {
+                "mapping_version": SELLERSPRITE_CANONICAL_MAPPING_VERSION,
                 "record": record.record_fingerprint,
                 "kind": kind.value,
                 "name": name,
@@ -295,10 +300,22 @@ def build_sellersprite_canonical_evidence(
             }
             observation_id = deterministic_id("sellersprite-canonical-observation", identity)
             evidence_type = _evidence_type(field)
+            observation_scope = scope
+            if name in _PARENT_METRICS:
+                parent = fields["父ASIN"]
+                known = parent.import_status is ImportValueStatus.NORMALIZED and parent.value is not None
+                observation_scope = Scope(
+                    scope_type=ScopeType.PARENT_ASIN,
+                    scope_status=ScopeStatus.CONFIRMED if known else ScopeStatus.SCOPE_UNCONFIRMED,
+                    scope_subject_id=product_id(dataset.marketplace, str(parent.value)) if known else None,
+                )
+            elif name == "estimated_variation_sales":
+                observation_scope = Scope(scope_type=ScopeType.CHILD_ASIN, scope_status=ScopeStatus.CONFIRMED, scope_subject_id=subject.subject_id)
             common = dict(
                 semantic_observation_id=deterministic_id(
                     "sellersprite-semantic-observation",
                     {
+                        "mapping_version": SELLERSPRITE_CANONICAL_MAPPING_VERSION,
                         "marketplace": dataset.marketplace,
                         "asin": record.asin,
                         "kind": kind.value,
@@ -334,7 +351,7 @@ def build_sellersprite_canonical_evidence(
                         else SemanticStatus.SEMANTICS_UNCONFIRMED
                     ),
                 ),
-                scope=scope,
+                scope=observation_scope,
                 time=_time(
                     dataset,
                     monthly=name in {
@@ -365,7 +382,7 @@ def build_sellersprite_canonical_evidence(
                     observation_kind=kind,
                     dimension=name,
                     fact_group=fact_group or FactGroup.OTHER,
-                    provider_semantic=None,
+                    provider_semantic="BUYBOX_SELLER_SNAPSHOT" if name == "seller" else None,
                     **common,
                 ))
             else:
@@ -373,7 +390,7 @@ def build_sellersprite_canonical_evidence(
                     observation_kind=kind,
                     metric=name,
                     measurement_type=evidence_type,
-                    metric_semantic=None,
+                    metric_semantic="PARENT_LINK_ESTIMATE" if name in _PARENT_METRICS else None,
                     currency=(
                         unit.unit_code
                         if unit is not None and unit.dimension == "CURRENCY"

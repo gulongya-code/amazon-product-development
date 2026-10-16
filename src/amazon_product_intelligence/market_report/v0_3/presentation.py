@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from . import i18n
 
 PERCENT = "0.0%"
@@ -11,7 +12,13 @@ COUNT = "#,##0"
 
 def workbook_spec(report, locale="zh-CN"):
     data = report.to_dict()
-    t = lambda k: i18n.text(k, locale)
+    qualification = data.get("evidence_qualification")
+    if qualification is None:
+        raise ValueError("legacy report lacks evidence qualification; regenerate before delivery")
+    def t(key):
+        if qualification and qualification["metric_grain"] == "PARENT_ASIN" and key in {"sales", "revenue"}:
+            return {"sales": ("未重复父体月销量估计（件）", "Non-repeated parent monthly sales estimate (units)"), "revenue": ("未重复父体月销售额估计（美元）", "Non-repeated parent monthly revenue estimate (USD)")}[key][locale == "en-US"]
+        return i18n.text(key, locale)
     rl = lambda r: i18n.route_label(r, locale)
     fl = lambda f: i18n.label(f, locale)
     na = t("UNAVAILABLE")
@@ -133,7 +140,40 @@ def workbook_spec(report, locale="zh-CN"):
     table(audit, ["metric", "value"], [[k, str(v)] for k, v in data["source_lineage"].items()] + [["report_fingerprint", data["semantic_fingerprint"]], ["report_contract", data["contract_version"]]], widths=[46, 110])
     table(audit, ["route", "definition", "basis"], [[rl(r), "; ".join(f["dimension"]+"="+",".join(f["values"]) for f in r["features"]), r["route_id"]] for r in data["routes"]], widths=[50, 85, 85])
     table(audit, ["route", "basis", "value"], [[e["route_number"], f["code"] + " " + f["path"], str(f["value"])] for e in data["opportunity_explanations"] for f in e["facts"]], widths=[15, 100, 35])
-    return {"contract_version": "operator-workbook-spec-v0.3", "locale": locale, "report_fingerprint": data["semantic_fingerprint"], "category": fl(data["category"]), "generated_at": data["generated_at"], "sheets": sheets}
+    if qualification:
+        context_rows = [[t("input_query"), qualification["research_query"] or na]]
+        context_rows += [[t(k), qualification[k] if qualification[k] is not None else na] for k in ("observed_date", "period_start", "period_end", "sampling_description", "metric_grain", "parent_group_count", "duplicate_parent_group_count", "duplicate_parent_listing_count", "scope_unconfirmed_listing_count")]
+        for row in context_rows:
+            if row[0] == t("metric_grain"):
+                row[1] = {"PARENT_ASIN": ("父体估计；未分配到子体分组", "Parent estimates; no child-facet allocation"), "ASIN": ("商品级", "Listing level"), "MIXED": ("混合粒度；不汇总", "Mixed scope; no combined total"), "UNCONFIRMED": ("未确认", "Unconfirmed")}[qualification["metric_grain"]][locale == "en-US"]
+        summary["tables"][0]["rows"][:0] = context_rows
+        reasons = " ".join(t(code) for code in qualification["reason_codes"])
+        for item in sheets:
+            # Summary/opportunity headlines already contain the readiness reasons.
+            prefix = "" if item["key"] in {"summary", "opportunities"} else reasons + " "
+            note = item["note"]
+            if item["key"] in {"brands", "sellers"} and not qualification["allocation_qualified"]:
+                note = ("按关联商品数排序；销量归属未确认，销量份额不可用。BuyBox归属不代表实际成交份额；未知身份单列。", "Ranked by linked listing count; sales attribution and sales shares are unavailable. BuyBox linkage is not actual transaction share; unknown identities remain separate.")[locale == "en-US"]
+            item["note"] = t("qualification_note") + " " + prefix + note
+        for row in market["tables"][0]["rows"]:
+            row[2] = ("商品数按接收的ASIN行计数，不等于独立父体数。", "Listings count accepted ASIN rows, not independent parents.")[locale == "en-US"] if row[0] in {t(k) for k in data["coverage_counts"]} else ("按有值商品行统计；父体估计仅汇总未重复且粒度明确的记录。", "Observed listing rows; parent estimates sum only non-repeated, confirmed-scope records.")[locale == "en-US"]
+        counts = data["coverage_counts"]
+        market["tables"][1]["rows"][0][2] = (f"已分配商品 {counts['assigned']} / 全部接收商品 {counts['accepted']}。", f"Assigned listings {counts['assigned']} / accepted listings {counts['accepted']}.")[locale == "en-US"]
+        market["tables"][1]["rows"][1][2] = (f"（未分类 {counts['unclassified']} + 待复核 {counts['review_required']}）/ 全部接收商品 {counts['accepted']}。", f"(Unclassified {counts['unclassified']} + review-required {counts['review_required']}) / accepted listings {counts['accepted']}.")[locale == "en-US"]
+        market["tables"][1]["rows"][2][2] = (("已分配路线已知估计销量 / 全样本已知估计销量；不是全市场覆盖率。", "Known assigned sales / known sample sales; not whole-market coverage.") if qualification["allocation_qualified"] else ("父体或未知粒度未能分配到路线，此比率不可用。", "Parent or unknown scope cannot be allocated to Routes; this ratio is unavailable."))[locale == "en-US"]
+        # These audit values are never used by summary or conclusion selection.
+        growth_rows = []
+        for name, group in [(t("market"), data["market"]), *[(rl(r), r) for r in data["routes"]]]:
+            for period in ("mom", "yoy"):
+                value = group[period]
+                growth_rows.append([name, t(period), value.get("raw_value"), value["included_count"], value.get("largest_prior_contribution_share"), value.get("leave_one_out_value_audit_only"), None if value.get("maximum_leave_one_out_delta") is None else value["maximum_leave_one_out_delta"] * 100, " ".join(t(code) for code in value.get("qualification_reasons", [])) or t("AVAILABLE")])
+        table(audit, ["route", "period", "raw_growth", "valid_pairs", "prior_influence", "loo_growth", "loo_delta", "restrictions"], growth_rows, [None, None, PERCENT, COUNT, PERCENT, PERCENT, NUMBER, None], title=t("growth_audit"), widths=[46, 22, 24, 14, 24, 28, 28, 80])
+        table(risks, ["metric", "value"], [[t(k), qualification[k]] for k in ("parent_group_count", "duplicate_parent_group_count", "duplicate_parent_listing_count", "scope_unconfirmed_listing_count")], [None, COUNT], widths=[46, 24])
+        table(audit, ["metric", "value"], [["evidence_qualification", json.dumps(qualification, ensure_ascii=False, sort_keys=True)], ["growth_policy", json.dumps({k:v for k,v in data["report_profile"].items() if k.startswith("growth_")}, sort_keys=True)]], widths=[46, 110])
+    category = fl(data["category"]) + " / " + data["marketplace"]
+    if qualification:
+        category += " / " + (qualification["observed_date"] or ("观察日期未知", "Observation date unknown")[locale == "en-US"])
+    return {"contract_version": "operator-workbook-spec-v0.3", "locale": locale, "report_fingerprint": data["semantic_fingerprint"], "category": category, "generated_at": data["generated_at"], "sheets": sheets}
 
 
 def markdown(report, locale="zh-CN"):

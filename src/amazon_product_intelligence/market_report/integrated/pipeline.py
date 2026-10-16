@@ -51,6 +51,7 @@ class IntegratedMarketIntelligenceResult:
     competition_result: CompetitionIntelligenceSnapshotV0_1
     opportunity_result: OpportunityIntelligenceSnapshotV0_1
     market_report: IntegratedMarketReport
+    canonical_bundles: tuple[CanonicalEvidenceBundle, ...] = ()
     pipeline_version: str = INTEGRATED_MARKET_REPORT_PIPELINE_VERSION
 
 
@@ -103,6 +104,7 @@ def run_final_market_intelligence(
         competition_result=competition,
         opportunity_result=opportunity,
         market_report=report,
+        canonical_bundles=canonical_bundles,
     )
 
 
