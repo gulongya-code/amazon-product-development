@@ -1,9 +1,9 @@
 # Market × PDS 项目需求与协作基线 V0.1
 
-- 日期：2026-10-16（北京时间）
+- 初版日期：2026-10-16；协作机制修订：2026-10-17（北京时间）
 - 状态：CURRENT PROJECT REQUIREMENT / PDS COLLABORATION BASELINE
 - 适用仓库：gulongya-code/amazon-product-development
-- 上位跨项目需求：[PDS / ADS / KWS 三系统需求与责任边界 V1](https://github.com/gulongya-code/daily_data_auto_entry/blob/main/docs/coordination/PDS_ADS_KWS_REQUIREMENTS_V1.md)，当前版本 1.2
+- 上位跨项目需求：[PDS / ADS / KWS 三系统需求与责任边界 V1](https://github.com/gulongya-code/daily_data_auto_entry/blob/main/docs/coordination/PDS_ADS_KWS_REQUIREMENTS_V1.md)，当前版本 1.3
 - Market 专项权威：[亚马逊智能选品系统——产品需求与核心架构说明 V0.2](亚马逊智能选品系统_产品需求与核心架构说明_V0.2.md)、[Market Report Reference Template Requirements V0.1](MARKET_REPORT_REFERENCE_TEMPLATE_REQUIREMENTS_V0.1.md)、[Market Report V0.2 Contract Design V0.1](MARKET_REPORT_V0_2_CONTRACT_DESIGN_V0.1.md)、[Operator Market Report V0.3](OPERATOR_MARKET_REPORT_V0_3.md)
 
 > 本文只定义 Market 与 PDS 的项目级职责、输入、输出、协作边界、验收方式和当前开发优先级。它不替代 Market Report 的冻结合同、既有 Provider/证据模型或历史任务记录。
@@ -18,24 +18,27 @@ Market 也不应被压缩成单纯的数据接口。它保留长期的陌生市�
 
 ## 2. 权威层级与新旧需求关系
 
-1. PDS 共同需求 V1.2：负责跨项目职责、协作关系和当前优先级。
+1. PDS 共同需求 V1.3：负责跨项目职责、协作关系和当前优先级。
 2. 本文：负责 Market 与 PDS 的项目级协作。
 3. Market V0.2 产品需求、Market Report V0.1/V0.2/V0.3 合同：负责 Market 专项业务和数据/报告边界。
 4. 已批准的窄 TASK：负责一次具体实现和验收。
 5. Git、代码、测试和真实运行记录：证明实际实现状态。
 6. 历史 SP-004、SP-039、SP-041、SP-043 等路线和任务：用于追溯，不自动选择下一任务。
 
-新需求不删除已有 Market Report 合同，也不把历史技术实现重新判为未完成。当前变化主要是把“跨项目开发优先级”从旧的功能路线改为“由明确业务问题触发”。
+新需求不删除已有 Market Report 合同，也不把历史技术实现重新判为未完成。当前机制是以具体专业问题/缺陷或跨项目消费需求选择窄任务，而非由旧的阶段顺序或 PDS 自动派单驱动。
 
 ## 3. 当前跨项目开发优先级
 
 ### 3.1 当前顺序
 
-当前首个共享开发切片是 PDS 阶段 B 的只读月度 SKU 经营计划 B01：TASK_PDS_OPERATING_V1_PHASE_B_READONLY_MONTHLY_PLAN_001.md。
+PDS 阶段 B 的只读月度 SKU 经营计划 B01：TASK_PDS_OPERATING_V1_PHASE_B_READONLY_MONTHLY_PLAN_001.md，仍为 PDS 当前经营主线；Market 不需要等待 B01 才能开展自身专业任务。
 
-Market 可以与 ADS、KWS 并行，但只有在存在明确消费方、明确业务问题和可核对的真实/适用验收样本时，才选择新的 Market 任务。
+Market 可沿两条轨道独立规划或协作：
 
-无明确研究问题时，不因为旧的 SP-004、SP-039A/SP-039B、V0.2 正式开发顺序或某个“下一阶段”描述自动恢复开发。
+- **自主专业任务**：基于已确认的 Market 报告缺陷、证据/合同正确性、供给/竞争分析质量、复现问题及具体验证价值，独立选择最小研究或修复任务；不要求 PDS 消费方或 PDS B01 冻结样本。需具备明确问题、研究/数据范围、来源/适用样本或隔离夹具、验收与停止条件。
+- **PDS/其他项目消费任务**：按消费方的具体经营/广告/关键词研究问题选择现有证据及最小交接适配；须核对对象、来源版本、目标、消费入口、可用样本与验收边界。
+
+无明确专业问题或证据时不因为旧 SP-004、SP-039A/SP-039B、V0.2 顺序或某个“下一阶段”自动恢复开发。自主规划不解除 2026-10-15 开发暂停或自动授权代码、Provider、付费研究、生产运行。
 
 ### 3.2 现有能力的处理
 
@@ -174,18 +177,16 @@ Codex 完成当前批准 TASK 后停止；未通过业务验收不得自动进�
 
 ## 13. 进入新 Market 任务的最小条件
 
-1. 明确消费方：PDS、运营人员或明确的产品开发任务；
-2. 明确研究问题；
-3. 明确研究对象和范围；
-4. 存在可核对的验收样本或可用证据；
-5. 明确结果将支持什么决定；
-6. 明确工程和运营验收标准；
-7. 明确停止条件。
+1. 先区分自主专业修复/研究任务与 PDS/其他项目消费任务；
+2. 自主任务说明 Market 内部问题、研究对象与范围、来源/测试样本、现有证据、最小改动与可核对的技术/使用验收；无需 PDS 消费样本；
+3. 跨项目交接说明实际消费方、业务问题、商品/市场范围、数据窗口、结果来源、消费入口及使用验收；消费不足仅限制该交接；
+4. 两类任务均须有授权范围、费用/风险边界、停止条件和明确不做项。
 
-没有明确消费方或业务问题时，保持当前状态，不沿旧 roadmap 继续开发。
+没有可证实的问题或使用价值时，不沿旧 roadmap 自动开发；候选计划不等于实施授权。
 
 ## 14. 变更记录
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | V0.1 | 2026-10-16 | 建立 Market 项目级 PDS 协作基线；吸收需求方向/测试边界、KWS/ADS 协作、预算风险边界及旧 SP-004/SP-039/V0.2 开发顺序的当前优先级覆盖。 |
+| V0.1 协作机制修订 | 2026-10-17 | 采用 PDS 共同需求 V1.3 双轨协作：Market 可自主推进具体验证问题，跨项目交接另核实际消费需求；暂停、授权与旧任务历史保持。 |
